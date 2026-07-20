@@ -1,0 +1,49 @@
+[versions]
+agp = "9.3.0"
+kotlin = "2.2.10"
+
+# --- Proven ML stack, versions matched exactly to BhashaBridge_v3.4.1 ---
+# Do not bump ad hoc. ORT bump to 1.22.x is Phase 7, gated on a benchmark.
+onnxruntime = "1.17.1"
+vosk = "0.3.47"
+coroutines = "1.7.3"
+
+# --- AndroidX / Material, matched to v3.4.1 (all newer than the V4 skeleton defaults) ---
+coreKtx = "1.12.0"
+appcompat = "1.6.1"
+material = "1.11.0"
+
+# --- Kept from the V4 skeleton / added for the Phase 6 lifecycle work ---
+activityKtx = "1.8.0"
+constraintlayout = "2.1.4"
+drawerlayout = "1.2.0"
+lifecycle = "2.7.0"
+
+junit = "4.13.2"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+
+[libraries]
+# ML / inference
+onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
+vosk-android = { group = "com.alphacephei", name = "vosk-android", version.ref = "vosk" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# AndroidX
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityKtx" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+androidx-drawerlayout = { group = "androidx.drawerlayout", name = "drawerlayout", version.ref = "drawerlayout" }
+androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+
+# Test
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

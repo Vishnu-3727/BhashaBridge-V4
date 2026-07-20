@@ -1,0 +1,35 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Model binaries — ARCHITECTURE_RULES.md R14.5.
+# ~636 MB of ONNX graphs, SentencePiece models and vocab dictionaries. Committing these once
+# puts them in history permanently; removing them later requires rewriting every downstream clone.
+*.onnx
+model.SRC*
+model.TGT*
+dict.*.json
+/app/src/main/assets/model/
+/app/src/main/assets/model-hi/
+
+# Python virtualenvs for the ONNX export pipeline. V3.4.1 committed one, numpy headers and all.
+/model_pipeline/**/venv/
+/model_pipeline/**/*_env/
+__pycache__/
+*.pyc
+
+# Benchmark output — raw runs are large and machine-specific. Frozen baselines are committed
+# deliberately, by path, not by accident.
+/bench/results/*/raw/
