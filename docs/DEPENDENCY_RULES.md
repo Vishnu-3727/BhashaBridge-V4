@@ -34,11 +34,13 @@ Arrows point in the only permitted direction. There is no arrow back up, and no 
 
 | From ↓ / May reference → | ui | speech | mt | root | bench |
 |---|:--:|:--:|:--:|:--:|:--:|
-| **ui** | — | ✅ | ✅ | ✅ | ❌ |
-| **speech** | ❌ | — | ❌ | ✅ | ❌ |
-| **mt** | ❌ | ❌ | — | ✅ | ❌ |
+| **ui** | — | ✅ | ✅ | ✅ | ⚠️² |
+| **speech** | ❌ | — | ❌ | ✅ | ⚠️² |
+| **mt** | ❌ | ❌ | — | ✅ | ⚠️² |
 | **root** | ❌ | ✅¹ | ✅¹ | — | ❌ |
 | **bench** | ✅ | ✅ | ✅ | ✅ | — |
+
+² `bench/Metrics` only, never any other type in `bench/`. See D4 as amended.
 
 ¹ `BhashaBridgeApp` constructs and releases the native resources of `speech/` and `mt/` — that is its
 one job as process-scoped owner (`ARCHITECTURE_RULES.md` R4.4). It calls constructors and `release()`.
@@ -91,16 +93,37 @@ two-value enum — an entire dependency edge bought to share a type with no beha
 root instead, which both may depend on. This is what the root package is *for*, and it is the reason
 the three-file cap exists to keep it from becoming anything else.
 
-### D4 — `bench/` observes. Nothing observes `bench/`.
+### D4 — `bench/` observes. Nothing observes `bench/` except through `Metrics`.
 
-`bench/` may read any subsystem. No subsystem may import from `bench/`.
+> **Amended in Phase 2** under R15. The original wording is preserved at the end of this section.
 
-**The test:** delete `bench/` and the app still compiles and behaves identically. If it does not,
-measurement has leaked into function, and every benchmark number afterwards is measuring the
-instrument as much as the app (`ARCHITECTURE_RULES.md` R13.3).
+`bench/` may read any subsystem. A subsystem may import **`bench/Metrics` only**, and only through
+its inline, `BuildConfig.DEBUG`-guarded API. No subsystem may reference anything else in `bench/`.
 
-Metrics are emitted through a small interface owned by the subsystem, no-op in release — never by a
-subsystem calling into `bench/`.
+**The test:** in a release build, no instruction from `bench/` executes.
+
+This holds by construction rather than by discipline. `Metrics`' entry points are `inline` and
+guarded by a compile-time-constant `false`, so in release the call, its arguments, and any string
+built inside are eliminated at the call site and the object is never class-loaded. Measurement
+cannot perturb what it measures if it is not there (`ARCHITECTURE_RULES.md` R13.3).
+
+**What changed and why.** The original test was *"delete `bench/` and the app still compiles and
+behaves identically"*, and the original rule required each subsystem to declare its own metrics
+interface for `bench/` to implement. Phase 2 showed the test was wrong, not merely inconvenient:
+
+- The **intent** was always "measurement must not perturb function". A direct call to an
+  eliminated-in-release API satisfies that intent completely. Compilation was a proxy for the real
+  property, and a bad one.
+- The **original mechanism cost more than it bought**: one interface per subsystem, each with
+  exactly one implementation — banned by R7.4, and the kind of indirection R0 exists to stop.
+  It would have produced four interfaces to avoid one import.
+
+The behavioural guarantee is unchanged and is now stated directly instead of through a proxy.
+
+> **Original wording (superseded):** *"`bench/` may read any subsystem. No subsystem may import from
+> `bench/`. The test: delete `bench/` and the app still compiles and behaves identically. Metrics
+> are emitted through a small interface owned by the subsystem, no-op in release — never by a
+> subsystem calling into `bench/`."*
 
 ---
 
