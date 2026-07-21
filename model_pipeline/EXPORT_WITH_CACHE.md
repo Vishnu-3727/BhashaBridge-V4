@@ -19,6 +19,7 @@ benchmark. That is Phase 6B+.
 | Cache plumbing (flatten/unflatten/shapes) | **Verified — green**, `verify_cache.py --selfcheck`, 9/9 |
 | Verified ONNX models produced | **DONE** — `encoder/decoder_init/decoder_step.onnx` (fp32), en_hi |
 | Logits/translation match uncached | **Verified — green**, `--onnx-dir` gate **7/7**, max_abs_diff **9.06e-06** |
+| INT8 quantized graphs (Phase 6C) | **DONE** — `onnx_cached_int8/*_int8.onnx`, 472 MB, gate **7/7**, tokens identical, max_abs_diff **0.448** (see [INT8 Quantization](#int8-quantization-phase-6c)) |
 
 Ran end-to-end on 2026-07-21 after the account was authenticated (HF token + accepted
 IndicTrans2 licence). Both original walls are down: gating (token) and stack (installed
@@ -204,3 +205,88 @@ eager, (3) `decoder_init` output valid, (4) `decoder_step` accepts prior cache,
   changes that reuse rule, checks 6–7 catch the drift.
 - **No Android wiring.** `MtEngine.logitsFor` still drives the uncached graph.
   Swapping in init+step is Phase 6B and deliberately untouched here.
+
+---
+
+# INT8 Quantization (Phase 6C)
+
+Converts the fp32 cached graphs to INT8, for a fair-precision baseline against the
+uncached int8 production runtime. Python only — `quantize_cached.py`. No Android.
+
+## Method
+
+ONNX Runtime **dynamic** quantization — `quantize_dynamic(..., weight_type=QuantType.QInt8)`
+— the same approach V3 used for its production graphs (V3 shipped `*_int8.onnx` with no
+committed script; this reproduces both the naming and the size). Dynamic means
+weights are quantized to INT8 offline and activations are quantized at run time from
+their observed range, so **no calibration dataset** is needed. optimum is not involved
+(no IndicTrans config); this is a pure ONNX graph transform, model- and network-free.
+
+Confirmation it is V3's method: the produced `encoder_int8.onnx` is **74.9 MB**, matching
+V3's `encoder_model_int8.onnx` (74.9 MB) almost byte-for-byte, and `decoder_init_int8.onnx`
+is 203.6 MB, matching V3's uncached `decoder_model_int8.onnx` (203 MB).
+
+## Operator changes
+
+Dynamic quantization rewrites weight-bearing `MatMul`s and leaves the rest of the graph
+alone. Measured on `decoder_step` (fp32 → int8):
+
+| op | fp32 | int8 |
+|---|---|---|
+| `MatMul` | 217 | 72 (the small / non-weight ones) |
+| `MatMulInteger` | 0 | 145 |
+| `DynamicQuantizeLinear` | 0 | 109 |
+| `DequantizeLinear` | 0 | 1 |
+| `Cast` | 8 | 153 |
+| `Mul` | 167 | 457 |
+
+145 of 217 `MatMul`s became INT8 `MatMulInteger`, each fed by a `DynamicQuantizeLinear`
+(runtime activation quantization) with the extra `Mul`/`Cast` for dequant scaling. The
+KV-cache tensors stay float; **graph inputs and outputs are untouched.**
+
+## Model sizes
+
+| graph | fp32 | int8 | ratio |
+|---|---|---|---|
+| encoder | 294.1 MB | 74.9 MB | 3.93× |
+| decoder_init | 806.4 MB | 203.6 MB | 3.96× |
+| decoder_step | 768.6 MB | 194.0 MB | 3.96× |
+| **total** | **1869 MB** | **472 MB** | **3.96×** |
+
+## Signatures — unchanged
+
+Verified equal to fp32 for all three: encoder (2 in / 1 out), decoder_init (3 / 73),
+decoder_step (74 / 73). The Phase 6B runtime and the cache ordering need no change.
+
+## Parity results
+
+`verify_cache.py --onnx-dir onnx_cached_int8 --atol 1.0` → **7/7 PASS**.
+
+- **model loads / cache executes / init & step valid / cache count & shapes** — all pass,
+  identical to fp32 (the cache layout is precision-independent).
+- **logits numerically close:** `max_abs_diff = 4.48e-01` (int8 decoder quant error vs the
+  fp32 torch reference, encoder held fp32 on both sides to isolate the decoder). Far larger
+  than fp32's 9.06e-06 — expected for int8, hence `--atol 1.0`, not the fp32 `1e-3`.
+- **greedy token sequence identical.** Despite the 0.45 logit shift, argmax is unchanged —
+  token identity holds. This is the decisive parity check.
+
+Same synthetic-input caveat as the fp32 gate: the probe is an all-ones source, so tokens
+are a degenerate confident mode; it proves cached-int8 == fp32-reference argmax, not
+translation quality. Real-sentence int8 parity is confirmed the Phase 6B way (swap the
+int8 assets in, on-device) and is not repeated here (Phase 6C makes no Android changes).
+
+## Output / reproduce
+
+```bash
+python quantize_cached.py --src onnx_cached --out onnx_cached_int8
+#   -> onnx_cached_int8/{encoder_int8,decoder_init_int8,decoder_step_int8}.onnx  (gitignored)
+python verify_cache.py --onnx-dir onnx_cached_int8 --atol 1.0
+#   -> 7/7 PASS, max_abs_diff 0.448, greedy tokens identical
+```
+
+## Still open
+
+- **fp32 still deployed.** Phase 6B shipped the fp32 cached graphs to the device; wiring
+  these int8 graphs in (and the on-device int8 parity + benchmark) is Phase 6B-swap / 6D,
+  not 6C. 6C stops at verified int8 graphs.
+- **EN→HI only.** HI→EN cached fp32 graphs don't exist yet, so nothing to quantize there.

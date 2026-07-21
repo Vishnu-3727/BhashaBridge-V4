@@ -187,8 +187,23 @@ def _greedy_onnx_cached(sessions, enc_hidden, enc_mask, num_layers, bos, eos, ma
     return seq, logits_trace
 
 
-def full_gate(direction: str, onnx_dir: str) -> bool:
-    """Run the seven Phase 6A checks. Returns True only if all pass."""
+def _find(onnx_dir: str, prefix: str) -> str:
+    """The one .onnx in onnx_dir whose name starts with prefix (fp32 or _int8)."""
+    import glob
+    import os
+    hits = sorted(glob.glob(os.path.join(onnx_dir, prefix + "*.onnx")))
+    if not hits:
+        raise FileNotFoundError(f"no {prefix}*.onnx in {onnx_dir}")
+    return hits[0]
+
+
+def full_gate(direction: str, onnx_dir: str, atol: float = LOGIT_ATOL) -> bool:
+    """Run the seven Phase 6A checks. Returns True only if all pass.
+
+    `atol` is the check-6 logit tolerance: keep the fp32 default for the fp32 graphs,
+    raise it for int8 (dynamic quantization shifts logits far more than fp32 export).
+    Check 7 (token identity) is the decisive parity gate regardless of `atol`.
+    """
     import os
     import numpy as np
     import onnxruntime as ort
@@ -228,9 +243,10 @@ def full_gate(direction: str, onnx_dir: str) -> bool:
         check(f"2. use_cache=True executes ({e})", False)
         return False
 
-    # ONNX sessions
-    init = ort.InferenceSession(os.path.join(onnx_dir, "decoder_init.onnx"))
-    step = ort.InferenceSession(os.path.join(onnx_dir, "decoder_step.onnx"))
+    # ONNX sessions — discover by prefix so fp32 (decoder_init.onnx) and int8
+    # (decoder_init_int8.onnx) dirs both work with no rename.
+    init = ort.InferenceSession(_find(onnx_dir, "decoder_init"))
+    step = ort.InferenceSession(_find(onnx_dir, "decoder_step"))
 
     # (3) decoder_init output valid
     init_out = init.run(None, {
@@ -271,8 +287,8 @@ def full_gate(direction: str, onnx_dir: str) -> bool:
     max_diff = max(
         float((ref_logits[i] - onnx_logits[i]).abs().max()) for i in range(n)
     ) if n else float("inf")
-    check(f"6. cached logits match uncached (max_abs_diff={max_diff:.2e} <= {LOGIT_ATOL})",
-          max_diff <= LOGIT_ATOL)
+    check(f"6. cached logits match uncached (max_abs_diff={max_diff:.2e} <= {atol})",
+          max_diff <= atol)
 
     # (7) translations identical
     ref_seq = ref_ids[0].tolist()
@@ -289,12 +305,14 @@ def main() -> int:
                     help="model-free plumbing check (torch only)")
     ap.add_argument("--onnx-dir", help="dir with encoder/decoder_init/decoder_step .onnx")
     ap.add_argument("--direction", choices=MODEL_NAMES, default="en_hi")
+    ap.add_argument("--atol", type=float, default=LOGIT_ATOL,
+                    help=f"check-6 logit tolerance (default {LOGIT_ATOL}; raise for int8)")
     args = ap.parse_args()
 
     if args.selfcheck:
         return 0 if selfcheck() else 1
     if args.onnx_dir:
-        return 0 if full_gate(args.direction, args.onnx_dir) else 1
+        return 0 if full_gate(args.direction, args.onnx_dir, args.atol) else 1
     ap.error("pass --selfcheck or --onnx-dir")
 
 
