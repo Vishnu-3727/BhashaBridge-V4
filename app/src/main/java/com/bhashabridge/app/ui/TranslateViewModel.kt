@@ -253,6 +253,23 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
         translate(AsrCorrector.correct(text, direction), final = false)
     }
 
+    // ── Emergency phrases ────────────────────────────────────────────────────────────────────
+
+    /**
+     * Shows a curated phrase as if it had been translated. No engine call: the pair is
+     * human-translated, which is the entire point of the feature.
+     */
+    fun showEmergencyPhrase(phrase: EmergencyPhrases.Phrase) {
+        translation?.cancel()
+        _transcript.tryEmit(phrase.english)
+        _state.update { it.copy(output = Output.Final(phrase.hindi)) }
+    }
+
+    /** Emergency phrases are always spoken in Hindi — the curated pairs only run that way. */
+    fun speakEmergencyPhrase(hindi: String) {
+        tts.speak(hindi, Direction.EN_TO_HI)
+    }
+
     private fun onTtsReady() {
         _state.update { it.copy(hindiVoiceMissing = !tts.hindiVoiceAvailable) }
     }

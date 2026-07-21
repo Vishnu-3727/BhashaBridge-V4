@@ -34,5 +34,10 @@
     <string name="mic_unavailable">वाक् मॉडल उपलब्ध नहीं</string>
     <string name="tts_voice_missing">हिन्दी आवाज़ इंस्टॉल नहीं है — ठीक करने के लिए टैप करें</string>
 
+    <string name="btn_emergency">🆘  आपातकालीन वाक्य</string>
+    <string name="emergency_title">🆘  आपातकालीन वाक्य</string>
+    <string name="btn_close">✕  बंद करें</string>
+    <string name="btn_speak_again">🔊  फिर से बोलें</string>
+
     <string name="error_direction_unavailable">इस बिल्ड में हिन्दी → अंग्रेज़ी मॉडल उपलब्ध नहीं है</string>
 </resources>

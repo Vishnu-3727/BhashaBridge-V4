@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The emergency sheet: a full-screen overlay over the translation screen, as in v3.4.1. Included
+  by activity_main.xml rather than inlined, so neither file has to be read to understand the other.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/emergencyOverlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#EE0D0D0D"
+    android:clickable="true"
+    android:elevation="20dp"
+    android:focusable="true"
+    android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="@color/emergency_bg"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/emergency_title"
+                android:textColor="@color/emergency"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- TextButton style, not android:background="@null": under a MaterialComponents theme
+                 a plain <Button> is inflated as a MaterialButton, which ignores android:background
+                 and would draw a filled accent pill here. -->
+            <Button
+                android:id="@+id/emergencyClose"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="@string/btn_close"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/categoryTabs"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="@color/emergency_bg_dark"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/phraseList"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@color/bg_primary"
+            android:clipToPadding="false"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/selectedPhrasePanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/emergency_bg"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/selectedEnglish"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:fontFamily="sans-serif"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/selectedHindi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/emergency_light"
+                android:textSize="22sp" />
+
+            <Button
+                android:id="@+id/speakPhraseBtn"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_emergency_btn_solid"
+                app:backgroundTint="@null"
+                android:text="@string/btn_speak_again"
+                android:textColor="@color/accent_on"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

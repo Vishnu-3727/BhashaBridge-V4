@@ -49,6 +49,12 @@
     <string name="mic_unavailable">Speech model unavailable</string>
     <string name="tts_voice_missing">Hindi voice not installed — tap to fix</string>
 
+    <!-- Emergency phrases. Curated pairs, no model involved — see ui/EmergencyPhrases.kt. -->
+    <string name="btn_emergency">🆘  EMERGENCY PHRASES</string>
+    <string name="emergency_title">🆘  Emergency Phrases</string>
+    <string name="btn_close">✕  Close</string>
+    <string name="btn_speak_again">🔊  SPEAK AGAIN</string>
+
     <!-- Direction availability. V4 ships only the EN→HI cached INT8 graphs; the HI→EN pair has
          not been exported through the Phase 6A pipeline yet (docs/UI_RECONSTRUCTION.md). -->
     <string name="error_direction_unavailable">Hindi → English model is not available in this build</string>

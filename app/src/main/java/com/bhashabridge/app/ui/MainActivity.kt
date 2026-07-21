@@ -15,6 +15,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -64,6 +65,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var micStatus: TextView
     private lateinit var waveform: WaveformView
     private lateinit var ttsBanner: TextView
+    private lateinit var emergency: EmergencySheet
 
     /** Mic permission. Granting resumes the exact action the user tapped for, with no second tap. */
     private val requestMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -86,6 +88,10 @@ class MainActivity : AppCompatActivity() {
             viewModel.swapDirection()
         }
         micButton.setOnClickListener { onMicTapped() }
+        findViewById<Button>(R.id.emergencyButton).setOnClickListener {
+            viewModel.stopRecording()
+            emergency.open()
+        }
         ttsBanner.setOnClickListener {
             startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
         }
@@ -122,7 +128,22 @@ class MainActivity : AppCompatActivity() {
         micStatus = findViewById(R.id.micStatus)
         waveform = findViewById(R.id.waveformView)
         ttsBanner = findViewById(R.id.ttsBanner)
+        emergency = EmergencySheet(
+            root = findViewById(R.id.main),
+            onChosen = viewModel::showEmergencyPhrase,
+            onSpeak = viewModel::speakEmergencyPhrase,
+        )
         animateLoadingDots()
+
+        // The emergency sheet is an overlay, not a screen: Back closes it before leaving the app.
+        onBackPressedDispatcher.addCallback(this) {
+            if (emergency.isOpen) {
+                emergency.close()
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+            }
+        }
     }
 
     private fun onMicTapped() {

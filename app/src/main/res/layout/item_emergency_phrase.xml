@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One phrase row. v3.4.1 built this out of LinearLayout/TextView objects in Kotlin and looked
+     the children up again with findViewWithTag("eng"/"hin") on every bind. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:orientation="vertical"
+    android:paddingHorizontal="18dp"
+    android:paddingVertical="12dp">
+
+    <TextView
+        android:id="@+id/phraseEnglish"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/phraseHindi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="4dp"
+        android:textColor="@color/text_primary"
+        android:textSize="17sp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:background="@color/divider" />
+</LinearLayout>
