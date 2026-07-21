@@ -33,6 +33,7 @@
     <string name="mic_permission_required">बोलने के लिए माइक्रोफ़ोन अनुमति आवश्यक है</string>
     <string name="mic_unavailable">वाक् मॉडल उपलब्ध नहीं</string>
     <string name="tts_voice_missing">हिन्दी आवाज़ इंस्टॉल नहीं है — ठीक करने के लिए टैप करें</string>
+    <string name="asr_heard">सुना: %1$s</string>
 
     <string name="cd_menu">मेनू</string>
     <string name="menu_history">इतिहास</string>

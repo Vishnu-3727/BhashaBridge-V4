@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var micStatus: TextView
     private lateinit var waveform: WaveformView
     private lateinit var ttsBanner: TextView
+    private lateinit var asrHint: TextView
     private lateinit var emergency: EmergencySheet
     private lateinit var drawer: DrawerLayout
 
@@ -142,6 +143,7 @@ class MainActivity : AppCompatActivity() {
         micStatus = findViewById(R.id.micStatus)
         waveform = findViewById(R.id.waveformView)
         ttsBanner = findViewById(R.id.ttsBanner)
+        asrHint = findViewById(R.id.asrHint)
         emergency = EmergencySheet(
             root = findViewById(R.id.main),
             onChosen = viewModel::showEmergencyPhrase,
@@ -268,6 +270,8 @@ class MainActivity : AppCompatActivity() {
         translateButton.isEnabled = state.canTranslate
         swapBtn.isEnabled = state.loadingMessage == null
         ttsBanner.isVisible = state.hindiVoiceMissing
+        asrHint.isVisible = state.heard != null
+        state.heard?.let { asrHint.text = getString(R.string.asr_heard, it) }
     }
 
     private fun renderDirection(direction: Direction) {

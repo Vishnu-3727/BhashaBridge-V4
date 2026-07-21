@@ -88,8 +88,14 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
 
     // ── Translation ──────────────────────────────────────────────────────────────────────────
 
-    /** Translate [text] in the current direction. Blank input is a no-op, not an error state. */
-    fun translate(text: String) = translate(text, final = true)
+    /**
+     * Translate [text] in the current direction. Blank input is a no-op, not an error state. The
+     * "heard" hint is cleared here because typed text has no recogniser output behind it.
+     */
+    fun translate(text: String) {
+        _state.update { it.copy(heard = null) }
+        translate(text, final = true)
+    }
 
     private fun translate(text: String, final: Boolean) {
         val input = text.trim()
@@ -158,6 +164,7 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
                     canTranslate = true,
                     output = Output.Empty,
                     micStatus = R.string.mic_tap_to_speak,
+                    heard = null,
                 )
                 // Initial load failing leaves nothing usable; a failed swap keeps the working
                 // direction and just reports why the other one did not open.
@@ -230,6 +237,10 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
         is SpeechEvent.Partial -> maybeStreamTranslate(event.text, direction)
         is SpeechEvent.Final -> {
             val corrected = AsrCorrector.correct(event.text, direction)
+            // Surface the raw text when correction changed it, so the user can catch a
+            // mis-hearing the tables did not fully repair.
+            val heard = event.text.takeIf { !it.equals(corrected, ignoreCase = true) }
+            _state.update { it.copy(heard = heard) }
             _transcript.tryEmit(corrected)
             translate(corrected, final = true)
         }
@@ -343,6 +354,8 @@ data class TranslateUiState(
     val output: Output = Output.Empty,
     val canTranslate: Boolean = false,
     val mic: MicState = MicState.Idle,
+    /** Raw recogniser output, set only when ASR correction changed it. */
+    val heard: String? = null,
     @StringRes val micStatus: Int = R.string.mic_tap_to_speak,
     val hindiVoiceMissing: Boolean = false,
 )

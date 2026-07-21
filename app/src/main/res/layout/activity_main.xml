@@ -145,6 +145,19 @@
                 android:textSize="16sp" />
         </androidx.cardview.widget.CardView>
 
+        <!-- What the recogniser actually heard, when correction changed it. -->
+        <TextView
+            android:id="@+id/asrHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="2dp"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp"
+            android:visibility="gone"
+            tools:text="Heard: where is you going" />
+
         <!-- ── Translate ── -->
         <Button
             android:id="@+id/translateButton"

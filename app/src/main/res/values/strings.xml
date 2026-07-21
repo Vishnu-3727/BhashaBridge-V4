@@ -48,6 +48,7 @@
     <string name="mic_permission_required">Microphone permission is required to speak</string>
     <string name="mic_unavailable">Speech model unavailable</string>
     <string name="tts_voice_missing">Hindi voice not installed — tap to fix</string>
+    <string name="asr_heard">Heard: %1$s</string>
 
     <!-- First run. Bilingual by design: the app does not know the user's language yet. -->
     <string name="welcome_get_started">Get Started →</string>
