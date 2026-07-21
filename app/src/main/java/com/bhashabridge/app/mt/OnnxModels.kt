@@ -4,6 +4,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import com.bhashabridge.app.Direction
+import com.bhashabridge.app.bench.Metrics
 import java.io.File
 import java.io.FileOutputStream
 
@@ -63,9 +64,16 @@ class OnnxModels(
         }
         // Sequential, not parallel: parallel load is a startup optimisation this phase does not do.
         // Each session gets its own SessionOptions instance (ORT copies settings at createSession).
-        encoder = env.createSession(copyToFiles(context, encAsset), tune.toOptions())
-        decoderInit = env.createSession(copyToFiles(context, initAsset), tune.toOptions())
-        decoderStep = env.createSession(copyToFiles(context, stepAsset), tune.toOptions())
+        //
+        // Phase 11A instrumentation: `Metrics.stage` marks are interleaved so a startup run reports
+        // verify / extract / createSession separately per graph. They are inline and BuildConfig.DEBUG
+        // -gated, so release builds contain none of it and the load path is byte-for-byte what it was.
+        encoder = env.createSession(resolveAsset(context, encAsset, "encoder"), tune.toOptions())
+        Metrics.stage("session:encoder")
+        decoderInit = env.createSession(resolveAsset(context, initAsset, "decoder_init"), tune.toOptions())
+        Metrics.stage("session:decoder_init")
+        decoderStep = env.createSession(resolveAsset(context, stepAsset, "decoder_step"), tune.toOptions())
+        Metrics.stage("session:decoder_step")
 
         // Everything on the step graph that is not the two non-cache inputs is a cache tensor.
         pastInputNames = decoderStep.inputInfo.keys.filter { it !in NON_CACHE_STEP_INPUTS }
@@ -73,6 +81,7 @@ class OnnxModels(
         require(pastInputNames.size == presentCount) {
             "cache mismatch: step has ${pastInputNames.size} past inputs, init emits $presentCount present"
         }
+        Metrics.stage("cache_contract")
     }
 
     fun encoderSession(): OrtSession = encoder
@@ -86,10 +95,18 @@ class OnnxModels(
         decoderStep.close()
     }
 
-    /** Idempotent asset→filesDir copy; skips if present. 1 MB buffer for the fp32 files (~800 MB). */
-    private fun copyToFiles(context: Context, name: String): String {
+    /**
+     * Idempotent asset→filesDir copy; skips if present. 1 MB buffer for the fp32 files (~800 MB).
+     *
+     * [label] exists only for the Phase 11A timing marks: `verify:<label>` covers the existence check
+     * every launch pays, `extract:<label>` covers the copy that only a first run pays, and the byte
+     * counter lets the report state throughput rather than guess at it. Behaviour is unchanged.
+     */
+    private fun resolveAsset(context: Context, name: String, label: String): String {
         val file = File(context.filesDir, name)
-        if (!file.exists()) {
+        val present = file.exists()
+        Metrics.stage("verify:$label")
+        if (!present) {
             val buf = ByteArray(1 shl 20)
             context.assets.open(name).use { input ->
                 FileOutputStream(file).use { output ->
@@ -97,7 +114,9 @@ class OnnxModels(
                     while (n != -1) { output.write(buf, 0, n); n = input.read(buf) }
                 }
             }
+            Metrics.stage("extract:$label")
         }
+        Metrics.counter("bytes:$label", file.length())
         return file.absolutePath
     }
 

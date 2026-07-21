@@ -3,6 +3,7 @@ package com.bhashabridge.app.speech
 import android.content.Context
 import com.bhashabridge.app.Direction
 import com.bhashabridge.app.LogTag
+import com.bhashabridge.app.bench.Metrics
 import com.bhashabridge.app.logDebug
 import org.vosk.Model
 
@@ -32,7 +33,15 @@ class VoskModels(private val context: Context) {
     fun model(direction: Direction): Model = models.getOrPut(direction) {
         val folder = assetFolder(direction)
         logDebug(LogTag.SPEECH) { "Loading Vosk model: $folder" }
-        Model(AssetFolder.unpack(context, folder))
+        // Phase 11A: the unpack (first run only) and the native model load are separate costs and
+        // are reported separately. Debug-gated, compiled out of release.
+        Metrics.begin("vosk_load")
+        val path = AssetFolder.unpack(context, folder)
+        Metrics.stage("vosk:unpack")
+        Model(path).also {
+            Metrics.stage("vosk:native_load")
+            Metrics.end()
+        }
     }
 
     /** True if [direction]'s model is already resident — lets the UI avoid a blocking wait. */

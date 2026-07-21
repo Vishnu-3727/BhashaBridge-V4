@@ -2,6 +2,9 @@ package com.bhashabridge.app
 
 import android.app.Application
 import android.content.ComponentCallbacks2
+import android.os.Process
+import android.os.SystemClock
+import com.bhashabridge.app.bench.Metrics
 import com.bhashabridge.app.mt.MtEngine
 import com.bhashabridge.app.speech.VoskModels
 
@@ -36,7 +39,12 @@ class BhashaBridgeApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        logDebug(LogTag.APP) { "Process started" }
+        // Phase 11A: how much of startup is spent before a line of this app's code runs — process
+        // fork, ART class loading, native library mapping. Measured, not assumed.
+        logDebug(LogTag.APP) {
+            val sinceFork = SystemClock.uptimeMillis() - Process.getStartUptimeMillis()
+            "Process started (${sinceFork} ms after fork)"
+        }
     }
 
     /**
@@ -47,7 +55,14 @@ class BhashaBridgeApp : Application() {
     fun translator(direction: Direction): MtEngine =
         engines.getOrPut(direction) {
             logDebug(LogTag.APP) { "Loading MT engine: $direction" }
-            MtEngine(this, direction)
+            // Phase 11A: one measured run around the whole construction. The stage marks inside
+            // Tokenizer and OnnxModels attribute the time to tokenizer / verify / extract / session,
+            // so the startup cost is broken down rather than reported as a single number.
+            Metrics.begin("engine_init")
+            MtEngine(this, direction).also {
+                Metrics.counter("direction_en_hi", if (direction == Direction.EN_TO_HI) 1 else 0)
+                Metrics.end()
+            }
         }
 
     /**

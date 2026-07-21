@@ -2,6 +2,7 @@ package com.bhashabridge.app.mt
 
 import android.content.Context
 import com.bhashabridge.app.Direction
+import com.bhashabridge.app.bench.Metrics
 import java.io.InputStreamReader
 import java.io.Reader
 
@@ -91,10 +92,15 @@ class Tokenizer internal constructor(
                 Direction.EN_TO_HI -> "dict.SRC.json" to "dict.TGT.json"
                 Direction.HI_TO_EN -> "dict.SRC_HI.json" to "dict.TGT_EN.json"
             }
+            // Phase 11A: three marks, so the report can separate parsing the two vocabularies from
+            // building the reverse index. Inline and debug-gated — release builds are unchanged.
             val src = context.assets.open(srcDict).use { parseFlatIntDict(InputStreamReader(it, Charsets.UTF_8)) }
+            Metrics.stage("tokenizer:src_dict")
             val tgt = context.assets.open(tgtDict).use { parseFlatIntDict(InputStreamReader(it, Charsets.UTF_8)) }
+            Metrics.stage("tokenizer:tgt_dict")
             val (srcLang, tgtLang) = langIds(direction, src)
             return Tokenizer(src, tgt.entries.associate { (k, v) -> v to k }, srcLang, tgtLang)
+                .also { Metrics.stage("tokenizer:reverse_index") }
         }
 
         // Language-tag ids come from IndicTrans2's tokenizer config; fallbacks apply only if the
