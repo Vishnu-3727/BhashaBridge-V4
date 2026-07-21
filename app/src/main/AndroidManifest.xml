@@ -16,9 +16,19 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.BhashaBridgeV4">
+        <!--
+          Portrait only. Phase 10 validation found the landscape layout unusable: the output card
+          and the whole speech section fall below the fold with nothing to scroll, so the core
+          result is unreachable. Locking the orientation removes that state; a responsive landscape
+          layout is the real fix and is recorded as future work in docs/VALIDATION_REPORT.md.
+
+          This does not weaken configuration-change handling — the app is still recreated on a
+          locale change, and that path is verified to preserve state without reloading a model.
+        -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -31,7 +41,8 @@
              reason to open the setup flow. -->
         <activity
             android:name=".ui.WelcomeActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>
