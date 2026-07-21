@@ -69,7 +69,9 @@
     <string name="cd_menu">Menu</string>
     <string name="menu_history">History</string>
     <string name="menu_language">App language</string>
+    <string name="menu_import_audio">Import audio</string>
     <string name="menu_about">Model &amp; device</string>
+    <string name="file_transcribing">Transcribing audio…</string>
 
     <!-- History -->
     <string name="history_title">Recent translations</string>

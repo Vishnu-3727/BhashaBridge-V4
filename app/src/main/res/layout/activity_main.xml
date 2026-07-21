@@ -434,6 +434,13 @@
         <View style="@style/DrawerDivider" />
 
         <TextView
+            android:id="@+id/trayImportAudio"
+            style="@style/DrawerItem"
+            android:text="@string/menu_import_audio" />
+
+        <View style="@style/DrawerDivider" />
+
+        <TextView
             android:id="@+id/trayAbout"
             style="@style/DrawerItem"
             android:text="@string/menu_about" />

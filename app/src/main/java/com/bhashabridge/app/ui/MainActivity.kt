@@ -82,6 +82,14 @@ class MainActivity : AppCompatActivity() {
         if (granted) viewModel.startRecording() else viewModel.onMicPermissionDenied()
     }
 
+    /**
+     * Audio import. OpenDocument grants access to the one file the user chose, so no storage
+     * permission is requested at all — v3.4.1 declared READ_EXTERNAL_STORAGE for this.
+     */
+    private val pickAudio = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::transcribeFile)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // First run: the tour and language choice come first. Launched, not routed to, so the
@@ -175,6 +183,7 @@ class MainActivity : AppCompatActivity() {
             action()
         }
         item(R.id.trayHistory, ::showHistory)
+        item(R.id.trayImportAudio) { pickAudio.launch(AUDIO_MIME_TYPES) }
         item(R.id.trayLanguage, ::showLanguagePicker)
         item(R.id.trayAbout, ::showAbout)
     }
@@ -246,6 +255,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun String.ellipsise(limit: Int = 28) =
         if (length > limit) take(limit) + "…" else this
+
+    private companion object {
+        // A bare audio wildcard hides some files on some document providers, so the picker gets the
+        // explicit list v3.4.1 used.
+        val AUDIO_MIME_TYPES = arrayOf(
+            "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav",
+            "audio/x-wav", "audio/aac", "audio/3gpp",
+        )
+    }
 
     private fun onMicTapped() {
         if (viewModel.state.value.mic == MicState.Listening) {

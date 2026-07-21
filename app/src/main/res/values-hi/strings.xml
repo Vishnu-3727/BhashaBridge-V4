@@ -38,7 +38,9 @@
     <string name="cd_menu">मेनू</string>
     <string name="menu_history">इतिहास</string>
     <string name="menu_language">ऐप भाषा</string>
+    <string name="menu_import_audio">ऑडियो आयात करें</string>
     <string name="menu_about">मॉडल और डिवाइस</string>
+    <string name="file_transcribing">ऑडियो लिखा जा रहा है…</string>
 
     <string name="history_title">हाल के अनुवाद</string>
     <string name="history_empty">अभी कोई अनुवाद नहीं</string>

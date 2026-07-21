@@ -1,6 +1,7 @@
 package com.bhashabridge.app.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import com.bhashabridge.app.logDebug
 import com.bhashabridge.app.logError
 import com.bhashabridge.app.speech.AsrCorrector
 import com.bhashabridge.app.speech.AudioCapture
+import com.bhashabridge.app.speech.AudioFileTranscriber
 import com.bhashabridge.app.speech.SpeechEvent
 import com.bhashabridge.app.speech.Tts
 import kotlinx.coroutines.Dispatchers
@@ -212,6 +214,40 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
             _state.update { it.copy(mic = MicState.Listening, micStatus = R.string.mic_listening) }
             try {
                 capture.record(model).collect { event -> onSpeechEvent(event, direction) }
+            } finally {
+                _state.update { it.copy(mic = MicState.Idle) }
+            }
+        }
+        micJob?.invokeOnCompletion { micJob = null }
+    }
+
+    /**
+     * Transcribes a picked audio file and translates the result. Reuses the direction's own Vosk
+     * model and the same [SpeechEvent] handling as the microphone — one path, so an imported file
+     * can never end up recognised in the wrong language (LESSONS_FROM_V3 L11, where v3.4.1's
+     * import always used the English model regardless of direction).
+     */
+    fun transcribeFile(uri: Uri) {
+        if (micJob != null) return
+        val direction = _state.value.direction
+        micJob = viewModelScope.launch {
+            _state.update { it.copy(mic = MicState.Loading, micStatus = R.string.mic_loading) }
+            val model = withContext(Dispatchers.IO) {
+                try {
+                    app.speechModels.model(direction)
+                } catch (e: Throwable) {
+                    logError(LogTag.UI, "Speech model unavailable: $direction", e)
+                    null
+                }
+            }
+            if (model == null) {
+                _state.update { it.copy(mic = MicState.Idle, micStatus = R.string.mic_unavailable) }
+                return@launch
+            }
+            _state.update { it.copy(mic = MicState.Loading, micStatus = R.string.file_transcribing) }
+            try {
+                AudioFileTranscriber.transcribe(getApplication(), uri, model)
+                    .collect { event -> onSpeechEvent(event, direction) }
             } finally {
                 _state.update { it.copy(mic = MicState.Idle) }
             }
