@@ -169,22 +169,21 @@ def _greedy_onnx_cached(sessions, enc_hidden, enc_mask, num_layers, bos, eos, ma
     })
     logits, cache = out[0], out[1:]
     logits_trace = [torch.from_numpy(logits[:, -1, :])]
-    seq = [bos, int(logits[:, -1, :].argmax(-1))]
+    seq = [bos, int(logits[0, -1].argmax())]
 
     past_names = cache_names("past_key_values", num_layers)
     for _ in range(max_len - 1):
         if seq[-1] == eos:
             break
-        feed = {
+        feed = {  # step graph has no encoder_hidden_states (cross K/V come from past)
             "decoder_input_ids": np.array([[seq[-1]]], dtype=np.int64),
-            "encoder_hidden_states": eh,
             "encoder_attention_mask": em,
         }
         feed.update(dict(zip(past_names, cache)))
         out = step.run(None, feed)
         logits, cache = out[0], out[1:]
         logits_trace.append(torch.from_numpy(logits[:, -1, :]))
-        seq.append(int(logits[:, -1, :].argmax(-1)))
+        seq.append(int(logits[0, -1].argmax()))
     return seq, logits_trace
 
 
@@ -194,6 +193,7 @@ def full_gate(direction: str, onnx_dir: str) -> bool:
     import numpy as np
     import onnxruntime as ort
 
+    torch.set_grad_enabled(False)  # inference only; keeps tensors .numpy()-able
     ok = True
 
     def check(name: str, cond: bool):
@@ -252,10 +252,9 @@ def full_gate(direction: str, onnx_dir: str) -> bool:
     check("5c. cross-attn cache length == src_len", cross_ok)
 
     # (4) decoder_step accepts previous cache
-    nxt = int(logits0[:, -1, :].argmax(-1))
-    feed = {
+    nxt = int(logits0[0, -1].argmax())
+    feed = {  # step graph has no encoder_hidden_states (cross K/V come from past)
         "decoder_input_ids": np.array([[nxt]], dtype=np.int64),
-        "encoder_hidden_states": enc_hidden.numpy(),
         "encoder_attention_mask": src_mask.numpy(),
     }
     feed.update(dict(zip(cache_names("past_key_values", num_layers), cache0)))
@@ -272,7 +271,7 @@ def full_gate(direction: str, onnx_dir: str) -> bool:
     max_diff = max(
         float((ref_logits[i] - onnx_logits[i]).abs().max()) for i in range(n)
     ) if n else float("inf")
-    check(f"6. cached logits match uncached (max|Δ|={max_diff:.2e} <= {LOGIT_ATOL})",
+    check(f"6. cached logits match uncached (max_abs_diff={max_diff:.2e} <= {LOGIT_ATOL})",
           max_diff <= LOGIT_ATOL)
 
     # (7) translations identical

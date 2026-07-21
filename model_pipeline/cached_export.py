@@ -195,6 +195,14 @@ class DecoderStepWrapper(torch.nn.Module):
     with the rebuilt nested past, and returns logits plus the grown present. Self
     K/V gain one row; cross K/V are reused from past unchanged (the whole point).
     `num_layers` is captured so the flat positional args can be unflattened.
+
+    `encoder_hidden_states` is passed in but becomes a *pruned* graph input: with
+    past present the decoder reuses cached cross-attn K/V and its output does not
+    depend on the hidden states, so torch.onnx drops it from the step graph's
+    inputs (verified: step inputs are decoder_input_ids, encoder_attention_mask,
+    past only). It must still be passed to the module, though — passing None makes
+    the decoder skip cross-attn and emit only 2 tensors/layer instead of 4,
+    breaking the cache contract. So: pass it, let ONNX prune it.
     """
 
     def __init__(self, model, num_layers: int):
@@ -236,8 +244,10 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
     hidden = model.config.encoder_embed_dim
     print(f"layers={num_layers} heads={num_heads} head_dim={head_dim} hidden={hidden}")
 
-    enc_len, dummy_hidden = 8, None
-    ids = torch.ones((1, 4), dtype=torch.long)
+    # One consistent source length for every dummy: input_ids, attention_mask and
+    # encoder_hidden_states must agree, or the encoder's self-attn mask check trips.
+    enc_len = 8
+    ids = torch.ones((1, enc_len), dtype=torch.long)
     mask = torch.ones((1, enc_len), dtype=torch.long)
     dummy_hidden = torch.ones((1, enc_len, hidden), dtype=torch.float)
 
@@ -299,6 +309,10 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
         past_axes[f"past_key_values.{i}.decoder.value"] = {0: "batch", 2: "past_len"}
         past_axes[f"past_key_values.{i}.encoder.key"] = {0: "batch", 2: "src_len"}
         past_axes[f"past_key_values.{i}.encoder.value"] = {0: "batch", 2: "src_len"}
+    # encoder_hidden_states is passed to the module but torch.onnx prunes it from
+    # the step graph's inputs (output is independent of it when past is present),
+    # so the real decoder_step.onnx inputs are decoder_input_ids +
+    # encoder_attention_mask + past. See DecoderStepWrapper docstring.
     torch.onnx.export(
         DecoderStepWrapper(model, num_layers),
         (torch.ones((1, 1), dtype=torch.long), dummy_hidden, mask, *dummy_past),

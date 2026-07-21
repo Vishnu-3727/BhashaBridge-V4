@@ -17,8 +17,12 @@ benchmark. That is Phase 6B+.
 | Export pipeline written | **Done** — `cached_export.py` |
 | Verification written | **Done** — `verify_cache.py` |
 | Cache plumbing (flatten/unflatten/shapes) | **Verified — green**, `verify_cache.py --selfcheck`, 9/9 |
-| Verified ONNX models produced | **NOT DONE on this host — blocked** (see [Blocker](#blocker)) |
-| Logits/translation match uncached | **Pending** — needs the gated model (`--onnx-dir` gate) |
+| Verified ONNX models produced | **DONE** — `encoder/decoder_init/decoder_step.onnx` (fp32), en_hi |
+| Logits/translation match uncached | **Verified — green**, `--onnx-dir` gate **7/7**, max_abs_diff **9.06e-06** |
+
+Ran end-to-end on 2026-07-21 after the account was authenticated (HF token + accepted
+IndicTrans2 licence). Both original walls are down: gating (token) and stack (installed
+into system Python 3.12 on Windows — no Linux venv needed; see [Environment](#environment)).
 
 Phase 3 marked native `use_cache` "unverified-by-execution". Phase 6A upgrades it
 to **verified-by-source**: the IndicTrans2 remote code implements the full MBart
@@ -64,7 +68,6 @@ an init graph (first token, no cache in) and a step graph (cache in and out).
 | dir | name | shape |
 |---|---|---|
 | in | `decoder_input_ids` | `[batch, 1]` |
-| in | `encoder_hidden_states` | `[batch, src_len, hidden]` |
 | in | `encoder_attention_mask` | `[batch, src_len]` |
 | in | `past_key_values.{i}.decoder.key`   | `[batch, heads, past_len, head_dim]` |
 | in | `past_key_values.{i}.decoder.value` | `[batch, heads, past_len, head_dim]` |
@@ -72,6 +75,14 @@ an init graph (first token, no cache in) and a step graph (cache in and out).
 | in | `past_key_values.{i}.encoder.value` | `[batch, heads, src_len, head_dim]` |
 | out | `logits` | `[batch, 1, vocab]` |
 | out | `present.{i}.*` | as init, with `decoder.*` length `past_len + 1` |
+
+**No `encoder_hidden_states` input.** The wrapper passes it to the module, but with
+past present the decoder reuses cached cross-attn K/V and the graph output does not
+depend on it, so torch.onnx prunes it. Verified real inputs: `decoder_input_ids`,
+`encoder_attention_mask`, `4*num_layers` past tensors (74 total for 18 layers).
+Passing `None` instead of pruning is *not* equivalent — the module then skips
+cross-attn and emits 2 tensors/layer, breaking the cache contract; hence "pass, let
+ONNX prune".
 
 `i` runs `0 .. num_layers-1`. `hidden`, `heads`, `head_dim`, `num_layers`, `vocab`
 are read from the checkpoint config (`encoder_embed_dim`, `decoder_attention_heads`,
@@ -104,37 +115,41 @@ source of truth for this ordering; the ONNX input/output names are generated fro
 
 ### Environment (the blocker — read first)
 
-<a name="blocker"></a>
-The export **cannot run on the Windows dev host**. Two independent walls:
+<a name="environment"></a>
+Two walls existed and are now down:
 
-1. **Gated checkpoint.** `ai4bharat/indictrans2-en-indic-dist-200M` requires an
-   accepted HF licence + auth token. Anonymous fetch returns HTTP 401
-   (`.../resolve/main/config.json` → 401). No token is present on this host.
-2. **Stack + OS.** The pinned stack lives in the v3.4.1 `indic_env`, a **Linux**
-   `python3.10` venv. The Windows host has torch only (no transformers / onnx /
-   onnxruntime), and a Linux venv is not activatable on Windows.
+1. **Gated checkpoint.** `ai4bharat/indictrans2-en-indic-dist-200M` needs an
+   accepted HF licence + auth token; anonymous fetch is HTTP 401. **Resolved:**
+   the account (`Vishnu-3727`) accepted the licence and authenticated with a token.
+2. **Stack.** The Windows dev host had torch only. **Resolved:** the stack was
+   installed into system Python 3.12 — **no Linux venv needed**, the export and the
+   full gate both ran on Windows.
 
-Both are **user actions**, not code problems. To unblock, in the authenticated
-Linux `indic_env`:
+To reproduce from a clean machine:
 
 ```bash
 # once: accept the licence at https://huggingface.co/ai4bharat/indictrans2-en-indic-dist-200M
-hf auth login                      # or:  export HF_TOKEN=hf_xxx
+hf auth login                                   # or: export HF_TOKEN=hf_...
+pip install "transformers==4.38.2" onnx onnxruntime sentencepiece torch sympy
 ```
 
-### Pinned versions (from v3.4.1 `indic_env`)
+### Versions actually used (system Python 3.12, Windows, 2026-07-21)
 
 ```
-python == 3.10
-torch == 2.1.2+cpu
-transformers == 4.38.2
-onnx == 1.15.0
-onnxruntime == 1.17.0
-sentencepiece == 0.2.1
-numpy == 1.26.4
+python == 3.12.9
+torch == 2.7.0+cu128
+transformers == 4.38.2      # pinned — matches the remote-code's expected API
+onnx == 1.22.0
+onnxruntime == 1.27.0
+sentencepiece == 0.2.2
+huggingface_hub == 0.36.2
 # optimum: NOT used — optimum has no config for the custom IndicTrans arch
 #          (HF discussion #14). This is why the graphs are hand-exported.
 ```
+
+`transformers` is the one hard pin: the checkpoint's `trust_remote_code`
+`modeling_indictrans.py` targets the 4.38 API. onnx/onnxruntime/hub float — newer
+worked. onnx>=1.15 / onnxruntime>=1.17 is the floor.
 
 ### Commands
 
@@ -142,13 +157,14 @@ numpy == 1.26.4
 # 1. Prove the plumbing anywhere (torch only, no model, no network):
 python verify_cache.py --selfcheck
 
-# 2. Export the three graphs (needs the gated model, in indic_env):
+# 2. Export the three graphs (needs the gated model):
 python cached_export.py --direction en_hi --out onnx_cached
-#   writes onnx_cached/{encoder,decoder_init,decoder_step}.onnx
+#   writes onnx_cached/{encoder,decoder_init,decoder_step}.onnx  (~1.8 GB fp32, gitignored)
 
-# 3. Full verification gate (needs model + onnxruntime, in indic_env):
+# 3. Full verification gate (needs model + onnxruntime):
 python verify_cache.py --onnx-dir onnx_cached --direction en_hi
 #   runs the seven checks; non-zero exit = STOP, do not proceed to Android.
+#   Result 2026-07-21: 7/7 PASS, max_abs_diff 9.06e-06.
 ```
 
 The seven `--onnx-dir` checks: (1) model loads, (2) `use_cache=True` executes
@@ -160,10 +176,17 @@ eager, (3) `decoder_init` output valid, (4) `decoder_step` accepts prior cache,
 
 ## Known limitations
 
-- **Not yet verified end-to-end.** Checks 1–7 cannot run here (gated model +
-  Linux stack). Only the model-free plumbing (self-len growth, cross-len
-  constancy, flatten round-trip, count/shape) is green. The numeric parity
-  (checks 6–7) is the real proof and is **pending the authenticated env**.
+- **Verified on synthetic input, not translation quality.** Checks 6–7 feed a
+  synthetic all-ones source, so they prove **parity** (cached graphs == the
+  uncached reference, max_abs_diff 9.06e-06, identical greedy tokens) — not that
+  the output is good Hindi. The degenerate `[2, 3973, 3973, ...]` sequence is
+  expected from garbage input; real tokenized text is the runtime's job (Phase 6B).
+- **fp32, not quantised.** The graphs are ~1.8 GB fp32. int8 quantise + re-verify
+  at `LOGIT_ATOL` 1e-3 is the next step, out of Phase 6A scope. (Current fp32
+  parity is already 9e-06, well under 1e-4.)
+- **EN→HI only.** HI→EN (`--direction hi_en`,
+  `indictrans2-indic-en-dist-200M`) is coded but not yet exported/verified — see
+  the HI→EN provenance limitation below.
 - **opset 14** (v3 used 13). Cache graphs use more shape ops; bump only if an op
   is missing and note it here.
 - **int8 tolerance.** `LOGIT_ATOL = 1e-3` is set for the quantised graph. Export
@@ -173,10 +196,11 @@ eager, (3) `decoder_init` output valid, (4) `decoder_step` accepts prior cache,
   `indictrans2-indic-en-dist-200M`, but the v3 `hi_en_*` ONNX was never traced to
   a named checkpoint. Re-export and re-verify HI→EN from this name before trusting
   it; do not assume it mirrors the en-indic graphs.
-- **Cross-attn recompute in the step graph.** The step graph still takes
-  `encoder_hidden_states` for signature symmetry, but with `past_key_values`
-  present the decoder reuses cached cross-attn K/V and does not recompute them —
-  which is exactly the win. If a future transformers version changes that reuse
-  rule, check 6 will catch the drift.
+- **Cross-attn reuse in the step graph.** The step graph has **no**
+  `encoder_hidden_states` input: with `past_key_values` present the decoder reuses
+  cached cross-attn K/V and never touches the hidden states, so torch.onnx prunes
+  the input — exactly the win. The runtime must feed cross K/V back each step from
+  the previous `present`, not recompute them. If a future transformers version
+  changes that reuse rule, checks 6–7 catch the drift.
 - **No Android wiring.** `MtEngine.logitsFor` still drives the uncached graph.
   Swapping in init+step is Phase 6B and deliberately untouched here.
