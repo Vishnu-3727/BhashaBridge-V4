@@ -49,6 +49,21 @@
     <string name="mic_unavailable">Speech model unavailable</string>
     <string name="tts_voice_missing">Hindi voice not installed — tap to fix</string>
 
+    <!-- First run. Bilingual by design: the app does not know the user's language yet. -->
+    <string name="welcome_get_started">Get Started →</string>
+    <string name="welcome_choose_language">Choose your language</string>
+    <string name="welcome_choose_language_hi">अपनी भाषा चुनें</string>
+    <string name="welcome_change_later">You can change this later in the menu\nआप इसे बाद में मेनू में बदल सकते हैं</string>
+    <string name="welcome_speak">Speak in English or Hindi</string>
+    <string name="welcome_speak_hi">अंग्रेज़ी या हिंदी में बोलें</string>
+    <string name="welcome_speak_body">Tap the mic and speak naturally</string>
+    <string name="welcome_offline">Instant offline translation</string>
+    <string name="welcome_offline_hi">तुरंत ऑफ़लाइन अनुवाद</string>
+    <string name="welcome_offline_body">Works without internet, anywhere</string>
+    <string name="welcome_emergency">Emergency phrases ready</string>
+    <string name="welcome_emergency_hi">आपातकालीन वाक्य तैयार</string>
+    <string name="welcome_emergency_body">Medical, safety and location phrases one tap away</string>
+
     <!-- Navigation drawer -->
     <string name="cd_menu">Menu</string>
     <string name="menu_history">History</string>

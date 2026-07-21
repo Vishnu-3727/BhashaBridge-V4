@@ -26,6 +26,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- First run only, launched by MainActivity. Not exported: nothing outside the app has a
+             reason to open the setup flow. -->
+        <activity
+            android:name=".ui.WelcomeActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

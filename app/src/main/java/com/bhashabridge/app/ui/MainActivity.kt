@@ -83,6 +83,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // First run: the tour and language choice come first. Launched, not routed to, so the
+        // engine warm-up below still starts immediately behind it.
+        if (WelcomeActivity.isFirstRun(this)) {
+            startActivity(Intent(this, WelcomeActivity::class.java))
+        }
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
         applySystemBarInsets()

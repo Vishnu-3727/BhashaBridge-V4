@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  First run: the feature tour, then the language choice, as two pages of one flipper.
+
+  v3.4.1 used two Activities for this. OnboardingActivity existed only to start SetupActivity for a
+  result and forward that result verbatim to MainActivity — a whole Activity of relay. One flipper
+  shows the same two pages with no back stack and no result plumbing.
+
+  Deliberately bilingual on both pages: at this point the app does not yet know which language the
+  user reads, so it cannot pick one.
+-->
+<ViewFlipper xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/welcomeFlipper"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_primary">
+
+    <!-- ── Page 1: tour ── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="260dp"
+            android:layout_height="56dp"
+            android:layout_marginBottom="8dp"
+            android:contentDescription="@string/app_name"
+            android:scaleType="fitCenter"
+            android:src="@drawable/logo_bhashabridge" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="48dp"
+            android:text="@string/app_tagline"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <!-- Filled from WelcomeActivity.STEPS so the three rows share one layout. -->
+        <LinearLayout
+            android:id="@+id/tourSteps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <Button
+            android:id="@+id/btnGetStarted"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="32dp"
+            android:backgroundTint="@color/accent"
+            android:text="@string/welcome_get_started"
+            android:textColor="@color/accent_on"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- ── Page 2: language ── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="260dp"
+            android:layout_height="56dp"
+            android:layout_marginBottom="8dp"
+            android:contentDescription="@string/app_name"
+            android:scaleType="fitCenter"
+            android:src="@drawable/logo_bhashabridge" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="64dp"
+            android:letterSpacing="0.06"
+            android:text="@string/app_tagline"
+            android:textColor="@color/text_faint"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="@string/welcome_choose_language"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="40dp"
+            android:text="@string/welcome_choose_language_hi"
+            android:textColor="@color/text_muted"
+            android:textSize="15sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnEnglish"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_translate_btn"
+                app:backgroundTint="@null"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/language_english"
+                android:textColor="@color/accent_on"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnHindi"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_translate_btn"
+                app:backgroundTint="@null"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/language_hindi"
+                android:textColor="@color/accent_on"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:text="@string/welcome_change_later"
+            android:textColor="@color/text_hint"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ViewFlipper>
