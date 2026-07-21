@@ -176,6 +176,84 @@
                 android:textColor="@color/output_idle"
                 android:textSize="18sp" />
         </androidx.cardview.widget.CardView>
+
+        <!-- Shown only when the device has no Hindi voice data; tapping opens the installer. -->
+        <TextView
+            android:id="@+id/ttsBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="4dp"
+            android:text="@string/tts_voice_missing"
+            android:textColor="@color/emergency_light"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider" />
+
+        <!-- ── Speech ── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.16"
+                android:text="@string/speech_mode"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp" />
+
+            <com.bhashabridge.app.ui.WaveformView
+                android:id="@+id/waveformView"
+                android:layout_width="160dp"
+                android:layout_height="40dp"
+                android:layout_marginTop="2dp"
+                android:visibility="invisible" />
+
+            <FrameLayout
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_marginTop="2dp">
+
+                <View
+                    android:id="@+id/micPulse"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:background="@drawable/bg_mic_pulse"
+                    android:visibility="invisible" />
+
+                <ImageButton
+                    android:id="@+id/micButton"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_mic_btn"
+                    android:contentDescription="@string/cd_mic"
+                    android:elevation="4dp"
+                    android:enabled="false"
+                    android:src="@drawable/ic_mic"
+                    app:tint="@color/accent_on" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/micStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="sans-serif"
+                android:text="@string/mic_tap_to_speak"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- ══ Loading overlay — covers the ONNX session load ══ -->

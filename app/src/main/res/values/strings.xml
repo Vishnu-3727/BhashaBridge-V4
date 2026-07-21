@@ -36,6 +36,19 @@
     <string name="loading_translation_model">Loading translation model…</string>
     <string name="loading_ready">Ready!</string>
 
+    <!-- Speech -->
+    <string name="speech_mode">SPEECH MODE</string>
+    <string name="cd_mic">Tap to speak</string>
+    <string name="mic_tap_to_speak">Tap mic to speak</string>
+    <string name="mic_loading">Loading speech model…</string>
+    <string name="mic_listening">Listening…</string>
+    <string name="mic_translating">Translating…</string>
+    <string name="mic_ready">Translation ready</string>
+    <string name="mic_no_speech">No speech detected</string>
+    <string name="mic_permission_required">Microphone permission is required to speak</string>
+    <string name="mic_unavailable">Speech model unavailable</string>
+    <string name="tts_voice_missing">Hindi voice not installed — tap to fix</string>
+
     <!-- Direction availability. V4 ships only the EN→HI cached INT8 graphs; the HI→EN pair has
          not been exported through the Phase 6A pipeline yet (docs/UI_RECONSTRUCTION.md). -->
     <string name="error_direction_unavailable">Hindi → English model is not available in this build</string>

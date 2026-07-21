@@ -3,10 +3,11 @@ package com.bhashabridge.app
 import android.app.Application
 import android.content.ComponentCallbacks2
 import com.bhashabridge.app.mt.MtEngine
+import com.bhashabridge.app.speech.VoskModels
 
 /**
  * Purpose:  Process entry point, and the sole owner of every native resource in the app.
- * Owns:     One [MtEngine] per [Direction], created lazily. Vosk models arrive in Phase 9.
+ * Owns:     One [MtEngine] per [Direction] and the [VoskModels], all created lazily.
  * Lifetime: Process
  * Thread:   Main; [translator] is synchronised so a background translate thread can create engines.
  *
@@ -25,6 +26,14 @@ class BhashaBridgeApp : Application() {
 
     private val engines = HashMap<Direction, MtEngine>()
 
+    /**
+     * The Vosk acoustic models, owned here for the same reason the MT engines are: large native
+     * allocations that must survive a rotation and must have exactly one release trigger. Loading
+     * is lazy inside [VoskModels] too, so a session that never uses the mic never pays for it.
+     */
+    private val speechModelsLazy = lazy { VoskModels(this) }
+    val speechModels: VoskModels get() = speechModelsLazy.value
+
     override fun onCreate() {
         super.onCreate()
         logDebug(LogTag.APP) { "Process started" }
@@ -42,17 +51,27 @@ class BhashaBridgeApp : Application() {
         }
 
     /**
-     * Release trigger for the process-lifetime ONNX sessions. R4.5: the `release()` introduced with
-     * [MtEngine] has its call site here, in the same commit — the structural guard against the
-     * V3.4.1 leak, where teardown existed but was never called.
+     * The one release trigger for every process-lifetime native resource — ONNX sessions and Vosk
+     * models alike. R4.5: `release()` and its call site land in the same commit, which is the
+     * structural guard against the v3.4.1 leak where teardown existed but was never called.
+     *
+     * Safe because it only fires at TRIM_MEMORY_COMPLETE — the app is backgrounded and a kill
+     * candidate — and the UI stops any recording session in `onStop`, before that can happen.
      */
     @Synchronized
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_COMPLETE && engines.isNotEmpty()) {
+        if (level < ComponentCallbacks2.TRIM_MEMORY_COMPLETE) return
+        if (engines.isNotEmpty()) {
             logDebug(LogTag.APP) { "Trim level $level — releasing ${engines.size} engine(s)" }
             engines.values.forEach { it.release() }
             engines.clear()
+        }
+        // Guarded, not `speechModels.release()`: touching the property would *construct* the
+        // models we are trying to avoid holding.
+        if (speechModelsLazy.isInitialized()) {
+            logDebug(LogTag.APP) { "Trim level $level — releasing speech models" }
+            speechModelsLazy.value.release()
         }
     }
 }

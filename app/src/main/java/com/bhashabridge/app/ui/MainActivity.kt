@@ -1,8 +1,14 @@
 package com.bhashabridge.app.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
 import android.text.InputType
 import android.view.View
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
@@ -10,6 +16,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.ColorRes
 import androidx.annotation.StringRes
@@ -18,6 +25,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -32,9 +40,9 @@ import kotlinx.coroutines.launch
  * Thread:   Main.
  *
  * Renders [TranslateViewModel.state] and forwards taps. It holds no translation state, has no
- * reference to an engine, and does no work off the main thread — every decision about what to
- * translate lives in the ViewModel. v3.4.1's equivalent reached 961 lines by taking that job one
- * reasonable commit at a time.
+ * reference to an engine or a recogniser, and does no work off the main thread — every decision
+ * about what to translate lives in the ViewModel. v3.4.1's equivalent reached 961 lines by taking
+ * that job one reasonable commit at a time.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -51,6 +59,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var loadingOverlay: FrameLayout
     private lateinit var loadingStatus: TextView
     private lateinit var loadingDots: List<View>
+    private lateinit var micButton: ImageButton
+    private lateinit var micPulse: View
+    private lateinit var micStatus: TextView
+    private lateinit var waveform: WaveformView
+    private lateinit var ttsBanner: TextView
+
+    /** Mic permission. Granting resumes the exact action the user tapped for, with no second tap. */
+    private val requestMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) viewModel.startRecording() else viewModel.onMicPermissionDenied()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,12 +85,24 @@ class MainActivity : AppCompatActivity() {
             inputText.setText("")
             viewModel.swapDirection()
         }
+        micButton.setOnClickListener { onMicTapped() }
+        ttsBanner.setOnClickListener {
+            startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+        }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.state.collect(::render)
+                launch { viewModel.state.collect(::render) }
+                launch { viewModel.amplitude.collect(waveform::push) }
+                launch { viewModel.transcript.collect(::showTranscript) }
             }
         }
+    }
+
+    /** A recording session must not outlive the visible screen — the mic light would stay on. */
+    override fun onStop() {
+        super.onStop()
+        viewModel.stopRecording()
     }
 
     private fun bindViews() {
@@ -87,15 +117,37 @@ class MainActivity : AppCompatActivity() {
         loadingOverlay = findViewById(R.id.loadingOverlay)
         loadingStatus = findViewById(R.id.loadingStatus)
         loadingDots = listOf(findViewById(R.id.dot1), findViewById(R.id.dot2), findViewById(R.id.dot3))
+        micButton = findViewById(R.id.micButton)
+        micPulse = findViewById(R.id.micPulse)
+        micStatus = findViewById(R.id.micStatus)
+        waveform = findViewById(R.id.waveformView)
+        ttsBanner = findViewById(R.id.ttsBanner)
         animateLoadingDots()
+    }
+
+    private fun onMicTapped() {
+        if (viewModel.state.value.mic == MicState.Listening) {
+            viewModel.stopRecording()
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) viewModel.startRecording() else requestMic.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    private fun showTranscript(text: String) {
+        inputText.setText(text)
+        inputText.setSelection(text.length)
     }
 
     private fun render(state: TranslateUiState) {
         renderDirection(state.direction)
         renderOutput(state.output)
         renderLoading(state.loadingMessage)
+        renderMic(state)
         translateButton.isEnabled = state.canTranslate
         swapBtn.isEnabled = state.loadingMessage == null
+        ttsBanner.isVisible = state.hindiVoiceMissing
     }
 
     private fun renderDirection(direction: Direction) {
@@ -116,6 +168,7 @@ class MainActivity : AppCompatActivity() {
     private fun renderOutput(output: Output) = when (output) {
         Output.Empty -> setOutput(getString(R.string.output_placeholder), R.color.output_idle)
         Output.InProgress -> setOutput(getString(R.string.output_translating), R.color.output_streaming)
+        is Output.Streaming -> setOutput(output.text, R.color.output_streaming)
         is Output.Final -> setOutput(output.text, R.color.output_result)
         is Output.Failed -> setOutput(getString(output.message), R.color.output_idle)
     }
@@ -125,16 +178,38 @@ class MainActivity : AppCompatActivity() {
         outputText.setTextColor(ContextCompat.getColor(this, colorRes))
     }
 
+    private fun renderMic(state: TranslateUiState) {
+        micStatus.setText(state.micStatus)
+        micButton.isEnabled = state.loadingMessage == null && state.mic != MicState.Loading
+        val listening = state.mic == MicState.Listening
+        if (listening == micPulse.isVisible) return // already in this state; do not restart the pulse
+        if (listening) {
+            waveform.visibility = View.VISIBLE
+            waveform.reset()
+            micPulse.visibility = View.VISIBLE
+            micPulse.startAnimation(AlphaAnimation(1.0f, 0.2f).apply {
+                duration = 600
+                repeatMode = Animation.REVERSE
+                repeatCount = Animation.INFINITE
+            })
+        } else {
+            waveform.reset()
+            waveform.visibility = View.INVISIBLE
+            micPulse.clearAnimation()
+            micPulse.visibility = View.INVISIBLE
+        }
+    }
+
     private fun renderLoading(@StringRes messageRes: Int?) {
         if (messageRes == null) {
-            if (loadingOverlay.visibility == View.VISIBLE) {
+            if (loadingOverlay.isVisible) {
                 loadingOverlay.animate().alpha(0f).setDuration(250)
                     .withEndAction { loadingOverlay.visibility = View.GONE }.start()
             }
             return
         }
         loadingStatus.setText(messageRes)
-        if (loadingOverlay.visibility != View.VISIBLE) {
+        if (!loadingOverlay.isVisible) {
             loadingOverlay.alpha = 1f
             loadingOverlay.visibility = View.VISIBLE
             animateLoadingDots()
@@ -146,7 +221,7 @@ class MainActivity : AppCompatActivity() {
         var step = 0
         val tick = object : Runnable {
             override fun run() {
-                if (loadingOverlay.visibility != View.VISIBLE) return
+                if (!loadingOverlay.isVisible) return
                 loadingDots.forEachIndexed { i, dot -> dot.alpha = if (i == step % 3) 1f else 0.3f }
                 step++
                 loadingOverlay.postDelayed(this, 300)

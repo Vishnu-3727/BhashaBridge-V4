@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- The only permission the app asks for. Models, translation, recognition and speech are all
+         on-device, so there is deliberately no INTERNET permission to request. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:name=".BhashaBridgeApp"
         android:allowBackup="true"

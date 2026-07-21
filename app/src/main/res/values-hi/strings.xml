@@ -22,5 +22,17 @@
     <string name="loading_translation_model">अनुवाद मॉडल लोड हो रहा है…</string>
     <string name="loading_ready">तैयार!</string>
 
+    <string name="speech_mode">वाक् मोड</string>
+    <string name="cd_mic">बोलने के लिए टैप करें</string>
+    <string name="mic_tap_to_speak">बोलने के लिए माइक टैप करें</string>
+    <string name="mic_loading">वाक् मॉडल लोड हो रहा है…</string>
+    <string name="mic_listening">सुन रहे हैं…</string>
+    <string name="mic_translating">अनुवाद हो रहा है…</string>
+    <string name="mic_ready">अनुवाद तैयार</string>
+    <string name="mic_no_speech">कोई वाणी नहीं मिली</string>
+    <string name="mic_permission_required">बोलने के लिए माइक्रोफ़ोन अनुमति आवश्यक है</string>
+    <string name="mic_unavailable">वाक् मॉडल उपलब्ध नहीं</string>
+    <string name="tts_voice_missing">हिन्दी आवाज़ इंस्टॉल नहीं है — ठीक करने के लिए टैप करें</string>
+
     <string name="error_direction_unavailable">इस बिल्ड में हिन्दी → अंग्रेज़ी मॉडल उपलब्ध नहीं है</string>
 </resources>
