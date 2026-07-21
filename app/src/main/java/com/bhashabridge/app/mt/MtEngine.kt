@@ -28,7 +28,7 @@ class MtEngine(
     context: Context,
     val direction: Direction,
     private val decoder: Decoder = GreedyDecoder(),
-    tune: OrtTuning = OrtTuning.production(),
+    tune: OrtTuning = ExecutionPolicy.current,
 ) {
 
     private val tokenizer = Tokenizer.load(context, direction)

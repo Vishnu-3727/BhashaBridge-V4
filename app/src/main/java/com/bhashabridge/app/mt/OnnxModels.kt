@@ -32,7 +32,7 @@ import java.io.FileOutputStream
 class OnnxModels(
     context: Context,
     direction: Direction,
-    private val tune: OrtTuning = OrtTuning.production(),
+    private val tune: OrtTuning = ExecutionPolicy.current,
 ) {
 
     val env: OrtEnvironment = OrtEnvironment.getEnvironment()

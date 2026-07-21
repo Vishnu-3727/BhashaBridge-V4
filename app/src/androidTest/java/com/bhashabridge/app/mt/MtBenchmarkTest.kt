@@ -31,6 +31,10 @@ class MtBenchmarkTest {
     @Test
     fun benchmarkEnHiGreedy() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        // Surface the detected CPU + the policy it drives, so the platform report has real evidence.
+        Log.i(TAG, "CPU " + CpuCapabilities.detect().describe())
+        val policy = ExecutionPolicy.current
+        Log.i(TAG, "POLICY ${policy.name} intra=${policy.intraThreads} arena=${policy.cpuArena}")
         val engine = MtEngine(ctx, Direction.EN_TO_HI)
         try {
             repeat(warmup) { sentences.forEach { engine.translate(it) } } // discarded
