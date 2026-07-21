@@ -1,6 +1,42 @@
 <resources>
-    <!-- Launcher label. v3.4.1 shipped "BhashaBridge V3.4" — the version number is build metadata,
-         not part of the product name, so it does not belong on the user's home screen. -->
+    <!--
+      Every user-visible string lives here and in values-hi/. v3.4.1 shipped a values-hi/ file too,
+      but never used it: it branched on a hand-tracked `uiLanguage` field with inline
+      `if (isHindi) "…" else "…"` pairs at ~40 call sites, so a new string could silently ship
+      English-only. V4 uses the resource system, and switches language with per-app locales
+      (AppCompatDelegate.setApplicationLocales) — one call, every string follows.
+    -->
+
+    <!-- Launcher label. v3.4.1 shipped "BhashaBridge V3.4"; the version is build metadata, not
+         part of the product name, so it does not belong on the user's home screen. -->
     <string name="app_name">BhashaBridge</string>
     <string name="app_tagline">Offline Speech Translation</string>
+
+    <!-- Language bar / section labels -->
+    <string name="lang_english">English</string>
+    <string name="lang_hindi">Hindi</string>
+    <string name="label_english">ENGLISH</string>
+    <string name="label_hindi">HINDI</string>
+    <string name="cd_swap_languages">Swap languages</string>
+
+    <!-- Input -->
+    <string name="hint_english">Type or speak in English…</string>
+    <string name="hint_hindi">Type or speak in Hindi…</string>
+
+    <!-- Translate action -->
+    <string name="btn_translate">Translate</string>
+
+    <!-- Output -->
+    <string name="output_placeholder">Translation appears here…</string>
+    <string name="output_translating">Translating…</string>
+    <string name="output_failed">Translation failed</string>
+
+    <!-- Loading overlay -->
+    <string name="loading_initialising">Initialising models…</string>
+    <string name="loading_translation_model">Loading translation model…</string>
+    <string name="loading_ready">Ready!</string>
+
+    <!-- Direction availability. V4 ships only the EN→HI cached INT8 graphs; the HI→EN pair has
+         not been exported through the Phase 6A pipeline yet (docs/UI_RECONSTRUCTION.md). -->
+    <string name="error_direction_unavailable">Hindi → English model is not available in this build</string>
 </resources>

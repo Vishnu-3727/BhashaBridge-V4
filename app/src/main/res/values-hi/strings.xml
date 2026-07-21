@@ -1,0 +1,26 @@
+<resources>
+    <!-- Hindi UI. Selected with per-app locales, not a hand-tracked flag — see values/strings.xml. -->
+
+    <string name="app_tagline">ऑफ़लाइन वाक् अनुवाद</string>
+
+    <string name="lang_english">अंग्रेज़ी</string>
+    <string name="lang_hindi">हिन्दी</string>
+    <string name="label_english">अंग्रेज़ी</string>
+    <string name="label_hindi">हिन्दी</string>
+    <string name="cd_swap_languages">भाषाएँ बदलें</string>
+
+    <string name="hint_english">अंग्रेज़ी में टाइप करें या बोलें…</string>
+    <string name="hint_hindi">हिन्दी में टाइप करें या बोलें…</string>
+
+    <string name="btn_translate">अनुवाद करें</string>
+
+    <string name="output_placeholder">अनुवाद यहाँ दिखेगा…</string>
+    <string name="output_translating">अनुवाद हो रहा है…</string>
+    <string name="output_failed">अनुवाद विफल</string>
+
+    <string name="loading_initialising">मॉडल लोड हो रहे हैं…</string>
+    <string name="loading_translation_model">अनुवाद मॉडल लोड हो रहा है…</string>
+    <string name="loading_ready">तैयार!</string>
+
+    <string name="error_direction_unavailable">इस बिल्ड में हिन्दी → अंग्रेज़ी मॉडल उपलब्ध नहीं है</string>
+</resources>

@@ -109,6 +109,8 @@ dependencies {
     implementation(libs.material)
 
     // --- Lifecycle: required by the Phase 6 ViewModel + process-scoped engine ownership ---
+    // runtime-ktx supplies lifecycleScope / repeatOnLifecycle, how the Phase 9 UI collects state.
+    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.process)
 
