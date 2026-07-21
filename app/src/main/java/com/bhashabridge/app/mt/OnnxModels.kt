@@ -47,8 +47,10 @@ class OnnxModels(context: Context, direction: Direction) {
 
     init {
         val (encAsset, initAsset, stepAsset) = when (direction) {
+            // Phase 6D: the verified INT8 cached graphs (Phase 6C), kept as the production path —
+            // the benchmark showed the cache is a clear win at real output lengths (docs/CACHE_BENCHMARK.md).
             Direction.EN_TO_HI ->
-                Triple("encoder.onnx", "decoder_init.onnx", "decoder_step.onnx")
+                Triple("encoder_int8.onnx", "decoder_init_int8.onnx", "decoder_step_int8.onnx")
             // HI->EN cached graphs are not yet exported (Phase 6A did en_hi only; R-PROV). Naming is
             // fixed here so the export, when it lands, drops straight in.
             Direction.HI_TO_EN ->
