@@ -6,14 +6,19 @@
   Speech controls, the emergency overlay and the navigation drawer arrive in their own commits —
   this file grows with them rather than shipping dead views ahead of the code that drives them.
 -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/drawerLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".ui.MainActivity">
+
+<FrameLayout
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_primary"
-    tools:context=".ui.MainActivity">
+    android:background="@color/bg_primary">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -21,15 +26,32 @@
         android:orientation="vertical">
 
         <!-- ── Title ── -->
-        <ImageView
-            android:id="@+id/appTitle"
-            android:layout_width="220dp"
-            android:layout_height="48dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="12dp"
-            android:contentDescription="@string/app_name"
-            android:scaleType="fitCenter"
-            android:src="@drawable/logo_bhashabridge" />
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+
+            <ImageButton
+                android:id="@+id/menuBtn"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/cd_menu"
+                android:src="@drawable/ic_menu"
+                app:tint="@color/text_secondary" />
+
+            <ImageView
+                android:id="@+id/appTitle"
+                android:layout_width="220dp"
+                android:layout_height="48dp"
+                android:layout_centerInParent="true"
+                android:contentDescription="@string/app_name"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo_bhashabridge" />
+        </RelativeLayout>
 
         <View
             android:layout_width="6dp"
@@ -362,3 +384,46 @@
     </FrameLayout>
 
 </FrameLayout>
+
+    <!-- ══ Navigation drawer ══ -->
+    <LinearLayout
+        android:id="@+id/drawerPanel"
+        android:layout_width="260dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="@color/bg_drawer"
+        android:orientation="vertical"
+        android:paddingTop="48dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginBottom="32dp"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/app_name"
+            android:textColor="@color/accent"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/trayHistory"
+            style="@style/DrawerItem"
+            android:text="@string/menu_history" />
+
+        <View style="@style/DrawerDivider" />
+
+        <TextView
+            android:id="@+id/trayLanguage"
+            style="@style/DrawerItem"
+            android:text="@string/menu_language" />
+
+        <View style="@style/DrawerDivider" />
+
+        <TextView
+            android:id="@+id/trayAbout"
+            style="@style/DrawerItem"
+            android:text="@string/menu_about" />
+    </LinearLayout>
+
+</androidx.drawerlayout.widget.DrawerLayout>

@@ -34,6 +34,21 @@
     <string name="mic_unavailable">वाक् मॉडल उपलब्ध नहीं</string>
     <string name="tts_voice_missing">हिन्दी आवाज़ इंस्टॉल नहीं है — ठीक करने के लिए टैप करें</string>
 
+    <string name="cd_menu">मेनू</string>
+    <string name="menu_history">इतिहास</string>
+    <string name="menu_language">ऐप भाषा</string>
+    <string name="menu_about">मॉडल और डिवाइस</string>
+
+    <string name="history_title">हाल के अनुवाद</string>
+    <string name="history_empty">अभी कोई अनुवाद नहीं</string>
+    <string name="btn_dismiss">बंद करें</string>
+
+    <string name="language_title">ऐप भाषा</string>
+    <string name="language_message">इंटरफ़ेस भाषा चुनें</string>
+
+    <string name="about_title">मॉडल और डिवाइस</string>
+    <string name="about_offline">सब कुछ ऑफ़लाइन चलता है। ऐप कोई नेटवर्क अनुमति नहीं माँगता।</string>
+
     <string name="btn_emergency">🆘  आपातकालीन वाक्य</string>
     <string name="emergency_title">🆘  आपातकालीन वाक्य</string>
     <string name="btn_close">✕  बंद करें</string>

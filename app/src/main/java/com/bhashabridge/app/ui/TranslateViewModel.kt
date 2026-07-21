@@ -76,6 +76,7 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
 
     private var translation: Job? = null
     private var micJob: Job? = null
+    private val history = ArrayDeque<HistoryEntry>()
 
     // Streaming gate: partial results repeat and arrive far faster than the translator can serve.
     private var lastStreamed = ""
@@ -114,6 +115,7 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
                     it.copy(output = Output.Failed(R.string.output_failed), micStatus = R.string.mic_tap_to_speak)
                 }
                 final -> {
+                    remember(input, result)
                     _state.update { it.copy(output = Output.Final(result), micStatus = R.string.mic_ready) }
                     tts.speak(result, direction)
                 }
@@ -253,6 +255,28 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
         translate(AsrCorrector.correct(text, direction), final = false)
     }
 
+    // ── History ──────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Recent translations, newest first. In memory only and not persisted, matching v3.4.1 — this
+     * is a "what did I just say" affordance, not a saved document, and translations of speech are
+     * exactly the kind of content that should not outlive the session on disk.
+     */
+    fun history(): List<HistoryEntry> = history.toList().asReversed()
+
+    /** Puts a past pair back on screen. No engine call — the result is already known. */
+    fun recall(entry: HistoryEntry) {
+        translation?.cancel()
+        _transcript.tryEmit(entry.source)
+        _state.update { it.copy(output = Output.Final(entry.target)) }
+    }
+
+    private fun remember(source: String, target: String) {
+        if (source.isBlank() || target.isBlank()) return
+        if (history.size >= HISTORY_SIZE) history.removeFirst()
+        history.addLast(HistoryEntry(source, target))
+    }
+
     // ── Emergency phrases ────────────────────────────────────────────────────────────────────
 
     /**
@@ -286,9 +310,14 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
     private companion object {
         const val STREAM_MIN_WORDS = 3
         const val STREAM_THROTTLE_MS = 250L
+        /** v3.4.1 kept 5. Ten still fits one dialog without scrolling and covers a real exchange. */
+        const val HISTORY_SIZE = 10
         val WHITESPACE = "\\s+".toRegex()
     }
 }
+
+/** One past translation, source and target as they were shown. */
+data class HistoryEntry(val source: String, val target: String)
 
 /** What the output card is showing. */
 sealed interface Output {

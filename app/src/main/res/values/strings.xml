@@ -49,6 +49,33 @@
     <string name="mic_unavailable">Speech model unavailable</string>
     <string name="tts_voice_missing">Hindi voice not installed — tap to fix</string>
 
+    <!-- Navigation drawer -->
+    <string name="cd_menu">Menu</string>
+    <string name="menu_history">History</string>
+    <string name="menu_language">App language</string>
+    <string name="menu_about">Model &amp; device</string>
+
+    <!-- History -->
+    <string name="history_title">Recent translations</string>
+    <string name="history_empty">No translations yet</string>
+    <string name="btn_dismiss">Close</string>
+
+    <!-- App language. Applied with per-app locales, so the whole UI follows in one call. -->
+    <string name="language_title">App language</string>
+    <string name="language_message">Choose the interface language</string>
+    <string name="language_english">English</string>
+    <string name="language_hindi">हिंदी</string>
+
+    <!-- Model &amp; device. Factual build/runtime information, read from the live runtime rather
+         than hard-coded, so it cannot go stale. -->
+    <string name="about_title">Model &amp; device</string>
+    <string name="about_model">Translation: IndicTrans2 distilled 200M, INT8, KV-cached\nEncoder + decoder_init + decoder_step, on ONNX Runtime</string>
+    <string name="about_speech">Speech: Vosk (English, Hindi), on-device\nText-to-speech: Android system voices</string>
+    <string name="about_offline">Everything runs offline. The app requests no network permission.</string>
+    <string name="about_cpu">CPU: %1$s</string>
+    <string name="about_policy">ORT policy: %1$s (intra-op %2$d, CPU arena %3$s)</string>
+    <string name="about_debug_header">Debug build</string>
+
     <!-- Emergency phrases. Curated pairs, no model involved — see ui/EmergencyPhrases.kt. -->
     <string name="btn_emergency">🆘  EMERGENCY PHRASES</string>
     <string name="emergency_title">🆘  Emergency Phrases</string>

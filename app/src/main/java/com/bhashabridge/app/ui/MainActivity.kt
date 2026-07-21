@@ -15,23 +15,31 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.ColorRes
 import androidx.annotation.StringRes
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import androidx.core.os.LocaleListCompat
+import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.bhashabridge.app.BuildConfig
 import com.bhashabridge.app.Direction
 import com.bhashabridge.app.R
+import com.bhashabridge.app.mt.ExecutionPolicy
 import kotlinx.coroutines.launch
 
 /**
@@ -66,6 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var waveform: WaveformView
     private lateinit var ttsBanner: TextView
     private lateinit var emergency: EmergencySheet
+    private lateinit var drawer: DrawerLayout
 
     /** Mic permission. Granting resumes the exact action the user tapped for, with no second tap. */
     private val requestMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -133,18 +142,103 @@ class MainActivity : AppCompatActivity() {
             onChosen = viewModel::showEmergencyPhrase,
             onSpeak = viewModel::speakEmergencyPhrase,
         )
+        drawer = findViewById(R.id.drawerLayout)
         animateLoadingDots()
+        bindDrawer()
 
-        // The emergency sheet is an overlay, not a screen: Back closes it before leaving the app.
+        // Both are overlays, not screens: Back dismisses them before it leaves the app.
         onBackPressedDispatcher.addCallback(this) {
-            if (emergency.isOpen) {
-                emergency.close()
-            } else {
-                isEnabled = false
-                onBackPressedDispatcher.onBackPressed()
+            when {
+                emergency.isOpen -> emergency.close()
+                drawer.isDrawerOpen(GravityCompat.START) -> drawer.closeDrawers()
+                else -> {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
             }
         }
     }
+
+    private fun bindDrawer() {
+        findViewById<ImageButton>(R.id.menuBtn).setOnClickListener {
+            drawer.openDrawer(GravityCompat.START)
+        }
+        fun item(id: Int, action: () -> Unit) = findViewById<TextView>(id).setOnClickListener {
+            drawer.closeDrawers()
+            action()
+        }
+        item(R.id.trayHistory, ::showHistory)
+        item(R.id.trayLanguage, ::showLanguagePicker)
+        item(R.id.trayAbout, ::showAbout)
+    }
+
+    private fun showHistory() {
+        val entries = viewModel.history()
+        if (entries.isEmpty()) {
+            Toast.makeText(this, R.string.history_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = entries
+            .map { "${it.source.ellipsise()}  →  ${it.target.ellipsise()}" }
+            .toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.history_title)
+            .setItems(labels) { _, index -> viewModel.recall(entries[index]) }
+            .setNegativeButton(R.string.btn_dismiss, null)
+            .show()
+    }
+
+    /**
+     * Per-app locales: one call re-creates the Activity with the chosen language and AppCompat
+     * persists the choice itself. v3.4.1 stored a "ui_language" preference and then re-applied
+     * ~40 inline `if (isHindi)` string pairs by hand on every change.
+     */
+    private fun showLanguagePicker() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.language_title)
+            .setMessage(R.string.language_message)
+            .setPositiveButton(R.string.language_english) { _, _ -> setUiLanguage("en") }
+            .setNegativeButton(R.string.language_hindi) { _, _ -> setUiLanguage("hi") }
+            .show()
+    }
+
+    private fun setUiLanguage(tag: String) {
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
+    }
+
+    /** Reads the live runtime rather than restating it, so this cannot drift from what is running. */
+    private fun showAbout() {
+        val policy = ExecutionPolicy.current
+        val body = buildString {
+            appendLine(getString(R.string.about_model))
+            appendLine()
+            appendLine(getString(R.string.about_speech))
+            appendLine()
+            append(getString(R.string.about_offline))
+            if (BuildConfig.DEBUG) {
+                appendLine()
+                appendLine()
+                appendLine(getString(R.string.about_debug_header))
+                appendLine(getString(R.string.about_cpu, ExecutionPolicy.capabilities.describe()))
+                append(
+                    getString(
+                        R.string.about_policy,
+                        policy.name,
+                        policy.intraThreads,
+                        policy.cpuArena.toString(),
+                    )
+                )
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.about_title)
+            .setMessage(body)
+            .setPositiveButton(R.string.btn_dismiss, null)
+            .show()
+    }
+
+    private fun String.ellipsise(limit: Int = 28) =
+        if (length > limit) take(limit) + "…" else this
 
     private fun onMicTapped() {
         if (viewModel.state.value.mic == MicState.Listening) {
