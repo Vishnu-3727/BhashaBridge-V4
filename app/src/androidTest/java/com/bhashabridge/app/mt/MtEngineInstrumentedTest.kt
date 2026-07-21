@@ -1,5 +1,6 @@
 package com.bhashabridge.app.mt
 
+import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.bhashabridge.app.Direction
@@ -26,6 +27,7 @@ class MtEngineInstrumentedTest {
         val engine = MtEngine(context, Direction.EN_TO_HI)
         try {
             val hindi = engine.translate("Hello, how are you?")
+            Log.i("BB_PARITY", "EN_TO_HI 'Hello, how are you?' => '$hindi'")
             assertTrue("output must not be blank", hindi.isNotBlank())
             assertTrue(
                 "output must contain Devanagari, got: '$hindi'",
@@ -43,6 +45,7 @@ class MtEngineInstrumentedTest {
         try {
             val a = engine.translate("Water.")
             val b = engine.translate("Water.")
+            Log.i("BB_PARITY", "EN_TO_HI 'Water.' => '$a' | '$b'")
             assertFalse(a.isBlank())
             assertTrue("same input must decode identically (greedy is deterministic)", a == b)
         } finally {
