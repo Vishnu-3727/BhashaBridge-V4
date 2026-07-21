@@ -3,6 +3,8 @@ package com.bhashabridge.app.mt
 import android.content.Context
 import com.bhashabridge.app.Direction
 import com.bhashabridge.app.bench.Metrics
+import java.io.BufferedReader
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.Reader
 
@@ -86,6 +88,26 @@ class Tokenizer internal constructor(
         private val LANG_TAG = Regex("^[a-z]{2,3}_[A-Z][a-z]{3,}$")
         private val SPECIAL = setOf(0L, 1L, 2L, 3L)
 
+        /**
+         * The reader every dictionary parse goes through: UTF-8, buffered 64 KB.
+         *
+         * Phase 11B. [parseFlatIntDict] consumes one character per `Reader.read()`, and an
+         * `InputStreamReader` services each of those calls through its `StreamDecoder`. On the
+         * 3.39 MB target vocabulary that overhead measured **9951 ms**; the identical parser behind
+         * this reader measured **1082 ms**, against a raw-I/O floor of 18 ms
+         * (`StartupProbeTest.probeTokenizerLoad`, docs/ENGINE_STARTUP_ANALYSIS.md §3.1).
+         *
+         * A buffer changes when bytes are fetched, never how they are decoded or interpreted: same
+         * UTF-8 charset, same character sequence, same parser, same map. 64 KB is one order above
+         * the default 8 KB and comfortably above the largest dictionary's line structure; larger
+         * buffers stop paying because the cost is per-call, not per-refill.
+         */
+        private fun bufferedUtf8(input: InputStream): Reader =
+            BufferedReader(InputStreamReader(input, Charsets.UTF_8), BUFFER_BYTES)
+
+        /** 64 KB. See [bufferedUtf8]. */
+        private const val BUFFER_BYTES = 1 shl 16
+
         /** Loads the pair of dictionaries for [direction] from assets. */
         fun load(context: Context, direction: Direction): Tokenizer {
             val (srcDict, tgtDict) = when (direction) {
@@ -94,9 +116,9 @@ class Tokenizer internal constructor(
             }
             // Phase 11A: three marks, so the report can separate parsing the two vocabularies from
             // building the reverse index. Inline and debug-gated — release builds are unchanged.
-            val src = context.assets.open(srcDict).use { parseFlatIntDict(InputStreamReader(it, Charsets.UTF_8)) }
+            val src = context.assets.open(srcDict).use { parseFlatIntDict(bufferedUtf8(it)) }
             Metrics.stage("tokenizer:src_dict")
-            val tgt = context.assets.open(tgtDict).use { parseFlatIntDict(InputStreamReader(it, Charsets.UTF_8)) }
+            val tgt = context.assets.open(tgtDict).use { parseFlatIntDict(bufferedUtf8(it)) }
             Metrics.stage("tokenizer:tgt_dict")
             val (srcLang, tgtLang) = langIds(direction, src)
             return Tokenizer(src, tgt.entries.associate { (k, v) -> v to k }, srcLang, tgtLang)

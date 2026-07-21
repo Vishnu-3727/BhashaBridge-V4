@@ -6,6 +6,7 @@ import android.content.Context
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,19 +48,27 @@ class StartupProbeTest {
             }
         }
 
+        var unbuffered: Map<String, Int> = emptyMap()
         val unbufferedMs = measure {
-            app.assets.open(name).use { Tokenizer.parseFlatIntDict(InputStreamReader(it, Charsets.UTF_8)) }
+            unbuffered = app.assets.open(name)
+                .use { Tokenizer.parseFlatIntDict(InputStreamReader(it, Charsets.UTF_8)) }
         }
 
+        var buffered: Map<String, Int> = emptyMap()
         val bufferedMs = measure {
-            app.assets.open(name).use {
+            buffered = app.assets.open(name).use {
                 Tokenizer.parseFlatIntDict(BufferedReader(InputStreamReader(it, Charsets.UTF_8), 1 shl 16))
             }
         }
 
         Log.i(TAG, "TOKENIZER file=$name bytes=$size raw_read_ms=$rawMs " +
-            "unbuffered_parse_ms=$unbufferedMs buffered_parse_ms=$bufferedMs")
+            "unbuffered_parse_ms=$unbufferedMs buffered_parse_ms=$bufferedMs " +
+            "entries=${buffered.size} identical=${unbuffered == buffered}")
         assertTrue(unbufferedMs > 0 && bufferedMs > 0)
+        // Phase 11B correctness gate: buffering may change when bytes are fetched, never what the
+        // parser sees. Map equality covers vocabulary size, every key and every token id.
+        assertEquals("vocabulary size changed", unbuffered.size, buffered.size)
+        assertEquals("parsed vocabulary differs between readers", unbuffered, buffered)
     }
 
     /**
