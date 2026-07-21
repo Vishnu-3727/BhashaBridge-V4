@@ -28,10 +28,11 @@ class MtEngine(
     context: Context,
     val direction: Direction,
     private val decoder: Decoder = GreedyDecoder(),
+    tune: OrtTuning = OrtTuning.production(),
 ) {
 
     private val tokenizer = Tokenizer.load(context, direction)
-    private val models = OnnxModels(context, direction)
+    private val models = OnnxModels(context, direction, tune)
 
     /** Translates [text]. Returns the target-language string. */
     fun translate(text: String): String {

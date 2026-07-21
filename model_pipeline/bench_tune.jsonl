@@ -1,0 +1,852 @@
+CONFIG name=baseline
+{"run":"translate","total_ms":412.596,"stages":{"tokenize":7.109,"encoder":58.247,"decode":336.421},"counters":{"tokens":6,"init_us":43766,"step_us":222393,"steps":6}}
+{"run":"translate","total_ms":607.773,"stages":{"tokenize":0.553,"encoder":70.085,"decode":535.481},"counters":{"tokens":12,"init_us":57583,"step_us":444730,"steps":12}}
+{"run":"translate","total_ms":382.688,"stages":{"tokenize":0.382,"encoder":47.699,"decode":333.201},"counters":{"tokens":6,"init_us":42548,"step_us":265816,"steps":6}}
+{"run":"translate","total_ms":802.977,"stages":{"tokenize":0.602,"encoder":77.381,"decode":723.466},"counters":{"tokens":12,"init_us":67651,"step_us":620198,"steps":12}}
+WARMUP_DONE baseline
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":371.803,"stages":{"tokenize":0.347,"encoder":51.687,"decode":316.572},"counters":{"tokens":6,"init_us":52849,"step_us":237128,"steps":6}}
+{"run":"translate","total_ms":357.610,"stages":{"tokenize":0.432,"encoder":44.730,"decode":311.151},"counters":{"tokens":6,"init_us":57851,"step_us":233228,"steps":6}}
+{"run":"translate","total_ms":339.610,"stages":{"tokenize":0.402,"encoder":62.259,"decode":275.706},"counters":{"tokens":6,"init_us":45404,"step_us":211246,"steps":6}}
+{"run":"translate","total_ms":311.216,"stages":{"tokenize":0.348,"encoder":47.043,"decode":262.623},"counters":{"tokens":6,"init_us":39564,"step_us":205343,"steps":6}}
+{"run":"translate","total_ms":481.549,"stages":{"tokenize":0.354,"encoder":50.341,"decode":421.932},"counters":{"tokens":6,"init_us":45309,"step_us":348535,"steps":6}}
+{"run":"translate","total_ms":417.839,"stages":{"tokenize":0.347,"encoder":51.146,"decode":365.121},"counters":{"tokens":6,"init_us":41927,"step_us":299244,"steps":6}}
+{"run":"translate","total_ms":335.197,"stages":{"tokenize":0.394,"encoder":46.515,"decode":287.092},"counters":{"tokens":6,"init_us":40006,"step_us":228411,"steps":6}}
+{"run":"translate","total_ms":415.486,"stages":{"tokenize":0.428,"encoder":50.720,"decode":361.825},"counters":{"tokens":6,"init_us":40490,"step_us":285597,"steps":6}}
+{"run":"translate","total_ms":530.571,"stages":{"tokenize":1.156,"encoder":67.709,"decode":460.475},"counters":{"tokens":6,"init_us":49558,"step_us":387113,"steps":6}}
+{"run":"translate","total_ms":479.344,"stages":{"tokenize":0.410,"encoder":54.021,"decode":423.670},"counters":{"tokens":6,"init_us":59135,"step_us":338203,"steps":6}}
+{"run":"translate","total_ms":478.840,"stages":{"tokenize":0.398,"encoder":52.956,"decode":423.289},"counters":{"tokens":6,"init_us":50550,"step_us":343507,"steps":6}}
+{"run":"translate","total_ms":374.282,"stages":{"tokenize":0.632,"encoder":63.540,"decode":308.308},"counters":{"tokens":6,"init_us":66168,"step_us":222748,"steps":6}}
+{"run":"translate","total_ms":340.380,"stages":{"tokenize":0.341,"encoder":61.106,"decode":277.731},"counters":{"tokens":6,"init_us":42787,"step_us":217388,"steps":6}}
+{"run":"translate","total_ms":379.899,"stages":{"tokenize":0.346,"encoder":49.043,"decode":329.139},"counters":{"tokens":6,"init_us":40137,"step_us":270754,"steps":6}}
+{"run":"translate","total_ms":338.469,"stages":{"tokenize":0.431,"encoder":46.265,"decode":290.537},"counters":{"tokens":6,"init_us":50948,"step_us":221848,"steps":6}}
+{"run":"translate","total_ms":331.391,"stages":{"tokenize":0.361,"encoder":47.981,"decode":281.723},"counters":{"tokens":6,"init_us":40253,"step_us":222293,"steps":6}}
+{"run":"translate","total_ms":395.816,"stages":{"tokenize":0.349,"encoder":47.022,"decode":347.099},"counters":{"tokens":6,"init_us":51559,"step_us":270715,"steps":6}}
+{"run":"translate","total_ms":349.809,"stages":{"tokenize":0.484,"encoder":54.251,"decode":293.860},"counters":{"tokens":6,"init_us":41329,"step_us":234730,"steps":6}}
+{"run":"translate","total_ms":338.028,"stages":{"tokenize":0.340,"encoder":47.542,"decode":288.890},"counters":{"tokens":6,"init_us":44948,"step_us":226244,"steps":6}}
+{"run":"translate","total_ms":422.583,"stages":{"tokenize":0.345,"encoder":47.641,"decode":373.248},"counters":{"tokens":6,"init_us":40389,"step_us":308240,"steps":6}}
+{"run":"translate","total_ms":343.506,"stages":{"tokenize":0.435,"encoder":48.635,"decode":293.201},"counters":{"tokens":6,"init_us":46196,"step_us":227361,"steps":6}}
+{"run":"translate","total_ms":327.941,"stages":{"tokenize":0.346,"encoder":52.413,"decode":273.880},"counters":{"tokens":6,"init_us":39878,"step_us":214641,"steps":6}}
+{"run":"translate","total_ms":382.244,"stages":{"tokenize":0.354,"encoder":59.969,"decode":320.571},"counters":{"tokens":6,"init_us":45750,"step_us":247976,"steps":6}}
+{"run":"translate","total_ms":362.613,"stages":{"tokenize":0.440,"encoder":48.613,"decode":312.337},"counters":{"tokens":6,"init_us":42376,"step_us":250898,"steps":6}}
+{"run":"translate","total_ms":332.200,"stages":{"tokenize":0.343,"encoder":47.783,"decode":282.798},"counters":{"tokens":6,"init_us":40974,"step_us":224174,"steps":6}}
+{"run":"translate","total_ms":370.732,"stages":{"tokenize":0.350,"encoder":48.121,"decode":320.872},"counters":{"tokens":6,"init_us":40092,"step_us":255567,"steps":6}}
+{"run":"translate","total_ms":371.255,"stages":{"tokenize":8.462,"encoder":55.672,"decode":305.823},"counters":{"tokens":6,"init_us":42044,"step_us":246444,"steps":6}}
+{"run":"translate","total_ms":315.595,"stages":{"tokenize":0.341,"encoder":48.876,"decode":265.149},"counters":{"tokens":6,"init_us":39202,"step_us":208964,"steps":6}}
+{"run":"translate","total_ms":367.742,"stages":{"tokenize":0.395,"encoder":55.780,"decode":310.213},"counters":{"tokens":6,"init_us":42636,"step_us":244519,"steps":6}}
+{"run":"translate","total_ms":345.631,"stages":{"tokenize":0.435,"encoder":48.336,"decode":295.627},"counters":{"tokens":6,"init_us":50100,"step_us":227991,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":621.292,"stages":{"tokenize":0.531,"encoder":69.109,"decode":549.931},"counters":{"tokens":12,"init_us":58320,"step_us":453301,"steps":12}}
+{"run":"translate","total_ms":953.353,"stages":{"tokenize":0.632,"encoder":69.801,"decode":881.414},"counters":{"tokens":12,"init_us":89903,"step_us":754754,"steps":12}}
+{"run":"translate","total_ms":752.911,"stages":{"tokenize":8.560,"encoder":78.891,"decode":663.889},"counters":{"tokens":12,"init_us":60474,"step_us":564675,"steps":12}}
+{"run":"translate","total_ms":634.350,"stages":{"tokenize":0.516,"encoder":75.507,"decode":556.631},"counters":{"tokens":12,"init_us":42628,"step_us":472180,"steps":12}}
+{"run":"translate","total_ms":802.949,"stages":{"tokenize":0.636,"encoder":80.345,"decode":720.426},"counters":{"tokens":12,"init_us":76194,"step_us":606742,"steps":12}}
+{"run":"translate","total_ms":670.280,"stages":{"tokenize":0.496,"encoder":67.939,"decode":600.042},"counters":{"tokens":12,"init_us":61790,"step_us":493260,"steps":12}}
+{"run":"translate","total_ms":623.534,"stages":{"tokenize":0.506,"encoder":77.956,"decode":543.579},"counters":{"tokens":12,"init_us":45672,"step_us":465949,"steps":12}}
+{"run":"translate","total_ms":623.241,"stages":{"tokenize":0.507,"encoder":78.653,"decode":542.567},"counters":{"tokens":12,"init_us":63343,"step_us":444388,"steps":12}}
+{"run":"translate","total_ms":593.600,"stages":{"tokenize":0.490,"encoder":68.835,"decode":522.498},"counters":{"tokens":12,"init_us":53686,"step_us":434709,"steps":12}}
+{"run":"translate","total_ms":736.078,"stages":{"tokenize":0.624,"encoder":127.777,"decode":606.131},"counters":{"tokens":12,"init_us":44267,"step_us":528476,"steps":12}}
+{"run":"translate","total_ms":765.820,"stages":{"tokenize":0.496,"encoder":77.261,"decode":686.557},"counters":{"tokens":12,"init_us":46125,"step_us":592305,"steps":12}}
+{"run":"translate","total_ms":863.300,"stages":{"tokenize":0.518,"encoder":70.080,"decode":791.010},"counters":{"tokens":12,"init_us":60590,"step_us":674661,"steps":12}}
+{"run":"translate","total_ms":634.577,"stages":{"tokenize":0.625,"encoder":67.256,"decode":565.193},"counters":{"tokens":12,"init_us":65653,"step_us":462749,"steps":12}}
+{"run":"translate","total_ms":775.326,"stages":{"tokenize":0.488,"encoder":72.242,"decode":701.073},"counters":{"tokens":12,"init_us":64010,"step_us":597607,"steps":12}}
+{"run":"translate","total_ms":640.434,"stages":{"tokenize":0.523,"encoder":145.518,"decode":492.820},"counters":{"tokens":12,"init_us":43343,"step_us":415503,"steps":12}}
+{"run":"translate","total_ms":756.133,"stages":{"tokenize":0.490,"encoder":70.024,"decode":684.001},"counters":{"tokens":12,"init_us":56843,"step_us":592490,"steps":12}}
+{"run":"translate","total_ms":646.174,"stages":{"tokenize":0.491,"encoder":71.301,"decode":568.712},"counters":{"tokens":12,"init_us":45366,"step_us":482990,"steps":12}}
+{"run":"translate","total_ms":830.572,"stages":{"tokenize":0.728,"encoder":105.430,"decode":722.878},"counters":{"tokens":12,"init_us":42831,"step_us":640234,"steps":12}}
+{"run":"translate","total_ms":775.330,"stages":{"tokenize":0.487,"encoder":71.124,"decode":702.241},"counters":{"tokens":12,"init_us":60959,"step_us":600039,"steps":12}}
+{"run":"translate","total_ms":590.696,"stages":{"tokenize":0.515,"encoder":77.799,"decode":510.560},"counters":{"tokens":12,"init_us":43049,"step_us":429247,"steps":12}}
+{"run":"translate","total_ms":687.838,"stages":{"tokenize":0.662,"encoder":67.012,"decode":618.674},"counters":{"tokens":12,"init_us":44159,"step_us":542292,"steps":12}}
+{"run":"translate","total_ms":676.929,"stages":{"tokenize":8.571,"encoder":70.970,"decode":595.456},"counters":{"tokens":12,"init_us":61977,"step_us":501046,"steps":12}}
+{"run":"translate","total_ms":632.075,"stages":{"tokenize":0.638,"encoder":88.257,"decode":541.754},"counters":{"tokens":12,"init_us":54109,"step_us":455993,"steps":12}}
+{"run":"translate","total_ms":777.382,"stages":{"tokenize":0.493,"encoder":97.076,"decode":677.186},"counters":{"tokens":12,"init_us":60664,"step_us":560834,"steps":12}}
+{"run":"translate","total_ms":951.874,"stages":{"tokenize":1.070,"encoder":117.854,"decode":831.444},"counters":{"tokens":12,"init_us":50461,"step_us":743960,"steps":12}}
+{"run":"translate","total_ms":723.726,"stages":{"tokenize":8.571,"encoder":67.643,"decode":646.034},"counters":{"tokens":12,"init_us":61747,"step_us":543650,"steps":12}}
+{"run":"translate","total_ms":720.530,"stages":{"tokenize":0.518,"encoder":90.576,"decode":627.637},"counters":{"tokens":12,"init_us":75279,"step_us":518757,"steps":12}}
+{"run":"translate","total_ms":608.870,"stages":{"tokenize":0.619,"encoder":80.412,"decode":526.269},"counters":{"tokens":12,"init_us":43397,"step_us":449908,"steps":12}}
+{"run":"translate","total_ms":644.660,"stages":{"tokenize":0.570,"encoder":85.866,"decode":556.581},"counters":{"tokens":12,"init_us":55688,"step_us":461011,"steps":12}}
+{"run":"translate","total_ms":684.541,"stages":{"tokenize":0.624,"encoder":71.662,"decode":610.762},"counters":{"tokens":12,"init_us":49546,"step_us":518093,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=1006898 nativePss=920131 dalvikPss=28309
+CONFIG name=opt_none
+{"run":"translate","total_ms":388.804,"stages":{"tokenize":0.599,"encoder":69.582,"decode":317.585},"counters":{"tokens":6,"init_us":50982,"step_us":249602,"steps":6}}
+{"run":"translate","total_ms":722.559,"stages":{"tokenize":0.487,"encoder":89.340,"decode":631.316},"counters":{"tokens":12,"init_us":51802,"step_us":541041,"steps":12}}
+{"run":"translate","total_ms":461.547,"stages":{"tokenize":0.450,"encoder":60.294,"decode":399.785},"counters":{"tokens":6,"init_us":54352,"step_us":328241,"steps":6}}
+{"run":"translate","total_ms":666.000,"stages":{"tokenize":0.478,"encoder":91.298,"decode":572.976},"counters":{"tokens":12,"init_us":51376,"step_us":492108,"steps":12}}
+WARMUP_DONE opt_none
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":368.610,"stages":{"tokenize":0.342,"encoder":64.214,"decode":302.936},"counters":{"tokens":6,"init_us":47668,"step_us":238914,"steps":6}}
+{"run":"translate","total_ms":409.258,"stages":{"tokenize":0.550,"encoder":74.119,"decode":333.561},"counters":{"tokens":6,"init_us":50390,"step_us":265999,"steps":6}}
+{"run":"translate","total_ms":380.167,"stages":{"tokenize":0.417,"encoder":62.240,"decode":316.501},"counters":{"tokens":6,"init_us":60745,"step_us":240042,"steps":6}}
+{"run":"translate","total_ms":367.965,"stages":{"tokenize":0.352,"encoder":60.308,"decode":306.187},"counters":{"tokens":6,"init_us":50494,"step_us":237676,"steps":6}}
+{"run":"translate","total_ms":413.562,"stages":{"tokenize":0.417,"encoder":95.647,"decode":316.538},"counters":{"tokens":6,"init_us":50950,"step_us":249866,"steps":6}}
+{"run":"translate","total_ms":367.705,"stages":{"tokenize":0.338,"encoder":63.637,"decode":302.767},"counters":{"tokens":6,"init_us":47510,"step_us":239602,"steps":6}}
+{"run":"translate","total_ms":400.016,"stages":{"tokenize":0.391,"encoder":64.249,"decode":334.254},"counters":{"tokens":6,"init_us":48784,"step_us":266162,"steps":6}}
+{"run":"translate","total_ms":430.889,"stages":{"tokenize":0.421,"encoder":68.536,"decode":360.467},"counters":{"tokens":6,"init_us":77646,"step_us":262272,"steps":6}}
+{"run":"translate","total_ms":393.958,"stages":{"tokenize":0.345,"encoder":60.806,"decode":331.847},"counters":{"tokens":6,"init_us":67216,"step_us":247678,"steps":6}}
+{"run":"translate","total_ms":407.727,"stages":{"tokenize":0.338,"encoder":69.356,"decode":336.896},"counters":{"tokens":6,"init_us":58292,"step_us":257136,"steps":6}}
+{"run":"translate","total_ms":479.574,"stages":{"tokenize":0.462,"encoder":120.482,"decode":357.627},"counters":{"tokens":6,"init_us":91901,"step_us":247090,"steps":6}}
+{"run":"translate","total_ms":376.234,"stages":{"tokenize":0.284,"encoder":64.379,"decode":310.570},"counters":{"tokens":6,"init_us":47833,"step_us":247198,"steps":6}}
+{"run":"translate","total_ms":386.717,"stages":{"tokenize":0.289,"encoder":72.778,"decode":312.531},"counters":{"tokens":6,"init_us":46239,"step_us":250086,"steps":6}}
+{"run":"translate","total_ms":407.579,"stages":{"tokenize":0.368,"encoder":65.738,"decode":340.460},"counters":{"tokens":6,"init_us":70329,"step_us":251642,"steps":6}}
+{"run":"translate","total_ms":386.052,"stages":{"tokenize":0.289,"encoder":62.282,"decode":322.511},"counters":{"tokens":6,"init_us":49466,"step_us":256134,"steps":6}}
+{"run":"translate","total_ms":385.499,"stages":{"tokenize":0.290,"encoder":64.053,"decode":319.959},"counters":{"tokens":6,"init_us":49891,"step_us":253801,"steps":6}}
+{"run":"translate","total_ms":534.830,"stages":{"tokenize":0.349,"encoder":64.040,"decode":469.413},"counters":{"tokens":6,"init_us":55526,"step_us":391771,"steps":6}}
+{"run":"translate","total_ms":373.477,"stages":{"tokenize":0.305,"encoder":65.077,"decode":307.122},"counters":{"tokens":6,"init_us":46843,"step_us":245222,"steps":6}}
+{"run":"translate","total_ms":415.255,"stages":{"tokenize":0.287,"encoder":60.915,"decode":352.924},"counters":{"tokens":6,"init_us":45985,"step_us":274436,"steps":6}}
+{"run":"translate","total_ms":374.719,"stages":{"tokenize":0.336,"encoder":59.497,"decode":313.915},"counters":{"tokens":6,"init_us":47320,"step_us":251195,"steps":6}}
+{"run":"translate","total_ms":391.907,"stages":{"tokenize":0.276,"encoder":72.494,"decode":318.158},"counters":{"tokens":6,"init_us":49719,"step_us":252214,"steps":6}}
+{"run":"translate","total_ms":364.700,"stages":{"tokenize":0.271,"encoder":63.675,"decode":299.810},"counters":{"tokens":6,"init_us":47237,"step_us":237563,"steps":6}}
+{"run":"translate","total_ms":416.437,"stages":{"tokenize":0.282,"encoder":62.543,"decode":352.528},"counters":{"tokens":6,"init_us":55836,"step_us":274461,"steps":6}}
+{"run":"translate","total_ms":394.859,"stages":{"tokenize":0.339,"encoder":64.423,"decode":329.065},"counters":{"tokens":6,"init_us":54159,"step_us":258316,"steps":6}}
+{"run":"translate","total_ms":372.288,"stages":{"tokenize":0.337,"encoder":63.870,"decode":307.079},"counters":{"tokens":6,"init_us":46385,"step_us":244534,"steps":6}}
+{"run":"translate","total_ms":415.409,"stages":{"tokenize":0.338,"encoder":62.014,"decode":350.888},"counters":{"tokens":6,"init_us":47266,"step_us":284613,"steps":6}}
+{"run":"translate","total_ms":622.952,"stages":{"tokenize":0.650,"encoder":105.491,"decode":514.983},"counters":{"tokens":6,"init_us":48661,"step_us":438548,"steps":6}}
+{"run":"translate","total_ms":564.475,"stages":{"tokenize":0.808,"encoder":65.808,"decode":496.157},"counters":{"tokens":6,"init_us":48559,"step_us":419034,"steps":6}}
+{"run":"translate","total_ms":572.638,"stages":{"tokenize":1.008,"encoder":60.605,"decode":509.172},"counters":{"tokens":6,"init_us":46919,"step_us":435309,"steps":6}}
+{"run":"translate","total_ms":426.544,"stages":{"tokenize":0.891,"encoder":98.128,"decode":326.424},"counters":{"tokens":6,"init_us":47022,"step_us":254498,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":681.457,"stages":{"tokenize":0.451,"encoder":99.025,"decode":580.750},"counters":{"tokens":12,"init_us":50514,"step_us":500126,"steps":12}}
+{"run":"translate","total_ms":853.479,"stages":{"tokenize":0.352,"encoder":99.232,"decode":752.643},"counters":{"tokens":12,"init_us":69184,"step_us":647472,"steps":12}}
+{"run":"translate","total_ms":693.544,"stages":{"tokenize":0.374,"encoder":90.480,"decode":601.172},"counters":{"tokens":12,"init_us":79991,"step_us":484775,"steps":12}}
+{"run":"translate","total_ms":762.209,"stages":{"tokenize":0.420,"encoder":163.811,"decode":596.705},"counters":{"tokens":12,"init_us":60321,"step_us":507750,"steps":12}}
+{"run":"translate","total_ms":680.574,"stages":{"tokenize":0.372,"encoder":88.704,"decode":590.082},"counters":{"tokens":12,"init_us":50405,"step_us":507554,"steps":12}}
+{"run":"translate","total_ms":746.356,"stages":{"tokenize":0.408,"encoder":91.019,"decode":653.606},"counters":{"tokens":12,"init_us":107943,"step_us":511700,"steps":12}}
+{"run":"translate","total_ms":748.164,"stages":{"tokenize":0.360,"encoder":100.237,"decode":646.169},"counters":{"tokens":12,"init_us":66492,"step_us":544212,"steps":12}}
+{"run":"translate","total_ms":897.133,"stages":{"tokenize":0.419,"encoder":109.822,"decode":785.576},"counters":{"tokens":12,"init_us":67161,"step_us":689943,"steps":12}}
+{"run":"translate","total_ms":834.189,"stages":{"tokenize":0.374,"encoder":170.936,"decode":661.258},"counters":{"tokens":12,"init_us":67901,"step_us":552566,"steps":12}}
+{"run":"translate","total_ms":815.552,"stages":{"tokenize":0.372,"encoder":201.896,"decode":611.696},"counters":{"tokens":12,"init_us":68580,"step_us":505898,"steps":12}}
+{"run":"translate","total_ms":802.446,"stages":{"tokenize":0.616,"encoder":148.378,"decode":652.196},"counters":{"tokens":12,"init_us":60299,"step_us":562001,"steps":12}}
+{"run":"translate","total_ms":811.557,"stages":{"tokenize":0.380,"encoder":152.564,"decode":657.202},"counters":{"tokens":12,"init_us":67067,"step_us":555879,"steps":12}}
+{"run":"translate","total_ms":838.060,"stages":{"tokenize":0.420,"encoder":182.476,"decode":653.841},"counters":{"tokens":12,"init_us":93701,"step_us":530175,"steps":12}}
+{"run":"translate","total_ms":729.498,"stages":{"tokenize":0.338,"encoder":98.389,"decode":629.520},"counters":{"tokens":12,"init_us":73341,"step_us":522865,"steps":12}}
+{"run":"translate","total_ms":799.255,"stages":{"tokenize":0.342,"encoder":118.063,"decode":679.609},"counters":{"tokens":12,"init_us":51687,"step_us":599805,"steps":12}}
+{"run":"translate","total_ms":959.652,"stages":{"tokenize":0.346,"encoder":92.501,"decode":865.557},"counters":{"tokens":12,"init_us":68491,"step_us":761046,"steps":12}}
+{"run":"translate","total_ms":842.141,"stages":{"tokenize":0.324,"encoder":120.945,"decode":711.295},"counters":{"tokens":12,"init_us":69651,"step_us":604906,"steps":12}}
+{"run":"translate","total_ms":714.053,"stages":{"tokenize":0.371,"encoder":101.485,"decode":610.961},"counters":{"tokens":12,"init_us":63905,"step_us":516625,"steps":12}}
+{"run":"translate","total_ms":1058.810,"stages":{"tokenize":0.324,"encoder":94.189,"decode":963.007},"counters":{"tokens":12,"init_us":55261,"step_us":870586,"steps":12}}
+{"run":"translate","total_ms":775.559,"stages":{"tokenize":8.403,"encoder":93.914,"decode":671.870},"counters":{"tokens":12,"init_us":54866,"step_us":583193,"steps":12}}
+{"run":"translate","total_ms":682.623,"stages":{"tokenize":0.416,"encoder":90.235,"decode":590.729},"counters":{"tokens":12,"init_us":62955,"step_us":499836,"steps":12}}
+{"run":"translate","total_ms":948.649,"stages":{"tokenize":0.319,"encoder":91.461,"decode":855.531},"counters":{"tokens":12,"init_us":53328,"step_us":766470,"steps":12}}
+{"run":"translate","total_ms":771.110,"stages":{"tokenize":0.346,"encoder":118.388,"decode":650.998},"counters":{"tokens":12,"init_us":53389,"step_us":560897,"steps":12}}
+{"run":"translate","total_ms":696.799,"stages":{"tokenize":0.430,"encoder":89.886,"decode":605.231},"counters":{"tokens":12,"init_us":69648,"step_us":507694,"steps":12}}
+{"run":"translate","total_ms":897.043,"stages":{"tokenize":0.330,"encoder":96.645,"decode":798.792},"counters":{"tokens":12,"init_us":52311,"step_us":711009,"steps":12}}
+{"run":"translate","total_ms":752.175,"stages":{"tokenize":0.336,"encoder":92.492,"decode":657.984},"counters":{"tokens":12,"init_us":52776,"step_us":571159,"steps":12}}
+{"run":"translate","total_ms":718.307,"stages":{"tokenize":0.407,"encoder":105.114,"decode":611.531},"counters":{"tokens":12,"init_us":75802,"step_us":508127,"steps":12}}
+{"run":"translate","total_ms":747.274,"stages":{"tokenize":0.348,"encoder":90.864,"decode":654.819},"counters":{"tokens":12,"init_us":69537,"step_us":548058,"steps":12}}
+{"run":"translate","total_ms":776.695,"stages":{"tokenize":0.342,"encoder":108.181,"decode":666.900},"counters":{"tokens":12,"init_us":55628,"step_us":583535,"steps":12}}
+{"run":"translate","total_ms":688.411,"stages":{"tokenize":0.340,"encoder":88.539,"decode":598.192},"counters":{"tokens":12,"init_us":54829,"step_us":513906,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=975899 nativePss=893311 dalvikPss=24022
+CONFIG name=opt_extended
+{"run":"translate","total_ms":427.566,"stages":{"tokenize":0.399,"encoder":85.694,"decode":340.448},"counters":{"tokens":6,"init_us":59243,"step_us":266401,"steps":6}}
+{"run":"translate","total_ms":628.476,"stages":{"tokenize":0.332,"encoder":101.739,"decode":525.164},"counters":{"tokens":12,"init_us":57714,"step_us":440253,"steps":12}}
+{"run":"translate","total_ms":302.965,"stages":{"tokenize":0.258,"encoder":54.203,"decode":247.489},"counters":{"tokens":6,"init_us":37520,"step_us":194363,"steps":6}}
+{"run":"translate","total_ms":564.690,"stages":{"tokenize":0.383,"encoder":68.659,"decode":494.409},"counters":{"tokens":12,"init_us":46966,"step_us":418576,"steps":12}}
+WARMUP_DONE opt_extended
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":307.676,"stages":{"tokenize":0.244,"encoder":48.227,"decode":256.756},"counters":{"tokens":6,"init_us":38804,"step_us":194508,"steps":6}}
+{"run":"translate","total_ms":344.432,"stages":{"tokenize":0.359,"encoder":43.709,"decode":299.384},"counters":{"tokens":6,"init_us":38685,"step_us":244512,"steps":6}}
+{"run":"translate","total_ms":315.265,"stages":{"tokenize":0.285,"encoder":62.522,"decode":251.477},"counters":{"tokens":6,"init_us":37189,"step_us":199956,"steps":6}}
+{"run":"translate","total_ms":294.701,"stages":{"tokenize":0.267,"encoder":46.482,"decode":247.028},"counters":{"tokens":6,"init_us":38119,"step_us":194532,"steps":6}}
+{"run":"translate","total_ms":307.883,"stages":{"tokenize":0.268,"encoder":47.932,"decode":258.662},"counters":{"tokens":6,"init_us":42378,"step_us":199419,"steps":6}}
+{"run":"translate","total_ms":395.471,"stages":{"tokenize":0.315,"encoder":57.379,"decode":336.703},"counters":{"tokens":6,"init_us":44559,"step_us":268926,"steps":6}}
+{"run":"translate","total_ms":519.076,"stages":{"tokenize":0.302,"encoder":131.445,"decode":385.644},"counters":{"tokens":6,"init_us":42481,"step_us":313813,"steps":6}}
+{"run":"translate","total_ms":389.595,"stages":{"tokenize":0.770,"encoder":51.132,"decode":335.838},"counters":{"tokens":6,"init_us":42683,"step_us":269447,"steps":6}}
+{"run":"translate","total_ms":380.354,"stages":{"tokenize":0.317,"encoder":51.854,"decode":327.223},"counters":{"tokens":6,"init_us":41346,"step_us":268386,"steps":6}}
+{"run":"translate","total_ms":469.733,"stages":{"tokenize":0.283,"encoder":55.620,"decode":412.831},"counters":{"tokens":6,"init_us":56609,"step_us":341303,"steps":6}}
+{"run":"translate","total_ms":403.456,"stages":{"tokenize":0.259,"encoder":64.237,"decode":337.882},"counters":{"tokens":6,"init_us":42680,"step_us":273892,"steps":6}}
+{"run":"translate","total_ms":383.645,"stages":{"tokenize":0.318,"encoder":55.060,"decode":327.237},"counters":{"tokens":6,"init_us":60208,"step_us":250569,"steps":6}}
+{"run":"translate","total_ms":325.609,"stages":{"tokenize":0.259,"encoder":55.753,"decode":268.579},"counters":{"tokens":6,"init_us":43179,"step_us":209292,"steps":6}}
+{"run":"translate","total_ms":345.472,"stages":{"tokenize":0.259,"encoder":49.312,"decode":294.873},"counters":{"tokens":6,"init_us":39177,"step_us":231264,"steps":6}}
+{"run":"translate","total_ms":477.380,"stages":{"tokenize":0.325,"encoder":69.343,"decode":405.578},"counters":{"tokens":6,"init_us":60956,"step_us":313866,"steps":6}}
+{"run":"translate","total_ms":511.929,"stages":{"tokenize":1.891,"encoder":100.894,"decode":408.215},"counters":{"tokens":6,"init_us":44323,"step_us":349036,"steps":6}}
+{"run":"translate","total_ms":348.479,"stages":{"tokenize":0.256,"encoder":55.701,"decode":291.603},"counters":{"tokens":6,"init_us":63682,"step_us":211676,"steps":6}}
+{"run":"translate","total_ms":352.110,"stages":{"tokenize":0.333,"encoder":50.600,"decode":300.121},"counters":{"tokens":6,"init_us":43973,"step_us":235831,"steps":6}}
+{"run":"translate","total_ms":353.314,"stages":{"tokenize":0.321,"encoder":59.117,"decode":292.830},"counters":{"tokens":6,"init_us":49778,"step_us":226408,"steps":6}}
+{"run":"translate","total_ms":363.584,"stages":{"tokenize":0.282,"encoder":46.959,"decode":315.338},"counters":{"tokens":6,"init_us":46263,"step_us":252427,"steps":6}}
+{"run":"translate","total_ms":337.494,"stages":{"tokenize":0.255,"encoder":48.966,"decode":286.688},"counters":{"tokens":6,"init_us":50690,"step_us":217529,"steps":6}}
+{"run":"translate","total_ms":357.953,"stages":{"tokenize":0.429,"encoder":50.650,"decode":305.792},"counters":{"tokens":6,"init_us":62351,"step_us":228112,"steps":6}}
+{"run":"translate","total_ms":442.144,"stages":{"tokenize":0.436,"encoder":46.606,"decode":394.150},"counters":{"tokens":6,"init_us":39816,"step_us":332752,"steps":6}}
+{"run":"translate","total_ms":321.692,"stages":{"tokenize":0.270,"encoder":48.199,"decode":272.170},"counters":{"tokens":6,"init_us":47405,"step_us":210195,"steps":6}}
+{"run":"translate","total_ms":405.236,"stages":{"tokenize":0.261,"encoder":48.870,"decode":355.050},"counters":{"tokens":6,"init_us":44824,"step_us":289560,"steps":6}}
+{"run":"translate","total_ms":311.005,"stages":{"tokenize":0.316,"encoder":46.941,"decode":262.696},"counters":{"tokens":6,"init_us":39406,"step_us":206794,"steps":6}}
+{"run":"translate","total_ms":364.555,"stages":{"tokenize":0.284,"encoder":97.003,"decode":266.284},"counters":{"tokens":6,"init_us":39994,"step_us":210763,"steps":6}}
+{"run":"translate","total_ms":344.221,"stages":{"tokenize":0.257,"encoder":47.324,"decode":295.680},"counters":{"tokens":6,"init_us":79714,"step_us":201184,"steps":6}}
+{"run":"translate","total_ms":328.783,"stages":{"tokenize":0.266,"encoder":49.418,"decode":277.959},"counters":{"tokens":6,"init_us":44546,"step_us":214138,"steps":6}}
+{"run":"translate","total_ms":480.341,"stages":{"tokenize":0.344,"encoder":59.964,"decode":418.984},"counters":{"tokens":6,"init_us":39327,"step_us":364786,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":564.515,"stages":{"tokenize":0.326,"encoder":68.484,"decode":494.338},"counters":{"tokens":12,"init_us":43542,"step_us":418378,"steps":12}}
+{"run":"translate","total_ms":594.523,"stages":{"tokenize":0.466,"encoder":70.409,"decode":522.057},"counters":{"tokens":12,"init_us":54005,"step_us":437069,"steps":12}}
+{"run":"translate","total_ms":776.656,"stages":{"tokenize":0.337,"encoder":72.407,"decode":701.477},"counters":{"tokens":12,"init_us":50745,"step_us":602011,"steps":12}}
+{"run":"translate","total_ms":677.566,"stages":{"tokenize":0.933,"encoder":71.679,"decode":603.700},"counters":{"tokens":12,"init_us":62177,"step_us":506666,"steps":12}}
+{"run":"translate","total_ms":574.235,"stages":{"tokenize":0.323,"encoder":77.267,"decode":495.270},"counters":{"tokens":12,"init_us":46631,"step_us":411425,"steps":12}}
+{"run":"translate","total_ms":606.184,"stages":{"tokenize":0.367,"encoder":92.304,"decode":512.184},"counters":{"tokens":12,"init_us":57630,"step_us":425586,"steps":12}}
+{"run":"translate","total_ms":812.104,"stages":{"tokenize":0.322,"encoder":80.336,"decode":730.096},"counters":{"tokens":12,"init_us":44147,"step_us":635893,"steps":12}}
+{"run":"translate","total_ms":631.961,"stages":{"tokenize":0.350,"encoder":77.510,"decode":552.010},"counters":{"tokens":12,"init_us":86384,"step_us":434926,"steps":12}}
+{"run":"translate","total_ms":706.038,"stages":{"tokenize":0.426,"encoder":74.042,"decode":630.252},"counters":{"tokens":12,"init_us":99451,"step_us":492384,"steps":12}}
+{"run":"translate","total_ms":873.731,"stages":{"tokenize":0.334,"encoder":84.219,"decode":787.920},"counters":{"tokens":12,"init_us":53682,"step_us":691002,"steps":12}}
+{"run":"translate","total_ms":609.683,"stages":{"tokenize":0.323,"encoder":81.007,"decode":527.059},"counters":{"tokens":12,"init_us":59755,"step_us":438711,"steps":12}}
+{"run":"translate","total_ms":828.759,"stages":{"tokenize":0.323,"encoder":67.062,"decode":760.141},"counters":{"tokens":12,"init_us":51301,"step_us":668944,"steps":12}}
+{"run":"translate","total_ms":686.721,"stages":{"tokenize":0.343,"encoder":99.935,"decode":584.970},"counters":{"tokens":12,"init_us":52385,"step_us":495349,"steps":12}}
+{"run":"translate","total_ms":634.991,"stages":{"tokenize":0.380,"encoder":67.173,"decode":566.120},"counters":{"tokens":12,"init_us":56879,"step_us":478267,"steps":12}}
+{"run":"translate","total_ms":635.213,"stages":{"tokenize":0.330,"encoder":71.527,"decode":561.908},"counters":{"tokens":12,"init_us":52886,"step_us":474075,"steps":12}}
+{"run":"translate","total_ms":620.874,"stages":{"tokenize":0.383,"encoder":103.092,"decode":516.113},"counters":{"tokens":12,"init_us":45803,"step_us":440087,"steps":12}}
+{"run":"translate","total_ms":806.473,"stages":{"tokenize":0.331,"encoder":69.297,"decode":733.699},"counters":{"tokens":12,"init_us":46136,"step_us":627212,"steps":12}}
+{"run":"translate","total_ms":644.390,"stages":{"tokenize":1.352,"encoder":70.611,"decode":571.160},"counters":{"tokens":12,"init_us":87373,"step_us":456200,"steps":12}}
+{"run":"translate","total_ms":854.310,"stages":{"tokenize":0.338,"encoder":82.687,"decode":768.537},"counters":{"tokens":12,"init_us":46160,"step_us":669267,"steps":12}}
+{"run":"translate","total_ms":607.789,"stages":{"tokenize":1.131,"encoder":74.025,"decode":531.363},"counters":{"tokens":12,"init_us":52129,"step_us":448476,"steps":12}}
+{"run":"translate","total_ms":634.953,"stages":{"tokenize":0.323,"encoder":70.788,"decode":562.457},"counters":{"tokens":12,"init_us":54015,"step_us":472947,"steps":12}}
+{"run":"translate","total_ms":758.490,"stages":{"tokenize":0.492,"encoder":67.302,"decode":689.393},"counters":{"tokens":12,"init_us":67632,"step_us":589981,"steps":12}}
+{"run":"translate","total_ms":769.122,"stages":{"tokenize":0.320,"encoder":81.644,"decode":685.877},"counters":{"tokens":12,"init_us":55853,"step_us":596277,"steps":12}}
+{"run":"translate","total_ms":874.320,"stages":{"tokenize":0.327,"encoder":78.004,"decode":794.626},"counters":{"tokens":12,"init_us":49482,"step_us":700974,"steps":12}}
+{"run":"translate","total_ms":618.532,"stages":{"tokenize":0.413,"encoder":76.404,"decode":540.345},"counters":{"tokens":12,"init_us":63370,"step_us":445076,"steps":12}}
+{"run":"translate","total_ms":779.196,"stages":{"tokenize":0.366,"encoder":88.736,"decode":686.417},"counters":{"tokens":12,"init_us":47036,"step_us":596361,"steps":12}}
+{"run":"translate","total_ms":678.359,"stages":{"tokenize":1.350,"encoder":158.837,"decode":516.929},"counters":{"tokens":12,"init_us":64873,"step_us":423047,"steps":12}}
+{"run":"translate","total_ms":630.937,"stages":{"tokenize":0.317,"encoder":82.530,"decode":546.652},"counters":{"tokens":12,"init_us":44778,"step_us":466097,"steps":12}}
+{"run":"translate","total_ms":597.489,"stages":{"tokenize":0.404,"encoder":77.217,"decode":518.616},"counters":{"tokens":12,"init_us":45669,"step_us":445278,"steps":12}}
+{"run":"translate","total_ms":638.666,"stages":{"tokenize":0.389,"encoder":68.407,"decode":568.561},"counters":{"tokens":12,"init_us":42981,"step_us":481329,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=962842 nativePss=880750 dalvikPss=24035
+CONFIG name=intra1
+{"run":"translate","total_ms":420.306,"stages":{"tokenize":0.366,"encoder":99.838,"decode":318.929},"counters":{"tokens":6,"init_us":56123,"step_us":246774,"steps":6}}
+{"run":"translate","total_ms":752.808,"stages":{"tokenize":0.449,"encoder":174.906,"decode":576.196},"counters":{"tokens":12,"init_us":66763,"step_us":481331,"steps":12}}
+{"run":"translate","total_ms":401.985,"stages":{"tokenize":0.304,"encoder":96.186,"decode":304.557},"counters":{"tokens":6,"init_us":52758,"step_us":236879,"steps":6}}
+{"run":"translate","total_ms":765.840,"stages":{"tokenize":0.329,"encoder":150.881,"decode":613.236},"counters":{"tokens":12,"init_us":60297,"step_us":523813,"steps":12}}
+WARMUP_DONE intra1
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":405.348,"stages":{"tokenize":0.274,"encoder":97.872,"decode":306.241},"counters":{"tokens":6,"init_us":53279,"step_us":237950,"steps":6}}
+{"run":"translate","total_ms":447.215,"stages":{"tokenize":0.259,"encoder":97.964,"decode":347.983},"counters":{"tokens":6,"init_us":52861,"step_us":276948,"steps":6}}
+{"run":"translate","total_ms":405.097,"stages":{"tokenize":0.249,"encoder":98.028,"decode":305.851},"counters":{"tokens":6,"init_us":53273,"step_us":237508,"steps":6}}
+{"run":"translate","total_ms":405.361,"stages":{"tokenize":0.252,"encoder":98.390,"decode":305.714},"counters":{"tokens":6,"init_us":53167,"step_us":237597,"steps":6}}
+{"run":"translate","total_ms":446.597,"stages":{"tokenize":0.245,"encoder":98.276,"decode":347.015},"counters":{"tokens":6,"init_us":53052,"step_us":274715,"steps":6}}
+{"run":"translate","total_ms":407.020,"stages":{"tokenize":0.267,"encoder":98.032,"decode":307.693},"counters":{"tokens":6,"init_us":53074,"step_us":239634,"steps":6}}
+{"run":"translate","total_ms":405.562,"stages":{"tokenize":0.261,"encoder":97.415,"decode":306.764},"counters":{"tokens":6,"init_us":53218,"step_us":237554,"steps":6}}
+{"run":"translate","total_ms":446.205,"stages":{"tokenize":0.320,"encoder":97.898,"decode":346.979},"counters":{"tokens":6,"init_us":55632,"step_us":275362,"steps":6}}
+{"run":"translate","total_ms":404.592,"stages":{"tokenize":0.268,"encoder":98.142,"decode":305.137},"counters":{"tokens":6,"init_us":52969,"step_us":237170,"steps":6}}
+{"run":"translate","total_ms":411.507,"stages":{"tokenize":0.253,"encoder":98.041,"decode":312.032},"counters":{"tokens":6,"init_us":52855,"step_us":242838,"steps":6}}
+{"run":"translate","total_ms":427.247,"stages":{"tokenize":0.419,"encoder":120.980,"decode":304.759},"counters":{"tokens":6,"init_us":53101,"step_us":236669,"steps":6}}
+{"run":"translate","total_ms":405.537,"stages":{"tokenize":0.260,"encoder":98.317,"decode":305.880},"counters":{"tokens":6,"init_us":53378,"step_us":237462,"steps":6}}
+{"run":"translate","total_ms":443.835,"stages":{"tokenize":0.263,"encoder":97.734,"decode":344.827},"counters":{"tokens":6,"init_us":53255,"step_us":273248,"steps":6}}
+{"run":"translate","total_ms":407.788,"stages":{"tokenize":0.258,"encoder":100.920,"decode":305.600},"counters":{"tokens":6,"init_us":53018,"step_us":237630,"steps":6}}
+{"run":"translate","total_ms":404.712,"stages":{"tokenize":0.256,"encoder":98.013,"decode":305.460},"counters":{"tokens":6,"init_us":52703,"step_us":237668,"steps":6}}
+{"run":"translate","total_ms":442.173,"stages":{"tokenize":0.257,"encoder":98.250,"decode":342.725},"counters":{"tokens":6,"init_us":53483,"step_us":271949,"steps":6}}
+{"run":"translate","total_ms":404.049,"stages":{"tokenize":0.248,"encoder":97.808,"decode":304.983},"counters":{"tokens":6,"init_us":53083,"step_us":236980,"steps":6}}
+{"run":"translate","total_ms":404.402,"stages":{"tokenize":0.246,"encoder":98.041,"decode":305.186},"counters":{"tokens":6,"init_us":53172,"step_us":237119,"steps":6}}
+{"run":"translate","total_ms":443.307,"stages":{"tokenize":0.256,"encoder":97.605,"decode":344.423},"counters":{"tokens":6,"init_us":53255,"step_us":272918,"steps":6}}
+{"run":"translate","total_ms":404.826,"stages":{"tokenize":0.254,"encoder":97.402,"decode":306.118},"counters":{"tokens":6,"init_us":53415,"step_us":237613,"steps":6}}
+{"run":"translate","total_ms":408.420,"stages":{"tokenize":0.267,"encoder":98.354,"decode":308.836},"counters":{"tokens":6,"init_us":53074,"step_us":240044,"steps":6}}
+{"run":"translate","total_ms":444.609,"stages":{"tokenize":0.248,"encoder":98.078,"decode":345.238},"counters":{"tokens":6,"init_us":53140,"step_us":274892,"steps":6}}
+{"run":"translate","total_ms":404.942,"stages":{"tokenize":0.267,"encoder":98.190,"decode":305.395},"counters":{"tokens":6,"init_us":53207,"step_us":237254,"steps":6}}
+{"run":"translate","total_ms":405.087,"stages":{"tokenize":0.256,"encoder":98.174,"decode":305.692},"counters":{"tokens":6,"init_us":53099,"step_us":237473,"steps":6}}
+{"run":"translate","total_ms":449.495,"stages":{"tokenize":0.264,"encoder":97.486,"decode":350.646},"counters":{"tokens":6,"init_us":53546,"step_us":277406,"steps":6}}
+{"run":"translate","total_ms":409.225,"stages":{"tokenize":0.269,"encoder":97.481,"decode":310.440},"counters":{"tokens":6,"init_us":53351,"step_us":241957,"steps":6}}
+{"run":"translate","total_ms":405.560,"stages":{"tokenize":0.257,"encoder":97.794,"decode":306.469},"counters":{"tokens":6,"init_us":56590,"step_us":235116,"steps":6}}
+{"run":"translate","total_ms":442.563,"stages":{"tokenize":0.269,"encoder":97.829,"decode":343.434},"counters":{"tokens":6,"init_us":53395,"step_us":272347,"steps":6}}
+{"run":"translate","total_ms":404.491,"stages":{"tokenize":0.270,"encoder":97.595,"decode":305.559},"counters":{"tokens":6,"init_us":53050,"step_us":237518,"steps":6}}
+{"run":"translate","total_ms":409.439,"stages":{"tokenize":0.257,"encoder":97.526,"decode":310.496},"counters":{"tokens":6,"init_us":53298,"step_us":241076,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":760.144,"stages":{"tokenize":0.385,"encoder":152.178,"decode":606.349},"counters":{"tokens":12,"init_us":97684,"step_us":480704,"steps":12}}
+{"run":"translate","total_ms":758.083,"stages":{"tokenize":0.336,"encoder":149.969,"decode":606.546},"counters":{"tokens":12,"init_us":60314,"step_us":514787,"steps":12}}
+{"run":"translate","total_ms":731.406,"stages":{"tokenize":0.335,"encoder":151.056,"decode":577.718},"counters":{"tokens":12,"init_us":60691,"step_us":486325,"steps":12}}
+{"run":"translate","total_ms":740.009,"stages":{"tokenize":0.546,"encoder":171.173,"decode":567.050},"counters":{"tokens":12,"init_us":60564,"step_us":478381,"steps":12}}
+{"run":"translate","total_ms":756.101,"stages":{"tokenize":0.322,"encoder":150.304,"decode":604.210},"counters":{"tokens":12,"init_us":61199,"step_us":511728,"steps":12}}
+{"run":"translate","total_ms":733.722,"stages":{"tokenize":0.341,"encoder":153.972,"decode":577.981},"counters":{"tokens":12,"init_us":61219,"step_us":487831,"steps":12}}
+{"run":"translate","total_ms":748.774,"stages":{"tokenize":0.444,"encoder":172.523,"decode":574.521},"counters":{"tokens":12,"init_us":61431,"step_us":483893,"steps":12}}
+{"run":"translate","total_ms":765.777,"stages":{"tokenize":0.335,"encoder":150.294,"decode":613.830},"counters":{"tokens":12,"init_us":60932,"step_us":520105,"steps":12}}
+{"run":"translate","total_ms":729.519,"stages":{"tokenize":0.340,"encoder":150.427,"decode":577.223},"counters":{"tokens":12,"init_us":60600,"step_us":487130,"steps":12}}
+{"run":"translate","total_ms":765.658,"stages":{"tokenize":0.511,"encoder":171.002,"decode":592.837},"counters":{"tokens":12,"init_us":60852,"step_us":503326,"steps":12}}
+{"run":"translate","total_ms":811.093,"stages":{"tokenize":0.362,"encoder":150.719,"decode":658.763},"counters":{"tokens":12,"init_us":107640,"step_us":521892,"steps":12}}
+{"run":"translate","total_ms":734.434,"stages":{"tokenize":0.377,"encoder":153.296,"decode":579.230},"counters":{"tokens":12,"init_us":60764,"step_us":488442,"steps":12}}
+{"run":"translate","total_ms":745.190,"stages":{"tokenize":0.519,"encoder":176.026,"decode":567.332},"counters":{"tokens":12,"init_us":60631,"step_us":478585,"steps":12}}
+{"run":"translate","total_ms":763.871,"stages":{"tokenize":0.339,"encoder":150.763,"decode":611.438},"counters":{"tokens":12,"init_us":60000,"step_us":518701,"steps":12}}
+{"run":"translate","total_ms":727.738,"stages":{"tokenize":0.345,"encoder":150.242,"decode":575.248},"counters":{"tokens":12,"init_us":60445,"step_us":485279,"steps":12}}
+{"run":"translate","total_ms":743.530,"stages":{"tokenize":0.594,"encoder":170.227,"decode":571.331},"counters":{"tokens":12,"init_us":60607,"step_us":482726,"steps":12}}
+{"run":"translate","total_ms":758.730,"stages":{"tokenize":0.327,"encoder":153.887,"decode":603.216},"counters":{"tokens":12,"init_us":60810,"step_us":511131,"steps":12}}
+{"run":"translate","total_ms":725.277,"stages":{"tokenize":0.346,"encoder":150.529,"decode":572.901},"counters":{"tokens":12,"init_us":60717,"step_us":483220,"steps":12}}
+{"run":"translate","total_ms":744.862,"stages":{"tokenize":0.537,"encoder":158.319,"decode":584.712},"counters":{"tokens":12,"init_us":59957,"step_us":496931,"steps":12}}
+{"run":"translate","total_ms":770.687,"stages":{"tokenize":0.424,"encoder":153.948,"decode":614.991},"counters":{"tokens":12,"init_us":62905,"step_us":519937,"steps":12}}
+{"run":"translate","total_ms":756.768,"stages":{"tokenize":0.344,"encoder":147.775,"decode":607.023},"counters":{"tokens":12,"init_us":59929,"step_us":517327,"steps":12}}
+{"run":"translate","total_ms":788.279,"stages":{"tokenize":0.520,"encoder":170.762,"decode":615.613},"counters":{"tokens":12,"init_us":63309,"step_us":522628,"steps":12}}
+{"run":"translate","total_ms":759.868,"stages":{"tokenize":0.333,"encoder":150.360,"decode":607.924},"counters":{"tokens":12,"init_us":60532,"step_us":517124,"steps":12}}
+{"run":"translate","total_ms":725.539,"stages":{"tokenize":0.320,"encoder":150.042,"decode":573.643},"counters":{"tokens":12,"init_us":60432,"step_us":483901,"steps":12}}
+{"run":"translate","total_ms":778.940,"stages":{"tokenize":0.513,"encoder":174.303,"decode":602.800},"counters":{"tokens":12,"init_us":60358,"step_us":514311,"steps":12}}
+{"run":"translate","total_ms":759.834,"stages":{"tokenize":0.379,"encoder":150.034,"decode":608.059},"counters":{"tokens":12,"init_us":60292,"step_us":516932,"steps":12}}
+{"run":"translate","total_ms":724.020,"stages":{"tokenize":0.343,"encoder":150.760,"decode":571.358},"counters":{"tokens":12,"init_us":60935,"step_us":481310,"steps":12}}
+{"run":"translate","total_ms":739.322,"stages":{"tokenize":0.456,"encoder":165.441,"decode":571.223},"counters":{"tokens":12,"init_us":60432,"step_us":482279,"steps":12}}
+{"run":"translate","total_ms":761.583,"stages":{"tokenize":0.543,"encoder":154.670,"decode":605.040},"counters":{"tokens":12,"init_us":60645,"step_us":512325,"steps":12}}
+{"run":"translate","total_ms":729.898,"stages":{"tokenize":0.340,"encoder":150.551,"decode":577.464},"counters":{"tokens":12,"init_us":60560,"step_us":486380,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=992966 nativePss=899266 dalvikPss=35951
+CONFIG name=intra2
+{"run":"translate","total_ms":355.523,"stages":{"tokenize":0.370,"encoder":61.901,"decode":292.162},"counters":{"tokens":6,"init_us":48618,"step_us":228811,"steps":6}}
+{"run":"translate","total_ms":635.271,"stages":{"tokenize":0.317,"encoder":86.704,"decode":546.714},"counters":{"tokens":12,"init_us":49675,"step_us":468104,"steps":12}}
+{"run":"translate","total_ms":367.401,"stages":{"tokenize":0.366,"encoder":64.563,"decode":301.370},"counters":{"tokens":6,"init_us":54463,"step_us":230674,"steps":6}}
+{"run":"translate","total_ms":623.659,"stages":{"tokenize":0.321,"encoder":86.756,"decode":535.224},"counters":{"tokens":12,"init_us":49767,"step_us":457506,"steps":12}}
+WARMUP_DONE intra2
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":392.720,"stages":{"tokenize":0.251,"encoder":58.285,"decode":333.181},"counters":{"tokens":6,"init_us":45667,"step_us":270921,"steps":6}}
+{"run":"translate","total_ms":345.739,"stages":{"tokenize":0.255,"encoder":57.870,"decode":286.589},"counters":{"tokens":6,"init_us":45653,"step_us":226089,"steps":6}}
+{"run":"translate","total_ms":350.911,"stages":{"tokenize":0.261,"encoder":57.888,"decode":291.739},"counters":{"tokens":6,"init_us":49732,"step_us":227364,"steps":6}}
+{"run":"translate","total_ms":383.957,"stages":{"tokenize":0.257,"encoder":57.993,"decode":324.698},"counters":{"tokens":6,"init_us":45649,"step_us":259361,"steps":6}}
+{"run":"translate","total_ms":343.412,"stages":{"tokenize":0.249,"encoder":57.102,"decode":285.032},"counters":{"tokens":6,"init_us":45254,"step_us":225178,"steps":6}}
+{"run":"translate","total_ms":347.390,"stages":{"tokenize":0.250,"encoder":57.900,"decode":288.209},"counters":{"tokens":6,"init_us":45949,"step_us":227639,"steps":6}}
+{"run":"translate","total_ms":381.290,"stages":{"tokenize":0.246,"encoder":58.008,"decode":322.059},"counters":{"tokens":6,"init_us":45546,"step_us":258788,"steps":6}}
+{"run":"translate","total_ms":346.366,"stages":{"tokenize":0.265,"encoder":57.822,"decode":287.261},"counters":{"tokens":6,"init_us":45715,"step_us":226490,"steps":6}}
+{"run":"translate","total_ms":347.675,"stages":{"tokenize":0.254,"encoder":58.104,"decode":288.163},"counters":{"tokens":6,"init_us":45725,"step_us":226600,"steps":6}}
+{"run":"translate","total_ms":391.578,"stages":{"tokenize":0.350,"encoder":58.621,"decode":331.621},"counters":{"tokens":6,"init_us":57999,"step_us":257411,"steps":6}}
+{"run":"translate","total_ms":346.731,"stages":{"tokenize":0.268,"encoder":58.132,"decode":287.338},"counters":{"tokens":6,"init_us":45800,"step_us":226592,"steps":6}}
+{"run":"translate","total_ms":353.286,"stages":{"tokenize":0.261,"encoder":57.839,"decode":294.073},"counters":{"tokens":6,"init_us":45562,"step_us":232980,"steps":6}}
+{"run":"translate","total_ms":382.910,"stages":{"tokenize":0.368,"encoder":77.518,"decode":304.011},"counters":{"tokens":6,"init_us":63269,"step_us":225978,"steps":6}}
+{"run":"translate","total_ms":345.275,"stages":{"tokenize":0.248,"encoder":57.729,"decode":286.279},"counters":{"tokens":6,"init_us":45686,"step_us":225782,"steps":6}}
+{"run":"translate","total_ms":381.706,"stages":{"tokenize":0.247,"encoder":57.969,"decode":322.552},"counters":{"tokens":6,"init_us":45702,"step_us":259012,"steps":6}}
+{"run":"translate","total_ms":346.128,"stages":{"tokenize":0.320,"encoder":57.910,"decode":286.918},"counters":{"tokens":6,"init_us":45691,"step_us":226361,"steps":6}}
+{"run":"translate","total_ms":349.674,"stages":{"tokenize":0.254,"encoder":61.246,"decode":287.129},"counters":{"tokens":6,"init_us":45490,"step_us":226970,"steps":6}}
+{"run":"translate","total_ms":382.292,"stages":{"tokenize":0.257,"encoder":58.091,"decode":322.953},"counters":{"tokens":6,"init_us":45614,"step_us":259163,"steps":6}}
+{"run":"translate","total_ms":346.090,"stages":{"tokenize":0.248,"encoder":58.106,"decode":286.753},"counters":{"tokens":6,"init_us":45529,"step_us":226183,"steps":6}}
+{"run":"translate","total_ms":346.328,"stages":{"tokenize":0.244,"encoder":57.905,"decode":287.041},"counters":{"tokens":6,"init_us":45877,"step_us":226453,"steps":6}}
+{"run":"translate","total_ms":381.704,"stages":{"tokenize":0.251,"encoder":57.558,"decode":322.960},"counters":{"tokens":6,"init_us":45755,"step_us":258281,"steps":6}}
+{"run":"translate","total_ms":345.202,"stages":{"tokenize":0.263,"encoder":57.541,"decode":286.319},"counters":{"tokens":6,"init_us":45372,"step_us":226198,"steps":6}}
+{"run":"translate","total_ms":347.013,"stages":{"tokenize":0.256,"encoder":57.993,"decode":287.690},"counters":{"tokens":6,"init_us":45850,"step_us":227264,"steps":6}}
+{"run":"translate","total_ms":376.587,"stages":{"tokenize":0.272,"encoder":58.014,"decode":317.356},"counters":{"tokens":6,"init_us":45830,"step_us":254546,"steps":6}}
+{"run":"translate","total_ms":346.644,"stages":{"tokenize":0.260,"encoder":57.972,"decode":287.351},"counters":{"tokens":6,"init_us":45598,"step_us":227052,"steps":6}}
+{"run":"translate","total_ms":345.988,"stages":{"tokenize":0.271,"encoder":57.958,"decode":286.755},"counters":{"tokens":6,"init_us":45649,"step_us":226382,"steps":6}}
+{"run":"translate","total_ms":379.292,"stages":{"tokenize":0.264,"encoder":57.908,"decode":320.133},"counters":{"tokens":6,"init_us":48551,"step_us":253319,"steps":6}}
+{"run":"translate","total_ms":346.292,"stages":{"tokenize":0.265,"encoder":57.755,"decode":287.241},"counters":{"tokens":6,"init_us":45733,"step_us":226581,"steps":6}}
+{"run":"translate","total_ms":346.330,"stages":{"tokenize":0.257,"encoder":58.247,"decode":286.730},"counters":{"tokens":6,"init_us":45784,"step_us":226135,"steps":6}}
+{"run":"translate","total_ms":392.373,"stages":{"tokenize":0.269,"encoder":58.098,"decode":333.040},"counters":{"tokens":6,"init_us":45846,"step_us":271295,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":625.961,"stages":{"tokenize":0.333,"encoder":87.701,"decode":536.362},"counters":{"tokens":12,"init_us":49838,"step_us":458149,"steps":12}}
+{"run":"translate","total_ms":665.707,"stages":{"tokenize":0.437,"encoder":99.709,"decode":564.302},"counters":{"tokens":12,"init_us":51366,"step_us":484683,"steps":12}}
+{"run":"translate","total_ms":661.579,"stages":{"tokenize":0.333,"encoder":86.639,"decode":573.278},"counters":{"tokens":12,"init_us":49735,"step_us":491502,"steps":12}}
+{"run":"translate","total_ms":623.439,"stages":{"tokenize":0.320,"encoder":86.381,"decode":535.414},"counters":{"tokens":12,"init_us":49899,"step_us":457402,"steps":12}}
+{"run":"translate","total_ms":658.424,"stages":{"tokenize":0.325,"encoder":86.980,"decode":569.818},"counters":{"tokens":12,"init_us":49633,"step_us":488930,"steps":12}}
+{"run":"translate","total_ms":662.704,"stages":{"tokenize":0.331,"encoder":86.545,"decode":574.498},"counters":{"tokens":12,"init_us":49752,"step_us":493534,"steps":12}}
+{"run":"translate","total_ms":623.618,"stages":{"tokenize":0.388,"encoder":86.047,"decode":535.223},"counters":{"tokens":12,"init_us":49657,"step_us":457150,"steps":12}}
+{"run":"translate","total_ms":662.510,"stages":{"tokenize":0.576,"encoder":90.501,"decode":570.140},"counters":{"tokens":12,"init_us":49620,"step_us":489693,"steps":12}}
+{"run":"translate","total_ms":664.360,"stages":{"tokenize":0.341,"encoder":86.757,"decode":575.985},"counters":{"tokens":12,"init_us":50544,"step_us":493704,"steps":12}}
+{"run":"translate","total_ms":622.081,"stages":{"tokenize":0.369,"encoder":86.382,"decode":534.093},"counters":{"tokens":12,"init_us":49473,"step_us":457104,"steps":12}}
+{"run":"translate","total_ms":660.009,"stages":{"tokenize":0.307,"encoder":86.798,"decode":571.693},"counters":{"tokens":12,"init_us":49607,"step_us":489790,"steps":12}}
+{"run":"translate","total_ms":633.602,"stages":{"tokenize":0.302,"encoder":86.182,"decode":545.639},"counters":{"tokens":12,"init_us":49614,"step_us":466227,"steps":12}}
+{"run":"translate","total_ms":649.229,"stages":{"tokenize":0.407,"encoder":113.792,"decode":533.736},"counters":{"tokens":12,"init_us":49923,"step_us":456174,"steps":12}}
+{"run":"translate","total_ms":661.364,"stages":{"tokenize":0.369,"encoder":86.120,"decode":573.528},"counters":{"tokens":12,"init_us":49729,"step_us":493005,"steps":12}}
+{"run":"translate","total_ms":630.145,"stages":{"tokenize":0.324,"encoder":86.665,"decode":541.721},"counters":{"tokens":12,"init_us":49632,"step_us":463096,"steps":12}}
+{"run":"translate","total_ms":653.632,"stages":{"tokenize":0.414,"encoder":113.770,"decode":538.177},"counters":{"tokens":12,"init_us":50276,"step_us":460287,"steps":12}}
+{"run":"translate","total_ms":653.778,"stages":{"tokenize":0.316,"encoder":86.422,"decode":565.741},"counters":{"tokens":12,"init_us":49638,"step_us":487192,"steps":12}}
+{"run":"translate","total_ms":660.320,"stages":{"tokenize":0.330,"encoder":86.356,"decode":570.780},"counters":{"tokens":12,"init_us":49849,"step_us":490538,"steps":12}}
+{"run":"translate","total_ms":628.199,"stages":{"tokenize":0.503,"encoder":92.779,"decode":533.650},"counters":{"tokens":12,"init_us":49534,"step_us":456509,"steps":12}}
+{"run":"translate","total_ms":659.163,"stages":{"tokenize":0.299,"encoder":86.054,"decode":571.511},"counters":{"tokens":12,"init_us":49903,"step_us":488777,"steps":12}}
+{"run":"translate","total_ms":636.738,"stages":{"tokenize":0.321,"encoder":86.557,"decode":548.455},"counters":{"tokens":12,"init_us":49701,"step_us":468395,"steps":12}}
+{"run":"translate","total_ms":653.383,"stages":{"tokenize":0.409,"encoder":113.723,"decode":537.964},"counters":{"tokens":12,"init_us":49700,"step_us":459437,"steps":12}}
+{"run":"translate","total_ms":662.046,"stages":{"tokenize":0.324,"encoder":86.691,"decode":573.627},"counters":{"tokens":12,"init_us":50388,"step_us":491543,"steps":12}}
+{"run":"translate","total_ms":632.202,"stages":{"tokenize":0.325,"encoder":86.260,"decode":544.148},"counters":{"tokens":12,"init_us":49833,"step_us":466031,"steps":12}}
+{"run":"translate","total_ms":652.606,"stages":{"tokenize":0.422,"encoder":112.623,"decode":538.279},"counters":{"tokens":12,"init_us":50029,"step_us":459152,"steps":12}}
+{"run":"translate","total_ms":664.340,"stages":{"tokenize":0.319,"encoder":86.784,"decode":575.952},"counters":{"tokens":12,"init_us":50345,"step_us":493146,"steps":12}}
+{"run":"translate","total_ms":629.784,"stages":{"tokenize":0.377,"encoder":86.380,"decode":541.664},"counters":{"tokens":12,"init_us":49647,"step_us":463625,"steps":12}}
+{"run":"translate","total_ms":641.431,"stages":{"tokenize":0.427,"encoder":106.237,"decode":533.549},"counters":{"tokens":12,"init_us":49714,"step_us":455935,"steps":12}}
+{"run":"translate","total_ms":660.204,"stages":{"tokenize":0.279,"encoder":88.027,"decode":570.462},"counters":{"tokens":12,"init_us":49909,"step_us":489601,"steps":12}}
+{"run":"translate","total_ms":629.515,"stages":{"tokenize":0.273,"encoder":86.790,"decode":541.021},"counters":{"tokens":12,"init_us":49833,"step_us":462461,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=994333 nativePss=901074 dalvikPss=35443
+CONFIG name=intra4
+{"run":"translate","total_ms":355.119,"stages":{"tokenize":0.302,"encoder":50.547,"decode":303.316},"counters":{"tokens":6,"init_us":63400,"step_us":224082,"steps":6}}
+{"run":"translate","total_ms":655.260,"stages":{"tokenize":0.256,"encoder":68.874,"decode":584.647},"counters":{"tokens":12,"init_us":91124,"step_us":457102,"steps":12}}
+{"run":"translate","total_ms":372.783,"stages":{"tokenize":0.224,"encoder":53.862,"decode":317.752},"counters":{"tokens":6,"init_us":69014,"step_us":231893,"steps":6}}
+{"run":"translate","total_ms":587.961,"stages":{"tokenize":0.255,"encoder":76.705,"decode":509.778},"counters":{"tokens":12,"init_us":43363,"step_us":438105,"steps":12}}
+WARMUP_DONE intra4
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":483.822,"stages":{"tokenize":0.240,"encoder":57.967,"decode":423.478},"counters":{"tokens":6,"init_us":39057,"step_us":356472,"steps":6}}
+{"run":"translate","total_ms":400.575,"stages":{"tokenize":0.727,"encoder":66.213,"decode":332.624},"counters":{"tokens":6,"init_us":48276,"step_us":269500,"steps":6}}
+{"run":"translate","total_ms":333.568,"stages":{"tokenize":0.196,"encoder":49.352,"decode":283.033},"counters":{"tokens":6,"init_us":54363,"step_us":214245,"steps":6}}
+{"run":"translate","total_ms":380.206,"stages":{"tokenize":0.189,"encoder":55.494,"decode":323.430},"counters":{"tokens":6,"init_us":54567,"step_us":243444,"steps":6}}
+{"run":"translate","total_ms":371.956,"stages":{"tokenize":0.225,"encoder":59.748,"decode":311.033},"counters":{"tokens":6,"init_us":78739,"step_us":217640,"steps":6}}
+{"run":"translate","total_ms":379.554,"stages":{"tokenize":0.184,"encoder":49.100,"decode":329.334},"counters":{"tokens":6,"init_us":40263,"step_us":274404,"steps":6}}
+{"run":"translate","total_ms":364.307,"stages":{"tokenize":0.185,"encoder":47.836,"decode":315.258},"counters":{"tokens":6,"init_us":40920,"step_us":254119,"steps":6}}
+{"run":"translate","total_ms":325.905,"stages":{"tokenize":0.236,"encoder":46.952,"decode":277.764},"counters":{"tokens":6,"init_us":41557,"step_us":220741,"steps":6}}
+{"run":"translate","total_ms":400.723,"stages":{"tokenize":0.194,"encoder":49.240,"decode":350.326},"counters":{"tokens":6,"init_us":39779,"step_us":295762,"steps":6}}
+{"run":"translate","total_ms":351.450,"stages":{"tokenize":0.184,"encoder":54.306,"decode":295.924},"counters":{"tokens":6,"init_us":40431,"step_us":233702,"steps":6}}
+{"run":"translate","total_ms":342.159,"stages":{"tokenize":0.240,"encoder":45.846,"decode":295.085},"counters":{"tokens":6,"init_us":40290,"step_us":238829,"steps":6}}
+{"run":"translate","total_ms":343.375,"stages":{"tokenize":0.190,"encoder":63.635,"decode":277.959},"counters":{"tokens":6,"init_us":40002,"step_us":222214,"steps":6}}
+{"run":"translate","total_ms":363.794,"stages":{"tokenize":0.312,"encoder":48.524,"decode":313.918},"counters":{"tokens":6,"init_us":40083,"step_us":253348,"steps":6}}
+{"run":"translate","total_ms":340.231,"stages":{"tokenize":0.236,"encoder":47.386,"decode":291.621},"counters":{"tokens":6,"init_us":44353,"step_us":232863,"steps":6}}
+{"run":"translate","total_ms":315.968,"stages":{"tokenize":0.197,"encoder":53.517,"decode":261.304},"counters":{"tokens":6,"init_us":41506,"step_us":205548,"steps":6}}
+{"run":"translate","total_ms":382.311,"stages":{"tokenize":0.186,"encoder":49.160,"decode":331.918},"counters":{"tokens":6,"init_us":41617,"step_us":265639,"steps":6}}
+{"run":"translate","total_ms":325.226,"stages":{"tokenize":0.237,"encoder":45.444,"decode":277.992},"counters":{"tokens":6,"init_us":39525,"step_us":222505,"steps":6}}
+{"run":"translate","total_ms":303.393,"stages":{"tokenize":0.310,"encoder":47.121,"decode":254.931},"counters":{"tokens":6,"init_us":40021,"step_us":200524,"steps":6}}
+{"run":"translate","total_ms":393.224,"stages":{"tokenize":0.186,"encoder":57.223,"decode":334.763},"counters":{"tokens":6,"init_us":42821,"step_us":271469,"steps":6}}
+{"run":"translate","total_ms":328.639,"stages":{"tokenize":0.237,"encoder":47.477,"decode":279.888},"counters":{"tokens":6,"init_us":40502,"step_us":224853,"steps":6}}
+{"run":"translate","total_ms":313.252,"stages":{"tokenize":0.250,"encoder":47.324,"decode":264.082},"counters":{"tokens":6,"init_us":41537,"step_us":206819,"steps":6}}
+{"run":"translate","total_ms":480.229,"stages":{"tokenize":0.190,"encoder":63.211,"decode":415.787},"counters":{"tokens":6,"init_us":45708,"step_us":347297,"steps":6}}
+{"run":"translate","total_ms":345.697,"stages":{"tokenize":0.236,"encoder":49.684,"decode":294.719},"counters":{"tokens":6,"init_us":60003,"step_us":220290,"steps":6}}
+{"run":"translate","total_ms":307.148,"stages":{"tokenize":0.187,"encoder":48.186,"decode":257.763},"counters":{"tokens":6,"init_us":40029,"step_us":203390,"steps":6}}
+{"run":"translate","total_ms":397.589,"stages":{"tokenize":0.191,"encoder":57.871,"decode":338.497},"counters":{"tokens":6,"init_us":41461,"step_us":276266,"steps":6}}
+{"run":"translate","total_ms":355.293,"stages":{"tokenize":0.232,"encoder":47.489,"decode":306.587},"counters":{"tokens":6,"init_us":40215,"step_us":251390,"steps":6}}
+{"run":"translate","total_ms":314.046,"stages":{"tokenize":0.188,"encoder":50.462,"decode":262.391},"counters":{"tokens":6,"init_us":40303,"step_us":207681,"steps":6}}
+{"run":"translate","total_ms":390.626,"stages":{"tokenize":0.187,"encoder":47.632,"decode":341.700},"counters":{"tokens":6,"init_us":41816,"step_us":284131,"steps":6}}
+{"run":"translate","total_ms":305.289,"stages":{"tokenize":0.233,"encoder":46.105,"decode":257.948},"counters":{"tokens":6,"init_us":44588,"step_us":199010,"steps":6}}
+{"run":"translate","total_ms":367.436,"stages":{"tokenize":0.211,"encoder":50.265,"decode":315.621},"counters":{"tokens":6,"init_us":91357,"step_us":206741,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":674.256,"stages":{"tokenize":0.256,"encoder":68.546,"decode":604.008},"counters":{"tokens":12,"init_us":60888,"step_us":505112,"steps":12}}
+{"run":"translate","total_ms":603.423,"stages":{"tokenize":0.328,"encoder":76.148,"decode":525.648},"counters":{"tokens":12,"init_us":71572,"step_us":427041,"steps":12}}
+{"run":"translate","total_ms":702.010,"stages":{"tokenize":0.269,"encoder":74.804,"decode":625.583},"counters":{"tokens":12,"init_us":56320,"step_us":538981,"steps":12}}
+{"run":"translate","total_ms":601.650,"stages":{"tokenize":0.337,"encoder":87.570,"decode":512.502},"counters":{"tokens":12,"init_us":61427,"step_us":424031,"steps":12}}
+{"run":"translate","total_ms":597.935,"stages":{"tokenize":0.266,"encoder":79.446,"decode":516.902},"counters":{"tokens":12,"init_us":59403,"step_us":423459,"steps":12}}
+{"run":"translate","total_ms":781.590,"stages":{"tokenize":0.258,"encoder":96.485,"decode":683.640},"counters":{"tokens":12,"init_us":56106,"step_us":600249,"steps":12}}
+{"run":"translate","total_ms":742.997,"stages":{"tokenize":0.264,"encoder":108.075,"decode":633.395},"counters":{"tokens":12,"init_us":69363,"step_us":528512,"steps":12}}
+{"run":"translate","total_ms":755.648,"stages":{"tokenize":0.260,"encoder":71.587,"decode":682.525},"counters":{"tokens":12,"init_us":76463,"step_us":568358,"steps":12}}
+{"run":"translate","total_ms":879.855,"stages":{"tokenize":0.272,"encoder":80.592,"decode":797.725},"counters":{"tokens":12,"init_us":60835,"step_us":688207,"steps":12}}
+{"run":"translate","total_ms":763.248,"stages":{"tokenize":0.278,"encoder":95.742,"decode":665.958},"counters":{"tokens":12,"init_us":63422,"step_us":567005,"steps":12}}
+{"run":"translate","total_ms":647.483,"stages":{"tokenize":0.254,"encoder":70.818,"decode":574.983},"counters":{"tokens":12,"init_us":71832,"step_us":470162,"steps":12}}
+{"run":"translate","total_ms":614.277,"stages":{"tokenize":0.370,"encoder":66.937,"decode":545.718},"counters":{"tokens":12,"init_us":75896,"step_us":441865,"steps":12}}
+{"run":"translate","total_ms":677.048,"stages":{"tokenize":0.253,"encoder":69.242,"decode":606.334},"counters":{"tokens":12,"init_us":66214,"step_us":504421,"steps":12}}
+{"run":"translate","total_ms":593.862,"stages":{"tokenize":0.257,"encoder":92.056,"decode":500.336},"counters":{"tokens":12,"init_us":56542,"step_us":413555,"steps":12}}
+{"run":"translate","total_ms":756.740,"stages":{"tokenize":0.273,"encoder":80.768,"decode":674.434},"counters":{"tokens":12,"init_us":44031,"step_us":595049,"steps":12}}
+{"run":"translate","total_ms":590.439,"stages":{"tokenize":0.255,"encoder":68.285,"decode":520.446},"counters":{"tokens":12,"init_us":56433,"step_us":428251,"steps":12}}
+{"run":"translate","total_ms":626.057,"stages":{"tokenize":0.313,"encoder":67.841,"decode":556.600},"counters":{"tokens":12,"init_us":74783,"step_us":448460,"steps":12}}
+{"run":"translate","total_ms":580.847,"stages":{"tokenize":0.263,"encoder":73.067,"decode":506.110},"counters":{"tokens":12,"init_us":56050,"step_us":422025,"steps":12}}
+{"run":"translate","total_ms":625.013,"stages":{"tokenize":0.311,"encoder":80.762,"decode":542.688},"counters":{"tokens":12,"init_us":69048,"step_us":444817,"steps":12}}
+{"run":"translate","total_ms":746.506,"stages":{"tokenize":0.265,"encoder":68.209,"decode":676.795},"counters":{"tokens":12,"init_us":74599,"step_us":565278,"steps":12}}
+{"run":"translate","total_ms":683.315,"stages":{"tokenize":0.268,"encoder":123.318,"decode":558.199},"counters":{"tokens":12,"init_us":87271,"step_us":437996,"steps":12}}
+{"run":"translate","total_ms":899.545,"stages":{"tokenize":0.308,"encoder":68.876,"decode":829.083},"counters":{"tokens":12,"init_us":43068,"step_us":757953,"steps":12}}
+{"run":"translate","total_ms":647.471,"stages":{"tokenize":0.267,"encoder":76.283,"decode":569.680},"counters":{"tokens":12,"init_us":50817,"step_us":483427,"steps":12}}
+{"run":"translate","total_ms":572.018,"stages":{"tokenize":0.266,"encoder":87.695,"decode":482.823},"counters":{"tokens":12,"init_us":43033,"step_us":412593,"steps":12}}
+{"run":"translate","total_ms":866.881,"stages":{"tokenize":0.302,"encoder":69.203,"decode":796.119},"counters":{"tokens":12,"init_us":43140,"step_us":717731,"steps":12}}
+{"run":"translate","total_ms":627.136,"stages":{"tokenize":0.252,"encoder":78.195,"decode":547.305},"counters":{"tokens":12,"init_us":43086,"step_us":468567,"steps":12}}
+{"run":"translate","total_ms":588.654,"stages":{"tokenize":0.334,"encoder":80.118,"decode":506.957},"counters":{"tokens":12,"init_us":49923,"step_us":429295,"steps":12}}
+{"run":"translate","total_ms":615.971,"stages":{"tokenize":0.260,"encoder":74.844,"decode":539.579},"counters":{"tokens":12,"init_us":51054,"step_us":449235,"steps":12}}
+{"run":"translate","total_ms":567.490,"stages":{"tokenize":0.258,"encoder":80.008,"decode":485.908},"counters":{"tokens":12,"init_us":43070,"step_us":415859,"steps":12}}
+{"run":"translate","total_ms":619.637,"stages":{"tokenize":0.270,"encoder":70.900,"decode":547.044},"counters":{"tokens":12,"init_us":43784,"step_us":467328,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=1018605 nativePss=912726 dalvikPss=46823
+CONFIG name=intra8
+{"run":"translate","total_ms":514.081,"stages":{"tokenize":0.287,"encoder":50.153,"decode":462.562},"counters":{"tokens":6,"init_us":115962,"step_us":330656,"steps":6}}
+{"run":"translate","total_ms":1063.208,"stages":{"tokenize":0.312,"encoder":226.230,"decode":835.467},"counters":{"tokens":12,"init_us":163175,"step_us":637517,"steps":12}}
+{"run":"translate","total_ms":523.071,"stages":{"tokenize":0.177,"encoder":104.797,"decode":417.161},"counters":{"tokens":6,"init_us":106539,"step_us":294853,"steps":6}}
+{"run":"translate","total_ms":1225.242,"stages":{"tokenize":0.292,"encoder":195.864,"decode":1026.900},"counters":{"tokens":12,"init_us":86247,"step_us":889227,"steps":12}}
+WARMUP_DONE intra8
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":649.804,"stages":{"tokenize":0.503,"encoder":107.575,"decode":540.083},"counters":{"tokens":6,"init_us":87125,"step_us":426242,"steps":6}}
+{"run":"translate","total_ms":743.190,"stages":{"tokenize":0.503,"encoder":96.644,"decode":644.071},"counters":{"tokens":6,"init_us":76562,"step_us":539303,"steps":6}}
+{"run":"translate","total_ms":629.967,"stages":{"tokenize":0.565,"encoder":124.334,"decode":503.264},"counters":{"tokens":6,"init_us":102630,"step_us":373921,"steps":6}}
+{"run":"translate","total_ms":636.785,"stages":{"tokenize":0.511,"encoder":114.635,"decode":520.605},"counters":{"tokens":6,"init_us":96354,"step_us":392391,"steps":6}}
+{"run":"translate","total_ms":599.361,"stages":{"tokenize":0.199,"encoder":130.255,"decode":467.942},"counters":{"tokens":6,"init_us":129415,"step_us":321061,"steps":6}}
+{"run":"translate","total_ms":620.371,"stages":{"tokenize":0.186,"encoder":149.555,"decode":469.666},"counters":{"tokens":6,"init_us":112423,"step_us":331294,"steps":6}}
+{"run":"translate","total_ms":679.412,"stages":{"tokenize":0.198,"encoder":147.599,"decode":529.812},"counters":{"tokens":6,"init_us":97650,"step_us":405397,"steps":6}}
+{"run":"translate","total_ms":621.870,"stages":{"tokenize":0.592,"encoder":93.023,"decode":527.080},"counters":{"tokens":6,"init_us":152897,"step_us":358899,"steps":6}}
+{"run":"translate","total_ms":611.782,"stages":{"tokenize":0.186,"encoder":169.227,"decode":441.295},"counters":{"tokens":6,"init_us":134746,"step_us":291711,"steps":6}}
+{"run":"translate","total_ms":607.220,"stages":{"tokenize":0.252,"encoder":146.543,"decode":459.386},"counters":{"tokens":6,"init_us":116711,"step_us":327777,"steps":6}}
+{"run":"translate","total_ms":735.944,"stages":{"tokenize":0.224,"encoder":104.696,"decode":629.343},"counters":{"tokens":6,"init_us":153784,"step_us":448866,"steps":6}}
+{"run":"translate","total_ms":599.602,"stages":{"tokenize":0.742,"encoder":118.586,"decode":478.622},"counters":{"tokens":6,"init_us":85722,"step_us":364961,"steps":6}}
+{"run":"translate","total_ms":649.371,"stages":{"tokenize":0.462,"encoder":149.329,"decode":498.538},"counters":{"tokens":6,"init_us":78304,"step_us":403665,"steps":6}}
+{"run":"translate","total_ms":749.093,"stages":{"tokenize":0.226,"encoder":151.316,"decode":595.960},"counters":{"tokens":6,"init_us":155236,"step_us":421064,"steps":6}}
+{"run":"translate","total_ms":608.545,"stages":{"tokenize":0.492,"encoder":116.094,"decode":491.015},"counters":{"tokens":6,"init_us":116313,"step_us":352689,"steps":6}}
+{"run":"translate","total_ms":648.478,"stages":{"tokenize":0.177,"encoder":182.068,"decode":465.174},"counters":{"tokens":6,"init_us":141835,"step_us":302983,"steps":6}}
+{"run":"translate","total_ms":608.039,"stages":{"tokenize":0.218,"encoder":154.225,"decode":452.013},"counters":{"tokens":6,"init_us":136516,"step_us":298902,"steps":6}}
+{"run":"translate","total_ms":762.351,"stages":{"tokenize":0.313,"encoder":131.351,"decode":629.052},"counters":{"tokens":6,"init_us":168272,"step_us":433852,"steps":6}}
+{"run":"translate","total_ms":779.745,"stages":{"tokenize":0.495,"encoder":116.662,"decode":660.554},"counters":{"tokens":6,"init_us":132821,"step_us":508384,"steps":6}}
+{"run":"translate","total_ms":797.774,"stages":{"tokenize":0.583,"encoder":144.000,"decode":651.719},"counters":{"tokens":6,"init_us":152025,"step_us":468022,"steps":6}}
+{"run":"translate","total_ms":645.279,"stages":{"tokenize":0.291,"encoder":146.773,"decode":497.281},"counters":{"tokens":6,"init_us":153114,"step_us":328127,"steps":6}}
+{"run":"translate","total_ms":867.457,"stages":{"tokenize":0.181,"encoder":211.479,"decode":654.862},"counters":{"tokens":6,"init_us":188322,"step_us":451912,"steps":6}}
+{"run":"translate","total_ms":636.438,"stages":{"tokenize":0.178,"encoder":83.300,"decode":551.944},"counters":{"tokens":6,"init_us":148490,"step_us":379692,"steps":6}}
+{"run":"translate","total_ms":538.330,"stages":{"tokenize":0.225,"encoder":147.987,"decode":389.085},"counters":{"tokens":6,"init_us":75014,"step_us":299137,"steps":6}}
+{"run":"translate","total_ms":715.925,"stages":{"tokenize":0.203,"encoder":138.536,"decode":576.076},"counters":{"tokens":6,"init_us":93620,"step_us":459601,"steps":6}}
+{"run":"translate","total_ms":772.367,"stages":{"tokenize":0.208,"encoder":133.535,"decode":636.980},"counters":{"tokens":6,"init_us":104372,"step_us":506232,"steps":6}}
+{"run":"translate","total_ms":668.902,"stages":{"tokenize":0.519,"encoder":158.924,"decode":508.508},"counters":{"tokens":6,"init_us":94154,"step_us":398736,"steps":6}}
+{"run":"translate","total_ms":813.132,"stages":{"tokenize":0.182,"encoder":140.071,"decode":670.967},"counters":{"tokens":6,"init_us":75729,"step_us":570737,"steps":6}}
+{"run":"translate","total_ms":653.041,"stages":{"tokenize":0.568,"encoder":124.048,"decode":527.286},"counters":{"tokens":6,"init_us":102615,"step_us":395741,"steps":6}}
+{"run":"translate","total_ms":803.273,"stages":{"tokenize":0.242,"encoder":187.969,"decode":613.999},"counters":{"tokens":6,"init_us":126953,"step_us":467792,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":1317.321,"stages":{"tokenize":0.316,"encoder":201.143,"decode":1113.308},"counters":{"tokens":12,"init_us":149943,"step_us":907913,"steps":12}}
+{"run":"translate","total_ms":1169.296,"stages":{"tokenize":1.012,"encoder":154.908,"decode":1012.054},"counters":{"tokens":12,"init_us":95042,"step_us":863183,"steps":12}}
+{"run":"translate","total_ms":1478.534,"stages":{"tokenize":0.325,"encoder":371.714,"decode":1105.267},"counters":{"tokens":12,"init_us":138955,"step_us":922113,"steps":12}}
+{"run":"translate","total_ms":1152.814,"stages":{"tokenize":0.263,"encoder":191.733,"decode":958.665},"counters":{"tokens":12,"init_us":143508,"step_us":786237,"steps":12}}
+{"run":"translate","total_ms":1068.313,"stages":{"tokenize":0.413,"encoder":159.156,"decode":899.245},"counters":{"tokens":12,"init_us":114213,"step_us":743677,"steps":12}}
+{"run":"translate","total_ms":1042.731,"stages":{"tokenize":3.594,"encoder":114.907,"decode":921.454},"counters":{"tokens":12,"init_us":89926,"step_us":782907,"steps":12}}
+{"run":"translate","total_ms":1100.957,"stages":{"tokenize":0.756,"encoder":144.010,"decode":954.750},"counters":{"tokens":12,"init_us":98131,"step_us":788412,"steps":12}}
+{"run":"translate","total_ms":907.128,"stages":{"tokenize":0.327,"encoder":163.067,"decode":742.342},"counters":{"tokens":12,"init_us":101772,"step_us":606134,"steps":12}}
+{"run":"translate","total_ms":1315.151,"stages":{"tokenize":0.280,"encoder":196.099,"decode":1117.519},"counters":{"tokens":12,"init_us":173400,"step_us":895545,"steps":12}}
+{"run":"translate","total_ms":1108.758,"stages":{"tokenize":0.261,"encoder":116.374,"decode":989.917},"counters":{"tokens":12,"init_us":159510,"step_us":792800,"steps":12}}
+{"run":"translate","total_ms":1306.714,"stages":{"tokenize":0.637,"encoder":183.393,"decode":1120.167},"counters":{"tokens":12,"init_us":107542,"step_us":959179,"steps":12}}
+{"run":"translate","total_ms":1175.496,"stages":{"tokenize":0.838,"encoder":137.306,"decode":1034.270},"counters":{"tokens":12,"init_us":85283,"step_us":895781,"steps":12}}
+{"run":"translate","total_ms":1327.334,"stages":{"tokenize":0.711,"encoder":158.044,"decode":1164.988},"counters":{"tokens":12,"init_us":117249,"step_us":1008091,"steps":12}}
+{"run":"translate","total_ms":1301.837,"stages":{"tokenize":0.895,"encoder":158.119,"decode":1140.237},"counters":{"tokens":12,"init_us":131584,"step_us":959050,"steps":12}}
+{"run":"translate","total_ms":1389.633,"stages":{"tokenize":0.723,"encoder":199.038,"decode":1186.946},"counters":{"tokens":12,"init_us":151554,"step_us":982743,"steps":12}}
+{"run":"translate","total_ms":1253.086,"stages":{"tokenize":0.705,"encoder":184.903,"decode":1066.170},"counters":{"tokens":12,"init_us":113957,"step_us":895002,"steps":12}}
+{"run":"translate","total_ms":1088.734,"stages":{"tokenize":0.321,"encoder":248.945,"decode":837.359},"counters":{"tokens":12,"init_us":105740,"step_us":697431,"steps":12}}
+{"run":"translate","total_ms":1301.528,"stages":{"tokenize":0.455,"encoder":202.234,"decode":1097.462},"counters":{"tokens":12,"init_us":235736,"step_us":822611,"steps":12}}
+{"run":"translate","total_ms":1302.549,"stages":{"tokenize":0.364,"encoder":197.005,"decode":1101.959},"counters":{"tokens":12,"init_us":145689,"step_us":895501,"steps":12}}
+{"run":"translate","total_ms":1323.364,"stages":{"tokenize":0.871,"encoder":155.241,"decode":1164.975},"counters":{"tokens":12,"init_us":140712,"step_us":958334,"steps":12}}
+{"run":"translate","total_ms":1374.522,"stages":{"tokenize":10.996,"encoder":162.173,"decode":1198.821},"counters":{"tokens":12,"init_us":101971,"step_us":1044714,"steps":12}}
+{"run":"translate","total_ms":1294.141,"stages":{"tokenize":0.711,"encoder":180.335,"decode":1110.647},"counters":{"tokens":12,"init_us":121755,"step_us":936971,"steps":12}}
+{"run":"translate","total_ms":1384.927,"stages":{"tokenize":1.491,"encoder":263.271,"decode":1117.381},"counters":{"tokens":12,"init_us":128856,"step_us":908551,"steps":12}}
+{"run":"translate","total_ms":1366.196,"stages":{"tokenize":0.313,"encoder":158.102,"decode":1206.464},"counters":{"tokens":12,"init_us":223622,"step_us":929603,"steps":12}}
+{"run":"translate","total_ms":1302.222,"stages":{"tokenize":0.321,"encoder":136.318,"decode":1162.221},"counters":{"tokens":12,"init_us":190096,"step_us":922353,"steps":12}}
+{"run":"translate","total_ms":1313.804,"stages":{"tokenize":0.936,"encoder":226.278,"decode":1085.205},"counters":{"tokens":12,"init_us":102920,"step_us":931667,"steps":12}}
+{"run":"translate","total_ms":1194.503,"stages":{"tokenize":0.278,"encoder":318.624,"decode":874.093},"counters":{"tokens":12,"init_us":60694,"step_us":777327,"steps":12}}
+{"run":"translate","total_ms":1216.692,"stages":{"tokenize":0.314,"encoder":184.613,"decode":1030.559},"counters":{"tokens":12,"init_us":138626,"step_us":848779,"steps":12}}
+{"run":"translate","total_ms":1430.469,"stages":{"tokenize":0.274,"encoder":240.907,"decode":1186.211},"counters":{"tokens":12,"init_us":106752,"step_us":1011273,"steps":12}}
+{"run":"translate","total_ms":1007.829,"stages":{"tokenize":0.752,"encoder":219.147,"decode":786.734},"counters":{"tokens":12,"init_us":115611,"step_us":634812,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=985389 nativePss=895106 dalvikPss=33848
+CONFIG name=parallel
+{"run":"translate","total_ms":342.453,"stages":{"tokenize":0.285,"encoder":50.183,"decode":290.985},"counters":{"tokens":6,"init_us":58565,"step_us":216732,"steps":6}}
+{"run":"translate","total_ms":596.139,"stages":{"tokenize":0.281,"encoder":66.925,"decode":527.490},"counters":{"tokens":12,"init_us":74004,"step_us":426260,"steps":12}}
+{"run":"translate","total_ms":335.241,"stages":{"tokenize":0.228,"encoder":52.777,"decode":281.243},"counters":{"tokens":6,"init_us":53653,"step_us":212952,"steps":6}}
+{"run":"translate","total_ms":604.706,"stages":{"tokenize":0.262,"encoder":97.923,"decode":505.112},"counters":{"tokens":12,"init_us":42650,"step_us":429700,"steps":12}}
+WARMUP_DONE parallel
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":303.362,"stages":{"tokenize":0.229,"encoder":48.535,"decode":253.542},"counters":{"tokens":6,"init_us":42099,"step_us":196946,"steps":6}}
+{"run":"translate","total_ms":338.638,"stages":{"tokenize":0.208,"encoder":54.519,"decode":282.948},"counters":{"tokens":6,"init_us":41073,"step_us":226976,"steps":6}}
+{"run":"translate","total_ms":353.727,"stages":{"tokenize":0.189,"encoder":48.023,"decode":304.580},"counters":{"tokens":6,"init_us":39572,"step_us":250449,"steps":6}}
+{"run":"translate","total_ms":393.228,"stages":{"tokenize":0.200,"encoder":46.827,"decode":345.188},"counters":{"tokens":6,"init_us":39966,"step_us":282138,"steps":6}}
+{"run":"translate","total_ms":333.407,"stages":{"tokenize":0.236,"encoder":50.349,"decode":281.867},"counters":{"tokens":6,"init_us":41748,"step_us":225717,"steps":6}}
+{"run":"translate","total_ms":329.530,"stages":{"tokenize":0.195,"encoder":51.509,"decode":276.892},"counters":{"tokens":6,"init_us":44530,"step_us":216588,"steps":6}}
+{"run":"translate","total_ms":371.245,"stages":{"tokenize":0.188,"encoder":50.558,"decode":319.473},"counters":{"tokens":6,"init_us":39998,"step_us":254662,"steps":6}}
+{"run":"translate","total_ms":333.251,"stages":{"tokenize":0.232,"encoder":48.786,"decode":283.207},"counters":{"tokens":6,"init_us":39709,"step_us":227562,"steps":6}}
+{"run":"translate","total_ms":341.422,"stages":{"tokenize":0.210,"encoder":65.770,"decode":274.490},"counters":{"tokens":6,"init_us":61606,"step_us":198537,"steps":6}}
+{"run":"translate","total_ms":332.248,"stages":{"tokenize":0.188,"encoder":58.997,"decode":272.104},"counters":{"tokens":6,"init_us":44953,"step_us":211354,"steps":6}}
+{"run":"translate","total_ms":341.279,"stages":{"tokenize":0.186,"encoder":49.195,"decode":290.810},"counters":{"tokens":6,"init_us":39648,"step_us":229475,"steps":6}}
+{"run":"translate","total_ms":389.041,"stages":{"tokenize":0.223,"encoder":48.992,"decode":338.880},"counters":{"tokens":6,"init_us":59775,"step_us":264536,"steps":6}}
+{"run":"translate","total_ms":343.228,"stages":{"tokenize":0.192,"encoder":55.397,"decode":286.726},"counters":{"tokens":6,"init_us":59996,"step_us":211641,"steps":6}}
+{"run":"translate","total_ms":371.686,"stages":{"tokenize":0.186,"encoder":64.831,"decode":305.645},"counters":{"tokens":6,"init_us":47649,"step_us":235868,"steps":6}}
+{"run":"translate","total_ms":406.503,"stages":{"tokenize":0.227,"encoder":63.441,"decode":341.793},"counters":{"tokens":6,"init_us":67802,"step_us":256669,"steps":6}}
+{"run":"translate","total_ms":349.862,"stages":{"tokenize":0.206,"encoder":55.284,"decode":293.392},"counters":{"tokens":6,"init_us":45530,"step_us":233184,"steps":6}}
+{"run":"translate","total_ms":346.449,"stages":{"tokenize":0.218,"encoder":52.330,"decode":292.856},"counters":{"tokens":6,"init_us":57018,"step_us":219594,"steps":6}}
+{"run":"translate","total_ms":494.079,"stages":{"tokenize":0.223,"encoder":60.129,"decode":432.792},"counters":{"tokens":6,"init_us":45035,"step_us":369860,"steps":6}}
+{"run":"translate","total_ms":337.481,"stages":{"tokenize":0.182,"encoder":49.956,"decode":286.404},"counters":{"tokens":6,"init_us":45306,"step_us":226863,"steps":6}}
+{"run":"translate","total_ms":460.120,"stages":{"tokenize":0.186,"encoder":59.962,"decode":397.688},"counters":{"tokens":6,"init_us":39446,"step_us":329138,"steps":6}}
+{"run":"translate","total_ms":351.334,"stages":{"tokenize":0.647,"encoder":64.529,"decode":285.124},"counters":{"tokens":6,"init_us":63221,"step_us":207097,"steps":6}}
+{"run":"translate","total_ms":332.097,"stages":{"tokenize":0.238,"encoder":51.136,"decode":279.749},"counters":{"tokens":6,"init_us":42036,"step_us":221456,"steps":6}}
+{"run":"translate","total_ms":409.715,"stages":{"tokenize":0.189,"encoder":50.024,"decode":358.509},"counters":{"tokens":6,"init_us":57995,"step_us":285938,"steps":6}}
+{"run":"translate","total_ms":432.004,"stages":{"tokenize":0.190,"encoder":56.791,"decode":373.001},"counters":{"tokens":6,"init_us":40044,"step_us":305843,"steps":6}}
+{"run":"translate","total_ms":395.836,"stages":{"tokenize":0.627,"encoder":63.114,"decode":331.162},"counters":{"tokens":6,"init_us":80742,"step_us":225210,"steps":6}}
+{"run":"translate","total_ms":364.124,"stages":{"tokenize":0.180,"encoder":53.892,"decode":308.625},"counters":{"tokens":6,"init_us":61751,"step_us":229369,"steps":6}}
+{"run":"translate","total_ms":393.897,"stages":{"tokenize":0.330,"encoder":51.345,"decode":341.207},"counters":{"tokens":6,"init_us":72784,"step_us":242285,"steps":6}}
+{"run":"translate","total_ms":387.549,"stages":{"tokenize":0.232,"encoder":49.678,"decode":336.694},"counters":{"tokens":6,"init_us":104081,"step_us":216599,"steps":6}}
+{"run":"translate","total_ms":370.998,"stages":{"tokenize":0.207,"encoder":64.369,"decode":305.427},"counters":{"tokens":6,"init_us":41244,"step_us":249621,"steps":6}}
+{"run":"translate","total_ms":368.054,"stages":{"tokenize":0.187,"encoder":49.499,"decode":317.348},"counters":{"tokens":6,"init_us":39510,"step_us":255118,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":605.936,"stages":{"tokenize":0.309,"encoder":71.803,"decode":532.595},"counters":{"tokens":12,"init_us":57376,"step_us":446863,"steps":12}}
+{"run":"translate","total_ms":632.593,"stages":{"tokenize":0.258,"encoder":79.998,"decode":551.006},"counters":{"tokens":12,"init_us":46843,"step_us":467088,"steps":12}}
+{"run":"translate","total_ms":569.164,"stages":{"tokenize":0.304,"encoder":68.135,"decode":499.452},"counters":{"tokens":12,"init_us":45609,"step_us":426583,"steps":12}}
+{"run":"translate","total_ms":709.862,"stages":{"tokenize":0.264,"encoder":72.435,"decode":635.921},"counters":{"tokens":12,"init_us":43026,"step_us":559272,"steps":12}}
+{"run":"translate","total_ms":608.485,"stages":{"tokenize":0.263,"encoder":125.640,"decode":481.352},"counters":{"tokens":12,"init_us":43207,"step_us":411516,"steps":12}}
+{"run":"translate","total_ms":818.297,"stages":{"tokenize":0.264,"encoder":68.225,"decode":748.566},"counters":{"tokens":12,"init_us":46245,"step_us":667716,"steps":12}}
+{"run":"translate","total_ms":651.551,"stages":{"tokenize":0.259,"encoder":95.903,"decode":554.079},"counters":{"tokens":12,"init_us":54931,"step_us":465641,"steps":12}}
+{"run":"translate","total_ms":605.801,"stages":{"tokenize":0.316,"encoder":81.025,"decode":523.186},"counters":{"tokens":12,"init_us":47599,"step_us":446798,"steps":12}}
+{"run":"translate","total_ms":603.756,"stages":{"tokenize":0.264,"encoder":79.117,"decode":523.002},"counters":{"tokens":12,"init_us":48599,"step_us":440330,"steps":12}}
+{"run":"translate","total_ms":590.990,"stages":{"tokenize":0.290,"encoder":75.665,"decode":513.343},"counters":{"tokens":12,"init_us":43511,"step_us":442461,"steps":12}}
+{"run":"translate","total_ms":653.079,"stages":{"tokenize":0.397,"encoder":85.890,"decode":565.434},"counters":{"tokens":12,"init_us":45230,"step_us":482769,"steps":12}}
+{"run":"translate","total_ms":684.767,"stages":{"tokenize":0.290,"encoder":69.270,"decode":613.916},"counters":{"tokens":12,"init_us":46523,"step_us":540121,"steps":12}}
+{"run":"translate","total_ms":635.896,"stages":{"tokenize":0.259,"encoder":67.641,"decode":566.586},"counters":{"tokens":12,"init_us":42080,"step_us":488796,"steps":12}}
+{"run":"translate","total_ms":585.523,"stages":{"tokenize":0.301,"encoder":67.867,"decode":516.092},"counters":{"tokens":12,"init_us":46372,"step_us":441899,"steps":12}}
+{"run":"translate","total_ms":591.287,"stages":{"tokenize":0.252,"encoder":70.776,"decode":518.922},"counters":{"tokens":12,"init_us":42486,"step_us":443031,"steps":12}}
+{"run":"translate","total_ms":612.690,"stages":{"tokenize":0.307,"encoder":80.529,"decode":530.577},"counters":{"tokens":12,"init_us":85400,"step_us":416885,"steps":12}}
+{"run":"translate","total_ms":570.987,"stages":{"tokenize":0.262,"encoder":67.878,"decode":501.510},"counters":{"tokens":12,"init_us":44043,"step_us":430018,"steps":12}}
+{"run":"translate","total_ms":606.422,"stages":{"tokenize":0.322,"encoder":70.558,"decode":534.289},"counters":{"tokens":12,"init_us":54603,"step_us":450243,"steps":12}}
+{"run":"translate","total_ms":731.885,"stages":{"tokenize":0.252,"encoder":92.792,"decode":637.484},"counters":{"tokens":12,"init_us":57686,"step_us":550765,"steps":12}}
+{"run":"translate","total_ms":698.185,"stages":{"tokenize":0.295,"encoder":88.283,"decode":608.337},"counters":{"tokens":12,"init_us":44023,"step_us":537224,"steps":12}}
+{"run":"translate","total_ms":586.546,"stages":{"tokenize":0.250,"encoder":75.607,"decode":509.385},"counters":{"tokens":12,"init_us":51931,"step_us":427146,"steps":12}}
+{"run":"translate","total_ms":758.159,"stages":{"tokenize":0.279,"encoder":88.617,"decode":665.866},"counters":{"tokens":12,"init_us":45407,"step_us":585395,"steps":12}}
+{"run":"translate","total_ms":595.959,"stages":{"tokenize":0.324,"encoder":67.414,"decode":526.800},"counters":{"tokens":12,"init_us":46211,"step_us":452132,"steps":12}}
+{"run":"translate","total_ms":608.987,"stages":{"tokenize":0.286,"encoder":81.011,"decode":526.308},"counters":{"tokens":12,"init_us":54325,"step_us":439125,"steps":12}}
+{"run":"translate","total_ms":1005.464,"stages":{"tokenize":0.298,"encoder":186.930,"decode":814.284},"counters":{"tokens":12,"init_us":53021,"step_us":703682,"steps":12}}
+{"run":"translate","total_ms":921.780,"stages":{"tokenize":0.810,"encoder":118.641,"decode":799.967},"counters":{"tokens":12,"init_us":51570,"step_us":691270,"steps":12}}
+{"run":"translate","total_ms":599.020,"stages":{"tokenize":0.802,"encoder":68.559,"decode":528.332},"counters":{"tokens":12,"init_us":48676,"step_us":452857,"steps":12}}
+{"run":"translate","total_ms":607.628,"stages":{"tokenize":0.267,"encoder":78.436,"decode":527.481},"counters":{"tokens":12,"init_us":41967,"step_us":444745,"steps":12}}
+{"run":"translate","total_ms":879.228,"stages":{"tokenize":0.295,"encoder":104.177,"decode":771.230},"counters":{"tokens":12,"init_us":73580,"step_us":662879,"steps":12}}
+{"run":"translate","total_ms":610.975,"stages":{"tokenize":0.318,"encoder":68.318,"decode":541.134},"counters":{"tokens":12,"init_us":46992,"step_us":465644,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=993852 nativePss=911109 dalvikPss=26891
+CONFIG name=parallel_inter2
+{"run":"translate","total_ms":482.389,"stages":{"tokenize":0.284,"encoder":51.013,"decode":429.857},"counters":{"tokens":6,"init_us":60257,"step_us":345535,"steps":6}}
+{"run":"translate","total_ms":754.316,"stages":{"tokenize":0.256,"encoder":138.922,"decode":612.537},"counters":{"tokens":12,"init_us":70932,"step_us":490780,"steps":12}}
+{"run":"translate","total_ms":419.992,"stages":{"tokenize":0.585,"encoder":59.317,"decode":359.040},"counters":{"tokens":6,"init_us":72682,"step_us":265679,"steps":6}}
+{"run":"translate","total_ms":630.923,"stages":{"tokenize":0.254,"encoder":92.505,"decode":536.899},"counters":{"tokens":12,"init_us":80872,"step_us":429415,"steps":12}}
+WARMUP_DONE parallel_inter2
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":405.438,"stages":{"tokenize":0.186,"encoder":67.734,"decode":336.440},"counters":{"tokens":6,"init_us":72701,"step_us":239858,"steps":6}}
+{"run":"translate","total_ms":409.359,"stages":{"tokenize":0.279,"encoder":72.100,"decode":335.999},"counters":{"tokens":6,"init_us":83929,"step_us":232904,"steps":6}}
+{"run":"translate","total_ms":362.985,"stages":{"tokenize":0.180,"encoder":77.988,"decode":283.797},"counters":{"tokens":6,"init_us":49634,"step_us":218382,"steps":6}}
+{"run":"translate","total_ms":383.579,"stages":{"tokenize":0.192,"encoder":82.503,"decode":299.791},"counters":{"tokens":6,"init_us":42135,"step_us":234884,"steps":6}}
+{"run":"translate","total_ms":387.330,"stages":{"tokenize":0.219,"encoder":85.086,"decode":300.835},"counters":{"tokens":6,"init_us":60518,"step_us":225226,"steps":6}}
+{"run":"translate","total_ms":370.046,"stages":{"tokenize":0.222,"encoder":86.257,"decode":282.619},"counters":{"tokens":6,"init_us":61433,"step_us":205311,"steps":6}}
+{"run":"translate","total_ms":501.210,"stages":{"tokenize":0.189,"encoder":100.897,"decode":399.178},"counters":{"tokens":6,"init_us":56789,"step_us":328151,"steps":6}}
+{"run":"translate","total_ms":484.960,"stages":{"tokenize":0.181,"encoder":127.975,"decode":355.771},"counters":{"tokens":6,"init_us":42041,"step_us":294919,"steps":6}}
+{"run":"translate","total_ms":448.685,"stages":{"tokenize":0.212,"encoder":131.988,"decode":315.475},"counters":{"tokens":6,"init_us":66031,"step_us":235105,"steps":6}}
+{"run":"translate","total_ms":500.635,"stages":{"tokenize":0.178,"encoder":69.171,"decode":430.339},"counters":{"tokens":6,"init_us":60535,"step_us":355297,"steps":6}}
+{"run":"translate","total_ms":494.885,"stages":{"tokenize":0.174,"encoder":75.485,"decode":418.134},"counters":{"tokens":6,"init_us":60626,"step_us":336501,"steps":6}}
+{"run":"translate","total_ms":403.774,"stages":{"tokenize":0.222,"encoder":69.978,"decode":332.629},"counters":{"tokens":6,"init_us":58731,"step_us":258111,"steps":6}}
+{"run":"translate","total_ms":532.338,"stages":{"tokenize":0.182,"encoder":100.698,"decode":430.508},"counters":{"tokens":6,"init_us":62856,"step_us":353407,"steps":6}}
+{"run":"translate","total_ms":416.364,"stages":{"tokenize":0.181,"encoder":126.605,"decode":288.634},"counters":{"tokens":6,"init_us":48277,"step_us":224965,"steps":6}}
+{"run":"translate","total_ms":482.894,"stages":{"tokenize":0.184,"encoder":106.498,"decode":375.247},"counters":{"tokens":6,"init_us":59894,"step_us":290478,"steps":6}}
+{"run":"translate","total_ms":351.908,"stages":{"tokenize":0.187,"encoder":61.832,"decode":288.930},"counters":{"tokens":6,"init_us":47380,"step_us":227305,"steps":6}}
+{"run":"translate","total_ms":510.060,"stages":{"tokenize":0.181,"encoder":54.521,"decode":454.402},"counters":{"tokens":6,"init_us":61270,"step_us":377781,"steps":6}}
+{"run":"translate","total_ms":387.194,"stages":{"tokenize":0.192,"encoder":51.268,"decode":333.492},"counters":{"tokens":6,"init_us":51655,"step_us":251187,"steps":6}}
+{"run":"translate","total_ms":457.293,"stages":{"tokenize":0.588,"encoder":128.080,"decode":327.623},"counters":{"tokens":6,"init_us":93115,"step_us":217714,"steps":6}}
+{"run":"translate","total_ms":480.597,"stages":{"tokenize":0.189,"encoder":60.663,"decode":418.732},"counters":{"tokens":6,"init_us":80432,"step_us":324124,"steps":6}}
+{"run":"translate","total_ms":374.146,"stages":{"tokenize":0.194,"encoder":53.443,"decode":318.695},"counters":{"tokens":6,"init_us":53365,"step_us":239949,"steps":6}}
+{"run":"translate","total_ms":551.982,"stages":{"tokenize":0.613,"encoder":72.832,"decode":477.501},"counters":{"tokens":6,"init_us":89689,"step_us":373424,"steps":6}}
+{"run":"translate","total_ms":471.393,"stages":{"tokenize":0.185,"encoder":90.063,"decode":380.199},"counters":{"tokens":6,"init_us":58791,"step_us":305733,"steps":6}}
+{"run":"translate","total_ms":355.484,"stages":{"tokenize":0.182,"encoder":66.882,"decode":287.381},"counters":{"tokens":6,"init_us":56665,"step_us":210912,"steps":6}}
+{"run":"translate","total_ms":396.005,"stages":{"tokenize":0.212,"encoder":69.096,"decode":325.745},"counters":{"tokens":6,"init_us":79000,"step_us":230639,"steps":6}}
+{"run":"translate","total_ms":407.219,"stages":{"tokenize":0.181,"encoder":58.947,"decode":347.099},"counters":{"tokens":6,"init_us":73455,"step_us":259453,"steps":6}}
+{"run":"translate","total_ms":359.635,"stages":{"tokenize":0.181,"encoder":62.072,"decode":296.280},"counters":{"tokens":6,"init_us":64754,"step_us":211222,"steps":6}}
+{"run":"translate","total_ms":451.492,"stages":{"tokenize":0.220,"encoder":58.040,"decode":391.742},"counters":{"tokens":6,"init_us":67445,"step_us":307700,"steps":6}}
+{"run":"translate","total_ms":410.872,"stages":{"tokenize":0.318,"encoder":87.788,"decode":321.366},"counters":{"tokens":6,"init_us":73750,"step_us":232180,"steps":6}}
+{"run":"translate","total_ms":425.600,"stages":{"tokenize":0.293,"encoder":78.636,"decode":344.750},"counters":{"tokens":6,"init_us":62598,"step_us":257086,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":879.851,"stages":{"tokenize":0.807,"encoder":94.709,"decode":783.123},"counters":{"tokens":12,"init_us":67510,"step_us":670086,"steps":12}}
+{"run":"translate","total_ms":654.128,"stages":{"tokenize":0.253,"encoder":80.912,"decode":570.245},"counters":{"tokens":12,"init_us":59369,"step_us":480088,"steps":12}}
+{"run":"translate","total_ms":759.726,"stages":{"tokenize":0.880,"encoder":165.271,"decode":592.341},"counters":{"tokens":12,"init_us":116190,"step_us":448975,"steps":12}}
+{"run":"translate","total_ms":757.086,"stages":{"tokenize":0.265,"encoder":114.231,"decode":641.200},"counters":{"tokens":12,"init_us":100912,"step_us":504925,"steps":12}}
+{"run":"translate","total_ms":736.476,"stages":{"tokenize":0.368,"encoder":136.214,"decode":598.625},"counters":{"tokens":12,"init_us":69448,"step_us":500707,"steps":12}}
+{"run":"translate","total_ms":800.113,"stages":{"tokenize":0.267,"encoder":100.947,"decode":697.608},"counters":{"tokens":12,"init_us":82144,"step_us":572009,"steps":12}}
+{"run":"translate","total_ms":622.134,"stages":{"tokenize":0.250,"encoder":78.772,"decode":541.884},"counters":{"tokens":12,"init_us":90866,"step_us":424098,"steps":12}}
+{"run":"translate","total_ms":718.584,"stages":{"tokenize":0.258,"encoder":84.721,"decode":631.106},"counters":{"tokens":12,"init_us":61407,"step_us":512220,"steps":12}}
+{"run":"translate","total_ms":728.018,"stages":{"tokenize":0.812,"encoder":77.886,"decode":647.189},"counters":{"tokens":12,"init_us":78606,"step_us":533628,"steps":12}}
+{"run":"translate","total_ms":910.603,"stages":{"tokenize":0.313,"encoder":78.032,"decode":830.319},"counters":{"tokens":12,"init_us":82250,"step_us":717339,"steps":12}}
+{"run":"translate","total_ms":736.899,"stages":{"tokenize":0.449,"encoder":73.079,"decode":661.989},"counters":{"tokens":12,"init_us":82578,"step_us":541970,"steps":12}}
+{"run":"translate","total_ms":683.092,"stages":{"tokenize":0.300,"encoder":122.118,"decode":559.390},"counters":{"tokens":12,"init_us":69642,"step_us":463254,"steps":12}}
+{"run":"translate","total_ms":623.183,"stages":{"tokenize":0.263,"encoder":77.454,"decode":542.660},"counters":{"tokens":12,"init_us":65399,"step_us":439554,"steps":12}}
+{"run":"translate","total_ms":680.812,"stages":{"tokenize":0.324,"encoder":95.689,"decode":582.640},"counters":{"tokens":12,"init_us":59678,"step_us":473613,"steps":12}}
+{"run":"translate","total_ms":812.041,"stages":{"tokenize":0.770,"encoder":73.267,"decode":735.830},"counters":{"tokens":12,"init_us":79809,"step_us":611011,"steps":12}}
+{"run":"translate","total_ms":589.630,"stages":{"tokenize":0.681,"encoder":70.880,"decode":516.865},"counters":{"tokens":12,"init_us":48457,"step_us":440537,"steps":12}}
+{"run":"translate","total_ms":688.394,"stages":{"tokenize":0.253,"encoder":143.309,"decode":542.646},"counters":{"tokens":12,"init_us":54516,"step_us":449357,"steps":12}}
+{"run":"translate","total_ms":904.002,"stages":{"tokenize":0.534,"encoder":134.483,"decode":767.699},"counters":{"tokens":12,"init_us":46932,"step_us":682418,"steps":12}}
+{"run":"translate","total_ms":780.375,"stages":{"tokenize":0.251,"encoder":98.055,"decode":679.045},"counters":{"tokens":12,"init_us":57771,"step_us":563218,"steps":12}}
+{"run":"translate","total_ms":906.720,"stages":{"tokenize":0.680,"encoder":99.039,"decode":804.143},"counters":{"tokens":12,"init_us":55638,"step_us":679139,"steps":12}}
+{"run":"translate","total_ms":827.337,"stages":{"tokenize":0.908,"encoder":98.677,"decode":726.453},"counters":{"tokens":12,"init_us":51945,"step_us":647189,"steps":12}}
+{"run":"translate","total_ms":1022.469,"stages":{"tokenize":0.288,"encoder":96.772,"decode":924.037},"counters":{"tokens":12,"init_us":99666,"step_us":789667,"steps":12}}
+{"run":"translate","total_ms":931.667,"stages":{"tokenize":0.292,"encoder":166.078,"decode":764.072},"counters":{"tokens":12,"init_us":99148,"step_us":637876,"steps":12}}
+{"run":"translate","total_ms":1042.303,"stages":{"tokenize":0.249,"encoder":147.752,"decode":893.013},"counters":{"tokens":12,"init_us":66284,"step_us":788725,"steps":12}}
+{"run":"translate","total_ms":878.164,"stages":{"tokenize":0.275,"encoder":129.166,"decode":745.552},"counters":{"tokens":12,"init_us":70350,"step_us":640499,"steps":12}}
+{"run":"translate","total_ms":632.465,"stages":{"tokenize":0.331,"encoder":73.163,"decode":557.690},"counters":{"tokens":12,"init_us":78384,"step_us":452504,"steps":12}}
+{"run":"translate","total_ms":860.766,"stages":{"tokenize":0.263,"encoder":75.666,"decode":783.521},"counters":{"tokens":12,"init_us":68723,"step_us":678401,"steps":12}}
+{"run":"translate","total_ms":935.086,"stages":{"tokenize":0.311,"encoder":124.132,"decode":808.151},"counters":{"tokens":12,"init_us":106683,"step_us":645547,"steps":12}}
+{"run":"translate","total_ms":617.163,"stages":{"tokenize":0.734,"encoder":68.586,"decode":546.384},"counters":{"tokens":12,"init_us":60934,"step_us":448043,"steps":12}}
+{"run":"translate","total_ms":695.727,"stages":{"tokenize":0.313,"encoder":113.066,"decode":581.066},"counters":{"tokens":12,"init_us":123685,"step_us":429051,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=1021627 nativePss=929718 dalvikPss=35880
+CONFIG name=arena_off
+{"run":"translate","total_ms":374.170,"stages":{"tokenize":0.292,"encoder":95.373,"decode":276.889},"counters":{"tokens":6,"init_us":43357,"step_us":217032,"steps":6}}
+{"run":"translate","total_ms":580.729,"stages":{"tokenize":0.428,"encoder":71.497,"decode":507.374},"counters":{"tokens":12,"init_us":48113,"step_us":432227,"steps":12}}
+{"run":"translate","total_ms":432.010,"stages":{"tokenize":0.231,"encoder":58.075,"decode":372.250},"counters":{"tokens":6,"init_us":44707,"step_us":313035,"steps":6}}
+{"run":"translate","total_ms":747.092,"stages":{"tokenize":0.261,"encoder":86.287,"decode":659.143},"counters":{"tokens":12,"init_us":44037,"step_us":581265,"steps":12}}
+WARMUP_DONE arena_off
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":354.576,"stages":{"tokenize":0.245,"encoder":55.371,"decode":297.982},"counters":{"tokens":6,"init_us":52781,"step_us":229592,"steps":6}}
+{"run":"translate","total_ms":312.661,"stages":{"tokenize":0.190,"encoder":49.409,"decode":261.963},"counters":{"tokens":6,"init_us":42855,"step_us":204853,"steps":6}}
+{"run":"translate","total_ms":311.023,"stages":{"tokenize":0.183,"encoder":50.433,"decode":259.240},"counters":{"tokens":6,"init_us":41060,"step_us":203564,"steps":6}}
+{"run":"translate","total_ms":332.137,"stages":{"tokenize":0.218,"encoder":48.520,"decode":282.448},"counters":{"tokens":6,"init_us":54265,"step_us":213875,"steps":6}}
+{"run":"translate","total_ms":337.123,"stages":{"tokenize":0.176,"encoder":64.596,"decode":271.356},"counters":{"tokens":6,"init_us":40958,"step_us":216452,"steps":6}}
+{"run":"translate","total_ms":392.909,"stages":{"tokenize":0.175,"encoder":46.815,"decode":344.959},"counters":{"tokens":6,"init_us":40392,"step_us":289083,"steps":6}}
+{"run":"translate","total_ms":322.844,"stages":{"tokenize":0.173,"encoder":48.322,"decode":273.266},"counters":{"tokens":6,"init_us":41085,"step_us":217666,"steps":6}}
+{"run":"translate","total_ms":337.170,"stages":{"tokenize":0.225,"encoder":54.495,"decode":281.498},"counters":{"tokens":6,"init_us":45077,"step_us":222392,"steps":6}}
+{"run":"translate","total_ms":321.497,"stages":{"tokenize":0.187,"encoder":61.241,"decode":259.033},"counters":{"tokens":6,"init_us":42081,"step_us":201451,"steps":6}}
+{"run":"translate","total_ms":348.900,"stages":{"tokenize":0.193,"encoder":48.101,"decode":299.541},"counters":{"tokens":6,"init_us":44078,"step_us":235399,"steps":6}}
+{"run":"translate","total_ms":349.351,"stages":{"tokenize":0.217,"encoder":57.819,"decode":290.299},"counters":{"tokens":6,"init_us":46924,"step_us":227912,"steps":6}}
+{"run":"translate","total_ms":317.393,"stages":{"tokenize":0.176,"encoder":53.309,"decode":262.974},"counters":{"tokens":6,"init_us":40536,"step_us":208220,"steps":6}}
+{"run":"translate","total_ms":323.368,"stages":{"tokenize":0.174,"encoder":49.916,"decode":272.355},"counters":{"tokens":6,"init_us":57472,"step_us":200967,"steps":6}}
+{"run":"translate","total_ms":442.975,"stages":{"tokenize":0.182,"encoder":51.116,"decode":390.654},"counters":{"tokens":6,"init_us":44085,"step_us":324230,"steps":6}}
+{"run":"translate","total_ms":495.602,"stages":{"tokenize":0.225,"encoder":59.636,"decode":434.761},"counters":{"tokens":6,"init_us":44019,"step_us":365869,"steps":6}}
+{"run":"translate","total_ms":472.055,"stages":{"tokenize":0.182,"encoder":67.196,"decode":402.417},"counters":{"tokens":6,"init_us":52039,"step_us":322715,"steps":6}}
+{"run":"translate","total_ms":397.863,"stages":{"tokenize":0.517,"encoder":50.383,"decode":345.847},"counters":{"tokens":6,"init_us":56995,"step_us":266189,"steps":6}}
+{"run":"translate","total_ms":395.433,"stages":{"tokenize":0.223,"encoder":59.342,"decode":334.894},"counters":{"tokens":6,"init_us":82786,"step_us":233945,"steps":6}}
+{"run":"translate","total_ms":353.340,"stages":{"tokenize":0.182,"encoder":48.722,"decode":303.454},"counters":{"tokens":6,"init_us":70968,"step_us":217039,"steps":6}}
+{"run":"translate","total_ms":421.660,"stages":{"tokenize":0.185,"encoder":47.984,"decode":372.459},"counters":{"tokens":6,"init_us":58194,"step_us":290571,"steps":6}}
+{"run":"translate","total_ms":376.351,"stages":{"tokenize":0.226,"encoder":70.780,"decode":304.368},"counters":{"tokens":6,"init_us":61362,"step_us":228004,"steps":6}}
+{"run":"translate","total_ms":314.038,"stages":{"tokenize":0.183,"encoder":57.221,"decode":255.718},"counters":{"tokens":6,"init_us":41081,"step_us":200482,"steps":6}}
+{"run":"translate","total_ms":396.341,"stages":{"tokenize":0.184,"encoder":48.550,"decode":346.541},"counters":{"tokens":6,"init_us":51420,"step_us":273033,"steps":6}}
+{"run":"translate","total_ms":333.611,"stages":{"tokenize":0.256,"encoder":48.014,"decode":284.290},"counters":{"tokens":6,"init_us":48577,"step_us":220584,"steps":6}}
+{"run":"translate","total_ms":305.083,"stages":{"tokenize":0.186,"encoder":49.404,"decode":254.512},"counters":{"tokens":6,"init_us":41772,"step_us":198603,"steps":6}}
+{"run":"translate","total_ms":330.983,"stages":{"tokenize":0.182,"encoder":48.280,"decode":281.187},"counters":{"tokens":6,"init_us":54996,"step_us":204761,"steps":6}}
+{"run":"translate","total_ms":363.930,"stages":{"tokenize":0.219,"encoder":49.346,"decode":313.409},"counters":{"tokens":6,"init_us":70327,"step_us":228864,"steps":6}}
+{"run":"translate","total_ms":344.996,"stages":{"tokenize":0.195,"encoder":70.183,"decode":273.604},"counters":{"tokens":6,"init_us":41326,"step_us":218141,"steps":6}}
+{"run":"translate","total_ms":349.245,"stages":{"tokenize":0.185,"encoder":49.933,"decode":298.084},"counters":{"tokens":6,"init_us":40384,"step_us":237025,"steps":6}}
+{"run":"translate","total_ms":335.027,"stages":{"tokenize":0.227,"encoder":47.277,"decode":286.460},"counters":{"tokens":6,"init_us":44684,"step_us":226324,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":712.314,"stages":{"tokenize":0.254,"encoder":83.301,"decode":627.510},"counters":{"tokens":12,"init_us":73187,"step_us":527498,"steps":12}}
+{"run":"translate","total_ms":842.607,"stages":{"tokenize":0.255,"encoder":93.197,"decode":746.330},"counters":{"tokens":12,"init_us":49587,"step_us":640985,"steps":12}}
+{"run":"translate","total_ms":864.766,"stages":{"tokenize":0.775,"encoder":78.940,"decode":782.629},"counters":{"tokens":12,"init_us":74083,"step_us":657111,"steps":12}}
+{"run":"translate","total_ms":882.652,"stages":{"tokenize":0.669,"encoder":98.985,"decode":779.158},"counters":{"tokens":12,"init_us":51450,"step_us":662853,"steps":12}}
+{"run":"translate","total_ms":756.787,"stages":{"tokenize":0.721,"encoder":85.825,"decode":668.773},"counters":{"tokens":12,"init_us":61361,"step_us":567012,"steps":12}}
+{"run":"translate","total_ms":609.489,"stages":{"tokenize":0.296,"encoder":82.757,"decode":525.129},"counters":{"tokens":12,"init_us":56902,"step_us":438580,"steps":12}}
+{"run":"translate","total_ms":704.233,"stages":{"tokenize":0.274,"encoder":100.777,"decode":601.539},"counters":{"tokens":12,"init_us":50490,"step_us":515363,"steps":12}}
+{"run":"translate","total_ms":601.354,"stages":{"tokenize":0.310,"encoder":83.038,"decode":516.021},"counters":{"tokens":12,"init_us":43285,"step_us":444599,"steps":12}}
+{"run":"translate","total_ms":742.581,"stages":{"tokenize":0.495,"encoder":72.614,"decode":668.194},"counters":{"tokens":12,"init_us":68970,"step_us":561133,"steps":12}}
+{"run":"translate","total_ms":577.977,"stages":{"tokenize":0.266,"encoder":83.105,"decode":493.304},"counters":{"tokens":12,"init_us":43986,"step_us":422924,"steps":12}}
+{"run":"translate","total_ms":921.278,"stages":{"tokenize":0.265,"encoder":74.784,"decode":844.000},"counters":{"tokens":12,"init_us":64340,"step_us":720589,"steps":12}}
+{"run":"translate","total_ms":667.053,"stages":{"tokenize":0.755,"encoder":70.565,"decode":594.317},"counters":{"tokens":12,"init_us":60092,"step_us":495135,"steps":12}}
+{"run":"translate","total_ms":915.054,"stages":{"tokenize":3.704,"encoder":125.184,"decode":782.240},"counters":{"tokens":12,"init_us":44235,"step_us":677311,"steps":12}}
+{"run":"translate","total_ms":786.153,"stages":{"tokenize":0.348,"encoder":149.339,"decode":635.123},"counters":{"tokens":12,"init_us":43890,"step_us":554576,"steps":12}}
+{"run":"translate","total_ms":583.180,"stages":{"tokenize":0.265,"encoder":82.057,"decode":499.621},"counters":{"tokens":12,"init_us":45535,"step_us":425894,"steps":12}}
+{"run":"translate","total_ms":775.115,"stages":{"tokenize":0.268,"encoder":71.724,"decode":701.819},"counters":{"tokens":12,"init_us":45693,"step_us":619851,"steps":12}}
+{"run":"translate","total_ms":656.396,"stages":{"tokenize":0.260,"encoder":72.152,"decode":582.603},"counters":{"tokens":12,"init_us":42630,"step_us":505681,"steps":12}}
+{"run":"translate","total_ms":622.669,"stages":{"tokenize":0.355,"encoder":77.586,"decode":543.422},"counters":{"tokens":12,"init_us":62018,"step_us":453940,"steps":12}}
+{"run":"translate","total_ms":593.599,"stages":{"tokenize":0.254,"encoder":75.658,"decode":516.215},"counters":{"tokens":12,"init_us":47811,"step_us":436481,"steps":12}}
+{"run":"translate","total_ms":607.195,"stages":{"tokenize":0.314,"encoder":87.525,"decode":518.035},"counters":{"tokens":12,"init_us":50704,"step_us":436212,"steps":12}}
+{"run":"translate","total_ms":781.443,"stages":{"tokenize":0.265,"encoder":72.485,"decode":707.379},"counters":{"tokens":12,"init_us":45795,"step_us":626519,"steps":12}}
+{"run":"translate","total_ms":627.640,"stages":{"tokenize":0.257,"encoder":74.199,"decode":551.944},"counters":{"tokens":12,"init_us":43462,"step_us":481465,"steps":12}}
+{"run":"translate","total_ms":839.385,"stages":{"tokenize":0.263,"encoder":75.695,"decode":762.102},"counters":{"tokens":12,"init_us":59005,"step_us":670086,"steps":12}}
+{"run":"translate","total_ms":655.095,"stages":{"tokenize":0.258,"encoder":71.973,"decode":581.475},"counters":{"tokens":12,"init_us":62825,"step_us":484808,"steps":12}}
+{"run":"translate","total_ms":597.231,"stages":{"tokenize":0.340,"encoder":75.581,"decode":520.003},"counters":{"tokens":12,"init_us":64383,"step_us":427742,"steps":12}}
+{"run":"translate","total_ms":597.604,"stages":{"tokenize":0.251,"encoder":79.113,"decode":516.782},"counters":{"tokens":12,"init_us":43853,"step_us":434100,"steps":12}}
+{"run":"translate","total_ms":587.587,"stages":{"tokenize":0.313,"encoder":68.142,"decode":517.907},"counters":{"tokens":12,"init_us":74681,"step_us":416354,"steps":12}}
+{"run":"translate","total_ms":839.446,"stages":{"tokenize":0.260,"encoder":75.613,"decode":762.263},"counters":{"tokens":12,"init_us":60130,"step_us":666724,"steps":12}}
+{"run":"translate","total_ms":647.234,"stages":{"tokenize":0.247,"encoder":73.437,"decode":572.173},"counters":{"tokens":12,"init_us":60167,"step_us":476414,"steps":12}}
+{"run":"translate","total_ms":880.281,"stages":{"tokenize":0.304,"encoder":82.505,"decode":793.651},"counters":{"tokens":12,"init_us":92893,"step_us":645911,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=632306 nativePss=547506 dalvikPss=28888
+CONFIG name=mempattern_off
+{"run":"translate","total_ms":333.439,"stages":{"tokenize":0.293,"encoder":58.674,"decode":273.534},"counters":{"tokens":6,"init_us":43624,"step_us":215863,"steps":6}}
+{"run":"translate","total_ms":576.797,"stages":{"tokenize":0.249,"encoder":71.217,"decode":503.910},"counters":{"tokens":12,"init_us":46153,"step_us":430822,"steps":12}}
+{"run":"translate","total_ms":366.823,"stages":{"tokenize":0.265,"encoder":62.918,"decode":302.654},"counters":{"tokens":6,"init_us":44104,"step_us":241450,"steps":6}}
+{"run":"translate","total_ms":570.775,"stages":{"tokenize":0.256,"encoder":71.257,"decode":498.022},"counters":{"tokens":12,"init_us":46557,"step_us":423385,"steps":12}}
+WARMUP_DONE mempattern_off
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":348.690,"stages":{"tokenize":0.191,"encoder":54.744,"decode":292.262},"counters":{"tokens":6,"init_us":39972,"step_us":235326,"steps":6}}
+{"run":"translate","total_ms":321.064,"stages":{"tokenize":0.319,"encoder":49.028,"decode":270.795},"counters":{"tokens":6,"init_us":43949,"step_us":212610,"steps":6}}
+{"run":"translate","total_ms":311.517,"stages":{"tokenize":0.190,"encoder":47.800,"decode":262.604},"counters":{"tokens":6,"init_us":40012,"step_us":208295,"steps":6}}
+{"run":"translate","total_ms":430.001,"stages":{"tokenize":0.178,"encoder":51.364,"decode":377.440},"counters":{"tokens":6,"init_us":40017,"step_us":322605,"steps":6}}
+{"run":"translate","total_ms":356.876,"stages":{"tokenize":0.187,"encoder":64.261,"decode":291.003},"counters":{"tokens":6,"init_us":45209,"step_us":229059,"steps":6}}
+{"run":"translate","total_ms":351.372,"stages":{"tokenize":0.196,"encoder":62.983,"decode":287.068},"counters":{"tokens":6,"init_us":46519,"step_us":218114,"steps":6}}
+{"run":"translate","total_ms":354.690,"stages":{"tokenize":0.224,"encoder":53.631,"decode":299.779},"counters":{"tokens":6,"init_us":54676,"step_us":230908,"steps":6}}
+{"run":"translate","total_ms":387.994,"stages":{"tokenize":0.205,"encoder":48.640,"decode":338.212},"counters":{"tokens":6,"init_us":50262,"step_us":272752,"steps":6}}
+{"run":"translate","total_ms":327.676,"stages":{"tokenize":0.189,"encoder":51.799,"decode":274.749},"counters":{"tokens":6,"init_us":41913,"step_us":218519,"steps":6}}
+{"run":"translate","total_ms":375.811,"stages":{"tokenize":0.188,"encoder":48.414,"decode":326.169},"counters":{"tokens":6,"init_us":42545,"step_us":263802,"steps":6}}
+{"run":"translate","total_ms":374.938,"stages":{"tokenize":0.222,"encoder":73.795,"decode":299.960},"counters":{"tokens":6,"init_us":68414,"step_us":217089,"steps":6}}
+{"run":"translate","total_ms":344.447,"stages":{"tokenize":0.185,"encoder":47.740,"decode":295.593},"counters":{"tokens":6,"init_us":67158,"step_us":210851,"steps":6}}
+{"run":"translate","total_ms":483.671,"stages":{"tokenize":0.183,"encoder":48.023,"decode":434.444},"counters":{"tokens":6,"init_us":69408,"step_us":340361,"steps":6}}
+{"run":"translate","total_ms":389.066,"stages":{"tokenize":0.229,"encoder":71.567,"decode":316.252},"counters":{"tokens":6,"init_us":74204,"step_us":227498,"steps":6}}
+{"run":"translate","total_ms":471.292,"stages":{"tokenize":0.181,"encoder":48.663,"decode":420.654},"counters":{"tokens":6,"init_us":59381,"step_us":332380,"steps":6}}
+{"run":"translate","total_ms":457.285,"stages":{"tokenize":0.695,"encoder":51.071,"decode":402.666},"counters":{"tokens":6,"init_us":63561,"step_us":307023,"steps":6}}
+{"run":"translate","total_ms":499.954,"stages":{"tokenize":0.683,"encoder":76.708,"decode":420.786},"counters":{"tokens":6,"init_us":40876,"step_us":347274,"steps":6}}
+{"run":"translate","total_ms":339.678,"stages":{"tokenize":0.526,"encoder":49.297,"decode":288.921},"counters":{"tokens":6,"init_us":40631,"step_us":233876,"steps":6}}
+{"run":"translate","total_ms":416.389,"stages":{"tokenize":0.201,"encoder":59.147,"decode":356.023},"counters":{"tokens":6,"init_us":40018,"step_us":294809,"steps":6}}
+{"run":"translate","total_ms":348.400,"stages":{"tokenize":0.299,"encoder":48.650,"decode":298.409},"counters":{"tokens":6,"init_us":67672,"step_us":216462,"steps":6}}
+{"run":"translate","total_ms":318.302,"stages":{"tokenize":0.186,"encoder":50.057,"decode":267.144},"counters":{"tokens":6,"init_us":42264,"step_us":210561,"steps":6}}
+{"run":"translate","total_ms":423.082,"stages":{"tokenize":0.182,"encoder":50.676,"decode":371.229},"counters":{"tokens":6,"init_us":40353,"step_us":310564,"steps":6}}
+{"run":"translate","total_ms":337.045,"stages":{"tokenize":0.215,"encoder":64.523,"decode":271.290},"counters":{"tokens":6,"init_us":43380,"step_us":213390,"steps":6}}
+{"run":"translate","total_ms":319.126,"stages":{"tokenize":0.183,"encoder":50.632,"decode":267.339},"counters":{"tokens":6,"init_us":41048,"step_us":212035,"steps":6}}
+{"run":"translate","total_ms":385.625,"stages":{"tokenize":0.182,"encoder":48.202,"decode":336.232},"counters":{"tokens":6,"init_us":40319,"step_us":267074,"steps":6}}
+{"run":"translate","total_ms":344.208,"stages":{"tokenize":0.229,"encoder":48.112,"decode":294.397},"counters":{"tokens":6,"init_us":47709,"step_us":229594,"steps":6}}
+{"run":"translate","total_ms":331.472,"stages":{"tokenize":0.302,"encoder":59.544,"decode":270.712},"counters":{"tokens":6,"init_us":42733,"step_us":212534,"steps":6}}
+{"run":"translate","total_ms":394.176,"stages":{"tokenize":0.186,"encoder":50.228,"decode":342.702},"counters":{"tokens":6,"init_us":65176,"step_us":253852,"steps":6}}
+{"run":"translate","total_ms":409.371,"stages":{"tokenize":0.225,"encoder":114.060,"decode":294.069},"counters":{"tokens":6,"init_us":72363,"step_us":207479,"steps":6}}
+{"run":"translate","total_ms":461.534,"stages":{"tokenize":0.186,"encoder":48.537,"decode":411.782},"counters":{"tokens":6,"init_us":45273,"step_us":351934,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":715.170,"stages":{"tokenize":0.260,"encoder":75.456,"decode":638.253},"counters":{"tokens":12,"init_us":43909,"step_us":558573,"steps":12}}
+{"run":"translate","total_ms":603.999,"stages":{"tokenize":0.247,"encoder":67.809,"decode":534.601},"counters":{"tokens":12,"init_us":45643,"step_us":453489,"steps":12}}
+{"run":"translate","total_ms":799.457,"stages":{"tokenize":0.293,"encoder":76.914,"decode":720.960},"counters":{"tokens":12,"init_us":43876,"step_us":634800,"steps":12}}
+{"run":"translate","total_ms":786.870,"stages":{"tokenize":0.271,"encoder":98.688,"decode":686.546},"counters":{"tokens":12,"init_us":53927,"step_us":597419,"steps":12}}
+{"run":"translate","total_ms":653.498,"stages":{"tokenize":0.305,"encoder":89.344,"decode":562.574},"counters":{"tokens":12,"init_us":95018,"step_us":436671,"steps":12}}
+{"run":"translate","total_ms":618.991,"stages":{"tokenize":0.253,"encoder":73.957,"decode":543.372},"counters":{"tokens":12,"init_us":45750,"step_us":465748,"steps":12}}
+{"run":"translate","total_ms":638.026,"stages":{"tokenize":0.302,"encoder":69.274,"decode":567.236},"counters":{"tokens":12,"init_us":103943,"step_us":436157,"steps":12}}
+{"run":"translate","total_ms":675.965,"stages":{"tokenize":0.257,"encoder":79.145,"decode":595.235},"counters":{"tokens":12,"init_us":47123,"step_us":511585,"steps":12}}
+{"run":"translate","total_ms":717.192,"stages":{"tokenize":0.354,"encoder":84.137,"decode":631.404},"counters":{"tokens":12,"init_us":83109,"step_us":515885,"steps":12}}
+{"run":"translate","total_ms":671.866,"stages":{"tokenize":0.266,"encoder":75.949,"decode":594.345},"counters":{"tokens":12,"init_us":61314,"step_us":496738,"steps":12}}
+{"run":"translate","total_ms":665.387,"stages":{"tokenize":0.292,"encoder":94.162,"decode":569.734},"counters":{"tokens":12,"init_us":105733,"step_us":435168,"steps":12}}
+{"run":"translate","total_ms":893.207,"stages":{"tokenize":0.255,"encoder":71.372,"decode":818.968},"counters":{"tokens":12,"init_us":65623,"step_us":699833,"steps":12}}
+{"run":"translate","total_ms":861.642,"stages":{"tokenize":0.842,"encoder":107.201,"decode":750.033},"counters":{"tokens":12,"init_us":43734,"step_us":654459,"steps":12}}
+{"run":"translate","total_ms":747.126,"stages":{"tokenize":0.728,"encoder":73.970,"decode":671.108},"counters":{"tokens":12,"init_us":45654,"step_us":568254,"steps":12}}
+{"run":"translate","total_ms":592.578,"stages":{"tokenize":0.262,"encoder":76.272,"decode":514.637},"counters":{"tokens":12,"init_us":43612,"step_us":438554,"steps":12}}
+{"run":"translate","total_ms":628.696,"stages":{"tokenize":0.293,"encoder":77.463,"decode":548.874},"counters":{"tokens":12,"init_us":58140,"step_us":462311,"steps":12}}
+{"run":"translate","total_ms":626.115,"stages":{"tokenize":0.485,"encoder":91.598,"decode":532.641},"counters":{"tokens":12,"init_us":56810,"step_us":448569,"steps":12}}
+{"run":"translate","total_ms":747.638,"stages":{"tokenize":0.308,"encoder":75.261,"decode":670.347},"counters":{"tokens":12,"init_us":48453,"step_us":590644,"steps":12}}
+{"run":"translate","total_ms":1251.609,"stages":{"tokenize":0.279,"encoder":238.437,"decode":1011.185},"counters":{"tokens":12,"init_us":76508,"step_us":899805,"steps":12}}
+{"run":"translate","total_ms":801.042,"stages":{"tokenize":0.503,"encoder":117.756,"decode":681.564},"counters":{"tokens":12,"init_us":73042,"step_us":579784,"steps":12}}
+{"run":"translate","total_ms":732.469,"stages":{"tokenize":0.247,"encoder":72.751,"decode":656.878},"counters":{"tokens":12,"init_us":47293,"step_us":567656,"steps":12}}
+{"run":"translate","total_ms":667.138,"stages":{"tokenize":0.828,"encoder":72.641,"decode":592.412},"counters":{"tokens":12,"init_us":48108,"step_us":514990,"steps":12}}
+{"run":"translate","total_ms":677.340,"stages":{"tokenize":0.261,"encoder":74.172,"decode":601.519},"counters":{"tokens":12,"init_us":48820,"step_us":519064,"steps":12}}
+{"run":"translate","total_ms":761.013,"stages":{"tokenize":0.294,"encoder":72.484,"decode":686.965},"counters":{"tokens":12,"init_us":50027,"step_us":608240,"steps":12}}
+{"run":"translate","total_ms":736.922,"stages":{"tokenize":0.251,"encoder":71.585,"decode":663.870},"counters":{"tokens":12,"init_us":44705,"step_us":577365,"steps":12}}
+{"run":"translate","total_ms":646.552,"stages":{"tokenize":0.267,"encoder":82.677,"decode":562.260},"counters":{"tokens":12,"init_us":75027,"step_us":454967,"steps":12}}
+{"run":"translate","total_ms":658.398,"stages":{"tokenize":0.318,"encoder":108.718,"decode":548.135},"counters":{"tokens":12,"init_us":80175,"step_us":439659,"steps":12}}
+{"run":"translate","total_ms":679.953,"stages":{"tokenize":0.305,"encoder":71.773,"decode":606.669},"counters":{"tokens":12,"init_us":45674,"step_us":527851,"steps":12}}
+{"run":"translate","total_ms":838.684,"stages":{"tokenize":0.266,"encoder":80.505,"decode":755.649},"counters":{"tokens":12,"init_us":44081,"step_us":662391,"steps":12}}
+{"run":"translate","total_ms":604.951,"stages":{"tokenize":0.664,"encoder":72.761,"decode":530.294},"counters":{"tokens":12,"init_us":43879,"step_us":452315,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=1008312 nativePss=927116 dalvikPss=25858
+CONFIG name=baseline_end
+{"run":"translate","total_ms":356.962,"stages":{"tokenize":0.297,"encoder":87.128,"decode":268.574},"counters":{"tokens":6,"init_us":42139,"step_us":212415,"steps":6}}
+{"run":"translate","total_ms":569.797,"stages":{"tokenize":0.256,"encoder":66.256,"decode":501.280},"counters":{"tokens":12,"init_us":43801,"step_us":427914,"steps":12}}
+{"run":"translate","total_ms":353.074,"stages":{"tokenize":0.193,"encoder":48.962,"decode":302.928},"counters":{"tokens":6,"init_us":47747,"step_us":232238,"steps":6}}
+{"run":"translate","total_ms":546.249,"stages":{"tokenize":0.268,"encoder":67.964,"decode":476.821},"counters":{"tokens":12,"init_us":43466,"step_us":406954,"steps":12}}
+WARMUP_DONE baseline_end
+BENCH_SENTENCE i=0 n=30 text="Hello, how are you?"
+{"run":"translate","total_ms":320.887,"stages":{"tokenize":0.187,"encoder":46.878,"decode":272.786},"counters":{"tokens":6,"init_us":39982,"step_us":218310,"steps":6}}
+{"run":"translate","total_ms":334.825,"stages":{"tokenize":0.228,"encoder":78.440,"decode":255.177},"counters":{"tokens":6,"init_us":40248,"step_us":200459,"steps":6}}
+{"run":"translate","total_ms":321.733,"stages":{"tokenize":0.196,"encoder":62.925,"decode":257.629},"counters":{"tokens":6,"init_us":39731,"step_us":203608,"steps":6}}
+{"run":"translate","total_ms":458.463,"stages":{"tokenize":0.187,"encoder":49.275,"decode":407.925},"counters":{"tokens":6,"init_us":59868,"step_us":332941,"steps":6}}
+{"run":"translate","total_ms":474.728,"stages":{"tokenize":0.243,"encoder":52.985,"decode":419.991},"counters":{"tokens":6,"init_us":56473,"step_us":340758,"steps":6}}
+{"run":"translate","total_ms":393.666,"stages":{"tokenize":0.362,"encoder":86.942,"decode":305.422},"counters":{"tokens":6,"init_us":76031,"step_us":213874,"steps":6}}
+{"run":"translate","total_ms":332.526,"stages":{"tokenize":0.185,"encoder":59.564,"decode":271.863},"counters":{"tokens":6,"init_us":39309,"step_us":218306,"steps":6}}
+{"run":"translate","total_ms":458.369,"stages":{"tokenize":0.175,"encoder":57.239,"decode":399.970},"counters":{"tokens":6,"init_us":40843,"step_us":336274,"steps":6}}
+{"run":"translate","total_ms":415.470,"stages":{"tokenize":0.230,"encoder":46.609,"decode":367.668},"counters":{"tokens":6,"init_us":82231,"step_us":271084,"steps":6}}
+{"run":"translate","total_ms":396.931,"stages":{"tokenize":0.186,"encoder":128.422,"decode":267.413},"counters":{"tokens":6,"init_us":40050,"step_us":211073,"steps":6}}
+{"run":"translate","total_ms":325.615,"stages":{"tokenize":0.186,"encoder":47.014,"decode":277.392},"counters":{"tokens":6,"init_us":40109,"step_us":218161,"steps":6}}
+{"run":"translate","total_ms":367.547,"stages":{"tokenize":0.221,"encoder":48.725,"decode":317.679},"counters":{"tokens":6,"init_us":43011,"step_us":258650,"steps":6}}
+{"run":"translate","total_ms":312.298,"stages":{"tokenize":0.185,"encoder":51.131,"decode":260.081},"counters":{"tokens":6,"init_us":44161,"step_us":201656,"steps":6}}
+{"run":"translate","total_ms":359.306,"stages":{"tokenize":0.184,"encoder":65.978,"decode":292.237},"counters":{"tokens":6,"init_us":57946,"step_us":219781,"steps":6}}
+{"run":"translate","total_ms":358.638,"stages":{"tokenize":0.250,"encoder":55.657,"decode":301.790},"counters":{"tokens":6,"init_us":43268,"step_us":243738,"steps":6}}
+{"run":"translate","total_ms":345.386,"stages":{"tokenize":0.188,"encoder":47.028,"decode":297.224},"counters":{"tokens":6,"init_us":64329,"step_us":217072,"steps":6}}
+{"run":"translate","total_ms":364.565,"stages":{"tokenize":0.180,"encoder":60.118,"decode":303.349},"counters":{"tokens":6,"init_us":64083,"step_us":224785,"steps":6}}
+{"run":"translate","total_ms":394.987,"stages":{"tokenize":0.194,"encoder":64.807,"decode":328.922},"counters":{"tokens":6,"init_us":90872,"step_us":213898,"steps":6}}
+{"run":"translate","total_ms":347.303,"stages":{"tokenize":0.283,"encoder":55.627,"decode":290.428},"counters":{"tokens":6,"init_us":46872,"step_us":229057,"steps":6}}
+{"run":"translate","total_ms":323.569,"stages":{"tokenize":0.187,"encoder":59.132,"decode":263.322},"counters":{"tokens":6,"init_us":41417,"step_us":207575,"steps":6}}
+{"run":"translate","total_ms":367.555,"stages":{"tokenize":0.196,"encoder":45.875,"decode":320.461},"counters":{"tokens":6,"init_us":39867,"step_us":259977,"steps":6}}
+{"run":"translate","total_ms":387.555,"stages":{"tokenize":0.233,"encoder":56.062,"decode":330.310},"counters":{"tokens":6,"init_us":43555,"step_us":271860,"steps":6}}
+{"run":"translate","total_ms":479.048,"stages":{"tokenize":0.190,"encoder":56.587,"decode":421.304},"counters":{"tokens":6,"init_us":43231,"step_us":361184,"steps":6}}
+{"run":"translate","total_ms":445.028,"stages":{"tokenize":0.185,"encoder":55.296,"decode":387.634},"counters":{"tokens":6,"init_us":44399,"step_us":313864,"steps":6}}
+{"run":"translate","total_ms":383.757,"stages":{"tokenize":0.824,"encoder":50.238,"decode":331.094},"counters":{"tokens":6,"init_us":64416,"step_us":249242,"steps":6}}
+{"run":"translate","total_ms":331.578,"stages":{"tokenize":0.589,"encoder":66.051,"decode":264.029},"counters":{"tokens":6,"init_us":47180,"step_us":202437,"steps":6}}
+{"run":"translate","total_ms":329.773,"stages":{"tokenize":0.185,"encoder":53.134,"decode":275.462},"counters":{"tokens":6,"init_us":38940,"step_us":222367,"steps":6}}
+{"run":"translate","total_ms":463.112,"stages":{"tokenize":0.193,"encoder":50.980,"decode":410.105},"counters":{"tokens":6,"init_us":71103,"step_us":310082,"steps":6}}
+{"run":"translate","total_ms":381.713,"stages":{"tokenize":0.628,"encoder":69.439,"decode":310.713},"counters":{"tokens":6,"init_us":81091,"step_us":215213,"steps":6}}
+{"run":"translate","total_ms":490.149,"stages":{"tokenize":0.203,"encoder":79.724,"decode":407.784},"counters":{"tokens":6,"init_us":40587,"step_us":342450,"steps":6}}
+BENCH_OUTPUT i=0 out="हैलो , आप कैसे हैं ?"
+BENCH_SENTENCE i=1 n=30 text="The weather is very nice today and I want to go outside."
+{"run":"translate","total_ms":656.168,"stages":{"tokenize":0.729,"encoder":69.271,"decode":584.756},"counters":{"tokens":12,"init_us":77205,"step_us":474140,"steps":12}}
+{"run":"translate","total_ms":654.205,"stages":{"tokenize":0.333,"encoder":125.206,"decode":527.468},"counters":{"tokens":12,"init_us":46024,"step_us":452372,"steps":12}}
+{"run":"translate","total_ms":742.302,"stages":{"tokenize":0.254,"encoder":82.854,"decode":657.929},"counters":{"tokens":12,"init_us":49195,"step_us":571911,"steps":12}}
+{"run":"translate","total_ms":575.038,"stages":{"tokenize":0.259,"encoder":71.154,"decode":502.207},"counters":{"tokens":12,"init_us":46078,"step_us":420990,"steps":12}}
+{"run":"translate","total_ms":584.610,"stages":{"tokenize":0.317,"encoder":74.499,"decode":508.522},"counters":{"tokens":12,"init_us":44719,"step_us":436908,"steps":12}}
+{"run":"translate","total_ms":602.347,"stages":{"tokenize":0.297,"encoder":83.258,"decode":517.446},"counters":{"tokens":12,"init_us":43988,"step_us":438405,"steps":12}}
+{"run":"translate","total_ms":799.726,"stages":{"tokenize":0.315,"encoder":85.198,"decode":712.938},"counters":{"tokens":12,"init_us":69002,"step_us":616615,"steps":12}}
+{"run":"translate","total_ms":574.651,"stages":{"tokenize":0.255,"encoder":68.125,"decode":504.983},"counters":{"tokens":12,"init_us":45836,"step_us":423198,"steps":12}}
+{"run":"translate","total_ms":585.141,"stages":{"tokenize":0.332,"encoder":69.351,"decode":514.222},"counters":{"tokens":12,"init_us":64695,"step_us":421009,"steps":12}}
+{"run":"translate","total_ms":898.188,"stages":{"tokenize":0.279,"encoder":70.442,"decode":826.234},"counters":{"tokens":12,"init_us":59231,"step_us":731290,"steps":12}}
+{"run":"translate","total_ms":579.151,"stages":{"tokenize":0.255,"encoder":79.296,"decode":498.193},"counters":{"tokens":12,"init_us":42556,"step_us":419181,"steps":12}}
+{"run":"translate","total_ms":589.180,"stages":{"tokenize":0.310,"encoder":66.372,"decode":521.249},"counters":{"tokens":12,"init_us":49028,"step_us":442297,"steps":12}}
+{"run":"translate","total_ms":778.033,"stages":{"tokenize":0.270,"encoder":79.150,"decode":697.281},"counters":{"tokens":12,"init_us":44659,"step_us":618401,"steps":12}}
+{"run":"translate","total_ms":671.071,"stages":{"tokenize":0.311,"encoder":82.322,"decode":587.155},"counters":{"tokens":12,"init_us":42762,"step_us":517351,"steps":12}}
+{"run":"translate","total_ms":636.219,"stages":{"tokenize":0.268,"encoder":75.434,"decode":559.222},"counters":{"tokens":12,"init_us":43269,"step_us":478231,"steps":12}}
+{"run":"translate","total_ms":602.821,"stages":{"tokenize":0.396,"encoder":72.591,"decode":528.633},"counters":{"tokens":12,"init_us":64508,"step_us":433181,"steps":12}}
+{"run":"translate","total_ms":742.204,"stages":{"tokenize":0.268,"encoder":71.205,"decode":669.522},"counters":{"tokens":12,"init_us":45504,"step_us":588037,"steps":12}}
+{"run":"translate","total_ms":705.436,"stages":{"tokenize":0.252,"encoder":69.596,"decode":634.365},"counters":{"tokens":12,"init_us":42885,"step_us":564112,"steps":12}}
+{"run":"translate","total_ms":580.745,"stages":{"tokenize":0.321,"encoder":66.513,"decode":512.618},"counters":{"tokens":12,"init_us":43966,"step_us":432164,"steps":12}}
+{"run":"translate","total_ms":568.982,"stages":{"tokenize":0.265,"encoder":70.741,"decode":496.577},"counters":{"tokens":12,"init_us":43686,"step_us":414167,"steps":12}}
+{"run":"translate","total_ms":703.538,"stages":{"tokenize":0.308,"encoder":69.554,"decode":632.424},"counters":{"tokens":12,"init_us":44397,"step_us":558909,"steps":12}}
+{"run":"translate","total_ms":564.299,"stages":{"tokenize":0.269,"encoder":67.134,"decode":495.549},"counters":{"tokens":12,"init_us":43883,"step_us":422951,"steps":12}}
+{"run":"translate","total_ms":613.354,"stages":{"tokenize":0.404,"encoder":73.559,"decode":538.105},"counters":{"tokens":12,"init_us":45119,"step_us":464301,"steps":12}}
+{"run":"translate","total_ms":820.717,"stages":{"tokenize":0.255,"encoder":130.803,"decode":688.390},"counters":{"tokens":12,"init_us":56799,"step_us":597711,"steps":12}}
+{"run":"translate","total_ms":725.182,"stages":{"tokenize":0.253,"encoder":87.308,"decode":636.372},"counters":{"tokens":12,"init_us":56820,"step_us":552514,"steps":12}}
+{"run":"translate","total_ms":637.239,"stages":{"tokenize":0.269,"encoder":83.530,"decode":551.886},"counters":{"tokens":12,"init_us":45297,"step_us":469913,"steps":12}}
+{"run":"translate","total_ms":663.526,"stages":{"tokenize":0.281,"encoder":97.824,"decode":564.221},"counters":{"tokens":12,"init_us":63446,"step_us":473944,"steps":12}}
+{"run":"translate","total_ms":680.432,"stages":{"tokenize":0.254,"encoder":121.859,"decode":556.771},"counters":{"tokens":12,"init_us":69980,"step_us":455737,"steps":12}}
+{"run":"translate","total_ms":659.756,"stages":{"tokenize":0.383,"encoder":139.006,"decode":519.132},"counters":{"tokens":12,"init_us":79282,"step_us":412385,"steps":12}}
+{"run":"translate","total_ms":858.238,"stages":{"tokenize":0.259,"encoder":82.334,"decode":774.402},"counters":{"tokens":12,"init_us":45649,"step_us":679186,"steps":12}}
+BENCH_OUTPUT i=1 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+BENCH_MEM totalPss=994271 nativePss=913119 dalvikPss=25907

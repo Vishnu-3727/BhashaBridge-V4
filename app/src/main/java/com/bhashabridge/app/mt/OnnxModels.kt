@@ -25,10 +25,15 @@ import java.io.FileOutputStream
  * cross-attn K/V, so torch.onnx pruned it (see model_pipeline/EXPORT_WITH_CACHE.md). The runtime
  * must feed the cache back each step, never that input.
  *
- * Session options are left at ONNX Runtime defaults — no thread-count, XNNPACK, or NEON tuning.
- * This phase is correctness only; runtime tuning is a later phase and must be measured, not guessed.
+ * Session options come from [tune] (Phase 7). The default [OrtTuning] leaves every knob at ONNX
+ * Runtime's own defaults, i.e. the exact behaviour before Phase 7; the benchmark-selected production
+ * config is set as that default once measured (see docs/ORT_TUNING.md). No XNNPACK/NEON/SME here.
  */
-class OnnxModels(context: Context, direction: Direction) {
+class OnnxModels(
+    context: Context,
+    direction: Direction,
+    private val tune: OrtTuning = OrtTuning.production(),
+) {
 
     val env: OrtEnvironment = OrtEnvironment.getEnvironment()
 
@@ -57,9 +62,10 @@ class OnnxModels(context: Context, direction: Direction) {
                 Triple("hi_en_encoder.onnx", "hi_en_decoder_init.onnx", "hi_en_decoder_step.onnx")
         }
         // Sequential, not parallel: parallel load is a startup optimisation this phase does not do.
-        encoder = env.createSession(copyToFiles(context, encAsset))
-        decoderInit = env.createSession(copyToFiles(context, initAsset))
-        decoderStep = env.createSession(copyToFiles(context, stepAsset))
+        // Each session gets its own SessionOptions instance (ORT copies settings at createSession).
+        encoder = env.createSession(copyToFiles(context, encAsset), tune.toOptions())
+        decoderInit = env.createSession(copyToFiles(context, initAsset), tune.toOptions())
+        decoderStep = env.createSession(copyToFiles(context, stepAsset), tune.toOptions())
 
         // Everything on the step graph that is not the two non-cache inputs is a cache tensor.
         pastInputNames = decoderStep.inputInfo.keys.filter { it !in NON_CACHE_STEP_INPUTS }
@@ -97,5 +103,47 @@ class OnnxModels(context: Context, direction: Direction) {
 
     private companion object {
         val NON_CACHE_STEP_INPUTS = setOf("decoder_input_ids", "encoder_attention_mask")
+    }
+}
+
+/**
+ * ONNX Runtime `SessionOptions` for the three sessions, one knob per field (Phase 7). A `null` field
+ * means "leave ORT's own default", so the no-arg [OrtTuning] reproduces pre-Phase-7 behaviour exactly.
+ * Each knob is varied independently by the tuning benchmark; the winning combination is baked as the
+ * default here once measured. Purely execution config — it never touches weights, the cache, or decode.
+ */
+data class OrtTuning(
+    val name: String = "baseline",
+    val optLevel: OrtSession.SessionOptions.OptLevel? = null,
+    val intraThreads: Int? = null,
+    val interThreads: Int? = null,
+    val parallel: Boolean = false,
+    val cpuArena: Boolean? = null,
+    val memPattern: Boolean? = null,
+) {
+    /** Build a fresh SessionOptions with only the non-null knobs applied. */
+    fun toOptions(): OrtSession.SessionOptions {
+        val o = OrtSession.SessionOptions()
+        optLevel?.let { o.setOptimizationLevel(it) }
+        intraThreads?.let { o.setIntraOpNumThreads(it) }
+        interThreads?.let { o.setInterOpNumThreads(it) }
+        if (parallel) o.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.PARALLEL)
+        cpuArena?.let { o.setCPUArenaAllocator(it) }
+        memPattern?.let { o.setMemoryPatternOptimization(it) }
+        return o
+    }
+
+    companion object {
+        /**
+         * The Phase 7 benchmark-selected production config (docs/ORT_TUNING.md), two independently
+         * evidenced knobs on the SM-M315F:
+         *  - `intraThreads = 2`: pins intra-op work to the two big cores — decode ~10% faster and,
+         *    more importantly, variance collapses (stdev 97→15 ms, p95 −30%) vs ORT's default which
+         *    spreads onto the little cores and jitters.
+         *  - `cpuArena = false`: −37% process memory (983→617 MB PSS) at no measurable latency cost;
+         *    the arena's up-front pool is pure overhead for this steady, single-translation-at-a-time
+         *    workload.
+         */
+        fun production() = OrtTuning(name = "production", intraThreads = 2, cpuArena = false)
     }
 }
