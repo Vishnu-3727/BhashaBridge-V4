@@ -1,3 +1,6 @@
 <resources>
-    <string name="app_name">BhashaBridgeV4</string>
+    <!-- Launcher label. v3.4.1 shipped "BhashaBridge V3.4" — the version number is build metadata,
+         not part of the product name, so it does not belong on the user's home screen. -->
+    <string name="app_name">BhashaBridge</string>
+    <string name="app_tagline">Offline Speech Translation</string>
 </resources>

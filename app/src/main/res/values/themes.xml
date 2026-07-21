@@ -1,9 +1,42 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.BhashaBridgeV4" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One theme, permanently dark — no values-night variant. The app's entire visual identity is the
+  dark surface plus the emerald accent; a light variant would be a second design nobody has drawn.
+  This matches v3.4.1's effective behaviour (its values-night entry overrode a base style the app
+  never used) without carrying the dead file.
+-->
+<resources>
+    <style name="Theme.BhashaBridgeV4" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Background -->
+        <item name="android:windowBackground">@color/bg_primary</item>
+        <item name="android:colorBackground">@color/bg_primary</item>
+
+        <!-- Status bar — pure black, light icons -->
+        <item name="android:statusBarColor">@color/status_bar</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Navigation bar -->
+        <item name="android:navigationBarColor">@color/bg_primary</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+        <!-- Accent / primary colours -->
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorPrimaryVariant">@color/accent_pressed</item>
+        <item name="colorOnPrimary">@color/accent_on</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/accent_on</item>
+        <item name="colorSurface">@color/bg_card</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="android:colorControlHighlight">#206EE7B7</item>
+
+        <!-- EditText cursor and handles -->
+        <item name="android:textColorHighlight">#406EE7B7</item>
+        <item name="colorControlActivated">@color/accent</item>
+
+        <!-- Ripple on dark -->
+        <item name="rippleColor">@color/accent_dim</item>
     </style>
 
-    <style name="Theme.BhashaBridgeV4" parent="Base.Theme.BhashaBridgeV4" />
+    <!-- First-run screens: same surface, no action bar, no theme of their own to drift. -->
+    <style name="Theme.BhashaBridgeV4.Setup" parent="Theme.BhashaBridgeV4" />
 </resources>
