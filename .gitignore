@@ -33,3 +33,8 @@ __pycache__/
 # Benchmark output — raw runs are large and machine-specific. Frozen baselines are committed
 # deliberately, by path, not by accident.
 /bench/results/*/raw/
+
+# IDE session state and raw benchmark logcat dumps: local artefacts, not evidence.
+# The parsed evidence lives in model_pipeline/*.jsonl and docs/.
+/.idea/
+/model_pipeline/*.log
