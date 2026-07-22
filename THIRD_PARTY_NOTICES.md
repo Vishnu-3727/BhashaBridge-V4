@@ -8,7 +8,8 @@ links for the authoritative terms, and confirm them against the exact artifact v
 
 | Component | Version | Licence | Used for |
 |---|---|---|---|
-| [ONNX Runtime (Android)](https://github.com/microsoft/onnxruntime) | 1.17.1 | MIT | Executes the encoder and both decoder graphs; MLAS supplies the INT8 kernels |
+| [ONNX Runtime (Android)](https://github.com/microsoft/onnxruntime) | 1.27.0 | MIT | Executes the encoder and both decoder graphs; MLAS supplies the INT8 kernels |
+| [Arm KleidiAI](https://github.com/ARM-software/kleidiai) | vendored inside ONNX Runtime 1.27.0 | Apache-2.0 | Arm micro-kernels compiled into MLAS. Present in the shipped `libonnxruntime.so`; on this project's INT8 graphs its kernels are reached only on SME/SME2 cores, so it contributes nothing on the Armv8.0 validation device |
 | [Vosk](https://github.com/alphacep/vosk-api) | 0.3.47 | Apache-2.0 | On-device speech recognition |
 | [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines) | 1.7.3 | Apache-2.0 | Concurrency for the UI and speech pipelines |
 | AndroidX (core-ktx, appcompat, activity, constraintlayout, drawerlayout, lifecycle, recyclerview, cardview) | see `gradle/libs.versions.toml` | Apache-2.0 | Platform support libraries |

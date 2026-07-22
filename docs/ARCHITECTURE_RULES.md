@@ -183,9 +183,10 @@ cancellation.
 **R7.2** — Library versions are pinned in `gradle/libs.versions.toml` only. No inline version
 strings in a build file.
 
-**R7.3** — The ML stack (ONNX Runtime 1.17.1, Vosk 0.3.47) is **frozen** until Phase 7, where any
-bump is gated on a before/after benchmark. These versions are the measured baseline; changing them
-silently invalidates every number in `ENGINEERING_PLAN.md` §1.4.
+**R7.3** — The ML stack (ONNX Runtime 1.27.0, Vosk 0.3.47) moves only in an **isolated commit gated
+on a before/after benchmark**, never as a side effect of other work. Silently changing a version
+invalidates every number in `ENGINEERING_PLAN.md` §1.4. ORT was frozen at 1.17.1 through Phase 12
+and bumped to 1.27.0 under this rule; Vosk stays at v3.4.1's 0.3.47.
 
 **R7.4** — No dependency injection framework. The graph is one `Application`, four subsystems, and
 constructor parameters. A DI container here is configuration wearing the costume of architecture.

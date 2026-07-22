@@ -232,10 +232,13 @@ JVM unit tests: **20/20** (TokenizerTest 6, DecoderTest 7, MetricsTest 6, Exampl
 
 **One honest discrepancy.** `मेरी मदद करो` decodes to `Help me out` on device but `Help me` on the
 desktop reference. Both are correct English and both are internally deterministic; the divergence is
-between *hosts*, not between runs — desktop is onnxruntime 1.27 on x86-64, device is 1.17.1 on
+between *hosts*, not between runs — desktop is onnxruntime 1.27 on x86-64, device was 1.17.1 on
 arm64-v8a, and INT8 `MatMulInteger` kernels differ between those. The behaviour that matters for the
 app — repeatability on the target device — holds, and is asserted by the test above. The other three
 sentences matched the desktop reference exactly.
+
+> Recorded under ORT 1.17.1. The device has since moved to 1.27.0; this specific divergence is a
+> kernel-selection artefact and its current state is re-checked by the same test, not by this note.
 
 ### 5.2 Latency, first-token latency and throughput
 

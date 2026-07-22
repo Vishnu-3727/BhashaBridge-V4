@@ -2,9 +2,12 @@
 agp = "9.3.0"
 kotlin = "2.2.10"
 
-# --- Proven ML stack, versions matched exactly to BhashaBridge_v3.4.1 ---
-# Do not bump ad hoc. ORT bump to 1.22.x is Phase 7, gated on a benchmark.
-onnxruntime = "1.17.1"
+# --- ML stack. Vosk stays matched to BhashaBridge_v3.4.1; ORT no longer is. ---
+# ORT bumped 1.17.1 -> 1.27.0 in its own commit, gated on the full benchmark (R7.3).
+# 1.27.1 is a GitHub tag only — no onnxruntime-android AAR was published for it
+# (maven-metadata <release> is 1.27.0), so 1.27.0 is the newest artifact that exists.
+# Do not bump ad hoc.
+onnxruntime = "1.27.0"
 vosk = "0.3.47"
 coroutines = "1.7.3"
 
