@@ -7,6 +7,9 @@ import com.bhashabridge.app.Direction
 import com.bhashabridge.app.bench.Metrics
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
 
 /**
  * Purpose:  Owns the three KV-cache [OrtSession]s for one [Direction] — encoder, decoder_init,
@@ -29,6 +32,11 @@ import java.io.FileOutputStream
  * Session options come from [tune] (Phase 7). The default [OrtTuning] leaves every knob at ONNX
  * Runtime's own defaults, i.e. the exact behaviour before Phase 7; the benchmark-selected production
  * config is set as that default once measured (see docs/ORT_TUNING.md). No XNNPACK/NEON/SME here.
+ *
+ * Phase 11C loads the three sessions **concurrently** (docs/PARALLEL_SESSION_INITIALIZATION.md). The
+ * constructor still blocks until all three exist, so every consumer sees the same fully-built object
+ * it always did; only the wall-clock cost of building it changed. Nothing about inference, the cache
+ * contract, or session ownership moved.
  */
 class OnnxModels(
     context: Context,
@@ -62,18 +70,20 @@ class OnnxModels(
             Direction.HI_TO_EN ->
                 Triple("hi_en_encoder.onnx", "hi_en_decoder_init.onnx", "hi_en_decoder_step.onnx")
         }
-        // Sequential, not parallel: parallel load is a startup optimisation this phase does not do.
-        // Each session gets its own SessionOptions instance (ORT copies settings at createSession).
-        //
-        // Phase 11A instrumentation: `Metrics.stage` marks are interleaved so a startup run reports
-        // verify / extract / createSession separately per graph. They are inline and BuildConfig.DEBUG
-        // -gated, so release builds contain none of it and the load path is byte-for-byte what it was.
-        encoder = env.createSession(resolveAsset(context, encAsset, "encoder"), tune.toOptions())
-        Metrics.stage("session:encoder")
-        decoderInit = env.createSession(resolveAsset(context, initAsset, "decoder_init"), tune.toOptions())
-        Metrics.stage("session:decoder_init")
-        decoderStep = env.createSession(resolveAsset(context, stepAsset, "decoder_step"), tune.toOptions())
-        Metrics.stage("session:decoder_step")
+        // Phase 11C: the three graphs load concurrently. They are independent inputs — nothing flows
+        // between them at load time — and Phase 11A measured the serial cost at 12.3 s against 6.3 s
+        // for the same three loads on three threads. Each task owns its own SessionOptions (ORT reads
+        // settings at createSession) and its own file handle; the only shared object is [env], which
+        // is a process-wide singleton created above, before any task starts.
+        val loads = loadSessionsConcurrently(
+            context,
+            listOf(encAsset to "encoder", initAsset to "decoder_init", stepAsset to "decoder_step"),
+        )
+        encoder = loads.getValue("encoder").session
+        decoderInit = loads.getValue("decoder_init").session
+        decoderStep = loads.getValue("decoder_step").session
+        Metrics.stage("sessions:parallel")
+        loads.values.forEach { it.report() }
 
         // Everything on the step graph that is not the two non-cache inputs is a cache tensor.
         pastInputNames = decoderStep.inputInfo.keys.filter { it !in NON_CACHE_STEP_INPUTS }
@@ -96,17 +106,63 @@ class OnnxModels(
     }
 
     /**
-     * Idempotent asset→filesDir copy; skips if present. 1 MB buffer for the fp32 files (~800 MB).
+     * Loads every `(asset, label)` pair on its own thread and returns them keyed by label, once all
+     * have finished. Blocks the calling thread — the caller is already the process-scoped engine
+     * construction, which must not report ready until every session exists.
      *
-     * [label] exists only for the Phase 11A timing marks: `verify:<label>` covers the existence check
-     * every launch pays, `extract:<label>` covers the copy that only a first run pays, and the byte
-     * counter lets the report state throughput rather than guess at it. Behaviour is unchanged.
+     * Failure handling is the reason this is not three bare threads:
+     *  - **Every** future is awaited before anything is thrown, so no task is left running against a
+     *    half-constructed object.
+     *  - If any task failed, the sessions that *did* load are closed before the exception leaves this
+     *    method. A partially-loaded engine would otherwise leak hundreds of MB of native memory with
+     *    no owner to release it (LESSONS_FROM_V3 L2, in a new disguise).
+     *  - The original exception is rethrown with its cause unwrapped from [ExecutionException], so
+     *    callers see the same `OrtException` / `IOException` a serial load would have produced.
+     *  - The pool is shut down in a `finally`, so no thread outlives this call on any path.
      */
-    private fun resolveAsset(context: Context, name: String, label: String): String {
+    private fun loadSessionsConcurrently(
+        context: Context,
+        assets: List<Pair<String, String>>,
+    ): Map<String, SessionLoad> {
+        val pool = Executors.newFixedThreadPool(assets.size) { runnable ->
+            Thread(runnable, "bb-session-load").apply { isDaemon = true }
+        }
+        try {
+            val futures = assets.map { (asset, label) ->
+                pool.submit(Callable { loadSession(context, asset, label) })
+            }
+            val loaded = ArrayList<SessionLoad>(futures.size)
+            var failure: Throwable? = null
+            for (future in futures) {
+                try {
+                    loaded += future.get()
+                } catch (e: ExecutionException) {
+                    if (failure == null) failure = e.cause ?: e
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    if (failure == null) failure = e
+                }
+            }
+            failure?.let { cause ->
+                loaded.forEach { runCatching { it.session.close() } }
+                throw IllegalStateException("ONNX session load failed", cause)
+            }
+            return loaded.associateBy { it.label }
+        } finally {
+            pool.shutdown()
+        }
+    }
+
+    /** One graph: resolve its file, then build its session. Runs entirely on one worker thread. */
+    private fun loadSession(context: Context, name: String, label: String): SessionLoad {
         val file = File(context.filesDir, name)
+        val verifyStart = System.nanoTime()
         val present = file.exists()
-        Metrics.stage("verify:$label")
+        val verifyNs = System.nanoTime() - verifyStart
+
+        var extractNs = 0L
         if (!present) {
+            val extractStart = System.nanoTime()
             val buf = ByteArray(1 shl 20)
             context.assets.open(name).use { input ->
                 FileOutputStream(file).use { output ->
@@ -114,10 +170,45 @@ class OnnxModels(
                     while (n != -1) { output.write(buf, 0, n); n = input.read(buf) }
                 }
             }
-            Metrics.stage("extract:$label")
+            extractNs = System.nanoTime() - extractStart
         }
-        Metrics.counter("bytes:$label", file.length())
-        return file.absolutePath
+
+        val createStart = System.nanoTime()
+        // Options are built here, on this thread: a SessionOptions instance is not shared between
+        // sessions, and ORT reads it during createSession.
+        val session = env.createSession(file.absolutePath, tune.toOptions())
+        return SessionLoad(
+            label = label,
+            session = session,
+            verifyNs = verifyNs,
+            extractNs = extractNs,
+            createNs = System.nanoTime() - createStart,
+            bytes = file.length(),
+        )
+    }
+
+    /**
+     * One graph's load result and its timings.
+     *
+     * Timings are captured with `System.nanoTime` on the worker rather than `Metrics.stage`, because
+     * a `Metrics` run is thread-confined by design (R6.3) — stage marks from a worker would find no
+     * active run. [report] replays them as counters on the constructing thread, where the run lives,
+     * so a startup line still carries per-graph numbers.
+     */
+    private class SessionLoad(
+        val label: String,
+        val session: OrtSession,
+        val verifyNs: Long,
+        val extractNs: Long,
+        val createNs: Long,
+        val bytes: Long,
+    ) {
+        fun report() {
+            Metrics.counter("verify_us:$label", verifyNs / 1000)
+            if (extractNs > 0) Metrics.counter("extract_us:$label", extractNs / 1000)
+            Metrics.counter("create_us:$label", createNs / 1000)
+            Metrics.counter("bytes:$label", bytes)
+        }
     }
 
     private companion object {
