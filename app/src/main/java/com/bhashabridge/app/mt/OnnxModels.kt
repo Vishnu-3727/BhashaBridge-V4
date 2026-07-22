@@ -65,10 +65,12 @@ class OnnxModels(
             // the benchmark showed the cache is a clear win at real output lengths (docs/CACHE_BENCHMARK.md).
             Direction.EN_TO_HI ->
                 Triple("encoder_int8.onnx", "decoder_init_int8.onnx", "decoder_step_int8.onnx")
-            // HI->EN cached graphs are not yet exported (Phase 6A did en_hi only; R-PROV). Naming is
-            // fixed here so the export, when it lands, drops straight in.
+            // Phase 12: the mirror export, same pipeline, same three graphs, from
+            // ai4bharat/indictrans2-indic-en-dist-200M (docs/HI_EN_IMPLEMENTATION.md). Identical
+            // config — 18 layers, 8 heads, 512 hidden — so the cache contract below is the same 72
+            // tensors and nothing else in this class is direction-aware. R-PROV is closed.
             Direction.HI_TO_EN ->
-                Triple("hi_en_encoder.onnx", "hi_en_decoder_init.onnx", "hi_en_decoder_step.onnx")
+                Triple("hi_en_encoder_int8.onnx", "hi_en_decoder_init_int8.onnx", "hi_en_decoder_step_int8.onnx")
         }
         // Phase 11C: the three graphs load concurrently. They are independent inputs — nothing flows
         // between them at load time — and Phase 11A measured the serial cost at 12.3 s against 6.3 s
