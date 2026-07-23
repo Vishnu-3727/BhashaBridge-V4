@@ -162,8 +162,18 @@ class OnnxModels(
         }
     }
 
-    /** One graph: resolve its file, then build its session. Runs entirely on one worker thread. */
+    /** One graph: resolve or build its session. Runs entirely on one worker thread. */
     private fun loadSession(context: Context, name: String, label: String): SessionLoad {
+        // The tuning sweep (MtTuningSweepTest) varies optLevel per config and must run graph
+        // optimization on every load to measure it, so only the production policy uses the ORT-format
+        // cache. Everyone else keeps the pre-Phase-2A behaviour verbatim: extract the source .onnx to
+        // filesDir on demand, then a path-based createSession with this config's options.
+        if (!tune.optCache) return loadSourceUncached(context, name, label)
+        return loadOrt(context, name, label)
+    }
+
+    /** Non-production path: source `.onnx` extracted to filesDir if absent, then loaded from its path. */
+    private fun loadSourceUncached(context: Context, name: String, label: String): SessionLoad {
         val src = File(context.filesDir, name)
         val verifyStart = System.nanoTime()
         val present = src.exists()
@@ -175,78 +185,87 @@ class OnnxModels(
             extractAsset(context, name, src)
             extractNs = System.nanoTime() - extractStart
         }
-
-        // The tuning sweep (MtTuningSweepTest) varies optLevel per config and must run graph
-        // optimization on every load to measure it, so only the production policy opts into the
-        // on-disk optimized-graph cache. Everyone else keeps the pre-Phase-2A behaviour verbatim:
-        // options built here on this thread (a SessionOptions is not shared between sessions), ORT
-        // reads them during createSession.
-        if (!tune.optCache) {
-            val start = System.nanoTime()
-            val session = env.createSession(src.absolutePath, tune.toOptions())
-            return SessionLoad(label, session, verifyNs, extractNs, System.nanoTime() - start, false, src.length())
-        }
-        return loadCached(src, label, verifyNs, extractNs)
+        val start = System.nanoTime()
+        val session = env.createSession(src.absolutePath, tune.toOptions())
+        return SessionLoad(label, session, verifyNs, extractNs, System.nanoTime() - start, false, src.length())
     }
 
     /**
-     * Production load. Reuses a previously baked, fully-optimized graph when the cache is valid, so
-     * ORT's graph optimization runs once per install instead of on every launch. On a miss the
-     * ALL-optimized graph is written to disk as a *side effect* of the session that already serves
-     * this launch (`setOptimizedModelFilePath`), so baking costs no extra session. A corrupt or
-     * unreadable cache is deleted and regenerated; any failure degrades to the plain source load,
-     * so the cache can never break startup.
+     * Production load (Phase 2B). Reuses a previously baked ORT-format graph when the cache is valid,
+     * loaded via memory-mapped I/O with graph optimization off, so ORT's optimizers run once per
+     * install instead of every launch and the `.ort` weights are mmapped rather than read into a heap
+     * buffer. On a miss the ALL-optimized graph is written to disk in ORT format as a *side effect* of
+     * the session that already serves this launch (`setOptimizedModelFilePath` + save-format ORT).
+     *
+     * The source `.onnx` is extracted to filesDir only for that one-time bake (ORT mmaps it, so baking
+     * stays low-heap even with three graphs building concurrently) and is purged on the next launch —
+     * the warm path never needs it, so steady-state storage is the `.ort` files alone.
+     *
+     * A corrupt cache or a failed mmap is deleted and regenerated; any failure degrades to an uncached
+     * session built from the source, so the cache can never break startup.
      */
-    private fun loadCached(src: File, label: String, verifyNs: Long, extractNs: Long): SessionLoad {
-        val opt = File(src.parentFile, optName(src.name))
-        val stamp = File(src.parentFile, stampName(src.name))
-        val expected = cacheStamp(src)
+    private fun loadOrt(context: Context, name: String, label: String): SessionLoad {
+        purgeLegacy(context.filesDir, name) // remove Phase 2A .opt.onnx / .opt.stamp and the source copy
+        val ort = File(context.filesDir, ortName(name))
+        val stamp = File(context.filesDir, stampName(name))
 
-        if (opt.exists() && stamp.readTextOrNull() == expected) {
+        val verifyStart = System.nanoTime()
+        val expected = cacheStamp(context, name)
+        val hit = ort.exists() && stamp.readTextOrNull() == expected
+        val verifyNs = System.nanoTime() - verifyStart
+
+        if (hit) {
             val start = System.nanoTime()
             try {
-                val session = env.createSession(opt.absolutePath, loadOptions())
+                val session = env.createSession(ort.absolutePath, loadOptions())
                 val ms = (System.nanoTime() - start) / 1_000_000
-                logDebug(LogTag.MT) { "opt-cache HIT $label: loaded ${opt.name} in $ms ms, graph optimization skipped" }
-                return SessionLoad(label, session, verifyNs, extractNs, System.nanoTime() - start, false, opt.length())
+                logDebug(LogTag.MT) { "ORT-cache HIT $label: memory-mapped load ${ort.name} in $ms ms, graph optimization skipped" }
+                return SessionLoad(label, session, verifyNs, 0L, System.nanoTime() - start, false, ort.length())
             } catch (e: OrtException) {
-                logWarn(LogTag.MT, "opt-cache load failed for $label; regenerating", e)
-                opt.delete(); stamp.delete()
+                logWarn(LogTag.MT, "ORT-cache load failed for $label; regenerating", e)
+                ort.delete(); stamp.delete()
             }
         }
 
-        logDebug(LogTag.MT) { "opt-cache MISS $label: regenerating optimized model because ${bakeReason(opt, stamp)}" }
-        return bake(src, opt, stamp, expected, label, verifyNs, extractNs)
+        logDebug(LogTag.MT) { "ORT-cache invalidated $label: rebuilding because ${bakeReason(ort, stamp)}" }
+        return bakeOrt(context, name, ort, stamp, expected, label, verifyNs)
     }
 
     /**
-     * Bakes [src] into an ALL-optimized [opt] and returns the session that produced it. If the bake
-     * cannot run (e.g. no disk space to write [opt]), falls back to the plain source load — exactly
-     * the pre-Phase-2A behaviour — so functionality is preserved even when caching is impossible.
+     * Extracts [name]'s source once and builds [ort] (ORT format) from its file path — ORT mmaps the
+     * source, so three concurrent bakes stay low-heap. Returns the session that produced it. If the
+     * build fails (e.g. no disk space to write [ort]), falls back to an uncached session from the same
+     * source, so functionality is preserved even when caching is impossible.
      */
-    private fun bake(
-        src: File, opt: File, stamp: File, expected: String, label: String, verifyNs: Long, extractNs: Long,
+    private fun bakeOrt(
+        context: Context, name: String, ort: File, stamp: File, expected: String, label: String, verifyNs: Long,
     ): SessionLoad {
+        val src = File(context.filesDir, name)
+        val readStart = System.nanoTime()
+        if (!src.exists()) extractAsset(context, name, src) // purged on the next launch; see loadOrt
+        val readNs = System.nanoTime() - readStart
+
         val start = System.nanoTime()
         val session = try {
-            env.createSession(src.absolutePath, bakeOptions(opt.absolutePath))
+            logDebug(LogTag.MT) { "Building ORT model $label from $name" }
+            env.createSession(src.absolutePath, bakeOptions(ort.absolutePath))
         } catch (e: OrtException) {
-            logWarn(LogTag.MT, "opt-cache generation failed for $label; loading source uncached", e)
-            runCatching { opt.delete(); stamp.delete() }
+            logWarn(LogTag.MT, "ORT build failed for $label; loading source uncached", e)
+            runCatching { ort.delete(); stamp.delete() }
             val fbStart = System.nanoTime()
             val fallback = env.createSession(src.absolutePath, tune.toOptions())
-            return SessionLoad(label, fallback, verifyNs, extractNs, System.nanoTime() - fbStart, false, src.length())
+            return SessionLoad(label, fallback, verifyNs, readNs, System.nanoTime() - fbStart, false, src.length())
         }
         val ms = (System.nanoTime() - start) / 1_000_000
-        // Stamp written only after a successful bake, so a valid stamp always implies a valid model.
+        // Stamp written only after a successful build, so a valid stamp always implies a valid .ort.
         // A stamp-write failure is non-fatal: the session is good, next launch just regenerates.
         runCatching { stamp.writeText(expected) }
-            .onFailure { logWarn(LogTag.MT, "opt-cache stamp write failed for $label; will regenerate next launch", it) }
-        logDebug(LogTag.MT) { "opt-cache GENERATED $label in $ms ms -> ${opt.name}" }
-        return SessionLoad(label, session, verifyNs, extractNs, System.nanoTime() - start, true, opt.length())
+            .onFailure { logWarn(LogTag.MT, "ORT-cache stamp write failed for $label; will regenerate next launch", it) }
+        logDebug(LogTag.MT) { "ORT model GENERATED $label in $ms ms -> ${ort.name}" }
+        return SessionLoad(label, session, verifyNs, readNs, System.nanoTime() - start, true, ort.length())
     }
 
-    /** Copies an asset to app-private storage in 1 MB chunks. ORT loads from a file path. */
+    /** Copies an asset to app-private storage in 1 MB chunks. ORT loads (and mmaps) from a file path. */
     private fun extractAsset(context: Context, name: String, dest: File) {
         val buf = ByteArray(1 shl 20)
         context.assets.open(name).use { input ->
@@ -257,34 +276,53 @@ class OnnxModels(
         }
     }
 
-    /**
-     * The cache key. Any change regenerates the optimized model: the app version (graph export or
-     * decode changes ship with it), the ONNX Runtime version (optimizer output is version-specific),
-     * and the source model's byte length (a re-exported graph is different bytes). Length rather than
-     * a content hash — the source is hundreds of MB and hashing it every launch would cost more than
-     * the optimization this cache removes; a new export always changes the length.
-     */
-    private fun cacheStamp(src: File): String = "${BuildConfig.VERSION_CODE}|${env.version}|${src.length()}"
+    private fun assetLength(context: Context, name: String): Long =
+        context.assets.openFd(name).use { it.length }
 
-    /** ALL_OPT + write the result to [optPath]. Shares every other knob with [loadOptions] via [tune]. */
-    private fun bakeOptions(optPath: String): SessionOptions =
+    /**
+     * The cache key. Any change regenerates the `.ort` model: the app version (graph export or decode
+     * changes ship with it), the ONNX Runtime version (optimizer output and the ORT format itself are
+     * version-specific), and the source asset's byte length (a re-exported graph is different bytes).
+     * Length via a cheap `openFd`, not a content hash — the source is hundreds of MB and hashing it
+     * every launch would cost more than the optimization this cache removes; a new export always
+     * changes the length.
+     */
+    private fun cacheStamp(context: Context, name: String): String =
+        "${BuildConfig.VERSION_CODE}|${env.version}|${assetLength(context, name)}"
+
+    /** ALL_OPT + serialize the result to [ortPath] in ORT format. Shares every other knob via [tune]. */
+    private fun bakeOptions(ortPath: String): SessionOptions =
         tune.toOptions().apply {
             setOptimizationLevel(OptLevel.ALL_OPT)
-            setOptimizedModelFilePath(optPath)
+            addConfigEntry("session.save_model_format", "ORT")
+            setOptimizedModelFilePath(ortPath)
         }
 
-    /** NO_OPT: the model on disk is already optimized, so skip the optimizers entirely. */
+    /** NO_OPT + mmap the ORT-format file: the graph on disk is already optimized, so skip optimizers. */
     private fun loadOptions(): SessionOptions =
-        tune.toOptions().apply { setOptimizationLevel(OptLevel.NO_OPT) }
+        tune.toOptions().apply {
+            setOptimizationLevel(OptLevel.NO_OPT)
+            addConfigEntry("session.load_model_format", "ORT")
+            addConfigEntry("session.use_memory_mapped_ort_model", "1")
+        }
 
-    private fun bakeReason(opt: File, stamp: File): String = when {
-        !opt.exists() -> "no cached model exists"
+    private fun bakeReason(ort: File, stamp: File): String = when {
+        !ort.exists() -> "no .ort model exists"
         !stamp.exists() -> "cache stamp missing"
         else -> "app / ONNX Runtime / model version changed"
     }
 
-    private fun optName(name: String) = name.removeSuffix(".onnx") + ".opt.onnx"
-    private fun stampName(name: String) = name.removeSuffix(".onnx") + ".opt.stamp"
+    /** Deletes the Phase 2A cache and the filesDir source copy for [name]; each is now obsolete. */
+    private fun purgeLegacy(dir: File, name: String) {
+        val base = name.removeSuffix(".onnx")
+        listOf(name, "$base.opt.onnx", "$base.opt.stamp").forEach { legacy ->
+            val f = File(dir, legacy)
+            if (f.exists() && f.delete()) logDebug(LogTag.MT) { "cache invalidated: removed obsolete ${f.name}" }
+        }
+    }
+
+    private fun ortName(name: String) = name.removeSuffix(".onnx") + ".ort"
+    private fun stampName(name: String) = name.removeSuffix(".onnx") + ".ort.stamp"
     private fun File.readTextOrNull(): String? = runCatching { if (exists()) readText() else null }.getOrNull()
 
     /**
