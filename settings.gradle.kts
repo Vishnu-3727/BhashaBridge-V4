@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "BhashaBridgeV4"
 include(":app")
+include(":baselineprofile")

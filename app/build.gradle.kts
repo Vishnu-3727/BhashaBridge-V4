@@ -3,6 +3,9 @@ plugins {
     // registers the `kotlin` extension itself. Applying the standalone plugin fails with
     // "Cannot add extension with name 'kotlin'".
     alias(libs.plugins.android.application)
+    // Phase 4: consumes the profile the :baselineprofile module generates and packages it (via
+    // ProfileInstaller) into the release APK's assets/dexopt.
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -32,6 +35,12 @@ android {
             optimization {
                 enable = false
             }
+            // Baseline Profiles must be generated from a non-debuggable, release-like build. The
+            // generator (and the benchmark measure pass) install that build on-device, so it must be
+            // signed. Until the owner provides the real release key (never committed — see
+            // THIRD_PARTY_NOTICES / project rules), sign release with the SDK debug key so profile
+            // generation works. The owner replaces this for a store build; it does not affect debug.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -113,6 +122,13 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.process)
+
+    // --- Phase 4: applies the generated Baseline Profile at install so the hot startup path is
+    // AOT-compiled from first launch. Runtime-only; does not touch inference. ---
+    implementation(libs.androidx.profileinstaller)
+    // Wires generateReleaseBaselineProfile to the :baselineprofile module's on-device journey. Without
+    // this the consumer plugin has nothing to collect and emits only library rules.
+    baselineProfile(project(":baselineprofile"))
 
     // --- Test ---
     testImplementation(libs.junit)
