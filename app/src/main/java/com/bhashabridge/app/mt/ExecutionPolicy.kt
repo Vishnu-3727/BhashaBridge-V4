@@ -40,6 +40,9 @@ object ExecutionPolicy {
             name = "arm-adaptive(threads=$threads)",
             intraThreads = threads,
             cpuArena = false,
+            // Phase 2A: the production path bakes a fully-optimized graph once per install and loads
+            // it NO_OPT thereafter, so graph optimization is off every startup after the first.
+            optCache = true,
         )
     }
 
