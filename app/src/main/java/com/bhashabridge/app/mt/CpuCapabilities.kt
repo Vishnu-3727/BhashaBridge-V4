@@ -15,8 +15,13 @@ import java.io.File
 data class CpuCapabilities(
     val architecture: String,       // e.g. "ARMv8.0", "ARMv8.6", "ARMv9"
     val coreCount: Int,
-    val performanceCores: Int,      // big cluster (top max-frequency)
-    val efficiencyCores: Int,       // little cluster
+    val performanceCores: Int,      // big cluster size (top max-frequency)
+    val efficiencyCores: Int,       // little cluster size
+    // The actual logical CPU ids (0-based, as the kernel numbers them in /sys), not assumed ranges —
+    // on this Exynos the big cluster is not guaranteed to be cpu4-7. Thread affinity is built from
+    // these, so no CPU id is ever hard-coded. performanceCoreIds.size == performanceCores.
+    val performanceCoreIds: List<Int>,
+    val efficiencyCoreIds: List<Int>,
     val neon: Boolean,              // Advanced SIMD (asimd)
     val fp16: Boolean,              // half-precision arithmetic (asimdhp/fphp)
     val dotProduct: Boolean,        // SDOT/UDOT (asimddp) — int8 acceleration, Armv8.2+
@@ -28,7 +33,7 @@ data class CpuCapabilities(
 ) {
     /** One-line summary for logs and the report. */
     fun describe(): String =
-        "$architecture cores=$coreCount(perf=$performanceCores,eff=$efficiencyCores) " +
+        "$architecture cores=$coreCount(perf=$performanceCores$performanceCoreIds,eff=$efficiencyCores$efficiencyCoreIds) " +
             "neon=$neon fp16=$fp16 dotprod=$dotProduct i8mm=$i8mm sve=$sve sve2=$sve2 sme=$sme sme2=$sme2"
 
     companion object {
@@ -49,10 +54,11 @@ data class CpuCapabilities(
                 }.getOrDefault(0L)
             }
             val top = maxFreqs.maxOrNull() ?: 0L
-            // Cores at the top frequency are the performance cluster. If cpufreq is unreadable
-            // (all zero), treat every core as performance — a safe over-estimate for the thread policy.
-            val perf = if (top > 0L) maxFreqs.count { it == top } else cores
-            val eff = (cores - perf).coerceAtLeast(0)
+            // Cores at the top frequency are the performance cluster, identified by their real cpu ids
+            // (the list index). If cpufreq is unreadable (all zero), treat every core as performance —
+            // a safe over-estimate for the thread policy, and affinity is then skipped (no topology).
+            val perfIds = if (top > 0L) maxFreqs.indices.filter { maxFreqs[it] == top } else (0 until cores).toList()
+            val effIds = (0 until cores).filter { it !in perfIds }
 
             val neon = has("asimd", "neon")
             val fp16 = has("asimdhp", "fphp")
@@ -66,8 +72,10 @@ data class CpuCapabilities(
             return CpuCapabilities(
                 architecture = archLabel(cpuinfo, dotprod, i8mm, sve2, sme2),
                 coreCount = cores,
-                performanceCores = perf,
-                efficiencyCores = eff,
+                performanceCores = perfIds.size,
+                efficiencyCores = effIds.size,
+                performanceCoreIds = perfIds,
+                efficiencyCoreIds = effIds,
                 neon = neon, fp16 = fp16, dotProduct = dotprod, i8mm = i8mm,
                 sve = sve, sve2 = sve2, sme = sme, sme2 = sme2,
             )

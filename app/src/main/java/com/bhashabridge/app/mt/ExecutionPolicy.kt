@@ -36,14 +36,41 @@ object ExecutionPolicy {
      */
     fun select(caps: CpuCapabilities): OrtTuning {
         val threads = (caps.performanceCores / 2).coerceIn(1, 4)
+        val affinity = affinityString(caps, threads)
         return OrtTuning(
-            name = "arm-adaptive(threads=$threads)",
+            name = "arm-adaptive(threads=$threads${if (affinity != null) ",affinity" else ""})",
             intraThreads = threads,
             cpuArena = false,
             // Phase 2A: the production path bakes a fully-optimized graph once per install and loads
             // it NO_OPT thereafter, so graph optimization is off every startup after the first.
             optCache = true,
+            // Phase 3: pin ORT's intra-op workers to the big cluster (null when there is nothing to pin).
+            intraOpAffinities = affinity,
         )
+    }
+
+    /**
+     * Builds the `session.intra_op_thread_affinities` string, or null when affinity would be a no-op.
+     *
+     * ORT's format is `cpu,cpu;cpu,cpu` — `;` separates threads, `,` lists the CPUs one thread may run
+     * on — and it requires exactly `intraThreads - 1` groups, because ORT does not pin the calling
+     * (main) thread. Each of those workers is allowed the whole performance cluster (every big-core id),
+     * so the scheduler can still balance among big cores but never migrates a worker onto a LITTLE core
+     * — which is the jitter source Phase 7 measured.
+     *
+     * ORT processor ids are **1-based**: `thread_utils.cc` rejects id 0 ("Processor id must start from
+     * 1"), so a detected 0-based OS cpu id `n` is emitted as `n + 1`. The detected ids in
+     * [CpuCapabilities.performanceCoreIds] stay the real kernel numbering; the +1 is ORT's encoding.
+     * Nothing is hard-coded.
+     *
+     * Null (affinity OFF) when: only one intra thread (no worker to pin), or no distinct big cluster was
+     * detected (all cores one frequency, or cpufreq unreadable) — pinning to every core is pointless.
+     */
+    fun affinityString(caps: CpuCapabilities, intraThreads: Int): String? {
+        if (intraThreads <= 1) return null
+        if (caps.efficiencyCoreIds.isEmpty() || caps.performanceCoreIds.isEmpty()) return null
+        val group = caps.performanceCoreIds.joinToString(",") { (it + 1).toString() } // ORT is 1-based
+        return List(intraThreads - 1) { group }.joinToString(";")
     }
 
     /** The detected CPU, cached. */
@@ -54,7 +81,9 @@ object ExecutionPolicy {
     /** The policy for this CPU, cached — the default [OrtTuning] for [OnnxModels]/[MtEngine]. */
     val current: OrtTuning by lazy {
         select(capabilities).also {
-            logDebug(LogTag.APP) { "ORT policy ${it.name} intra=${it.intraThreads} arena=${it.cpuArena}" }
+            logDebug(LogTag.APP) {
+                "ORT policy ${it.name} intra=${it.intraThreads} arena=${it.cpuArena} affinity=${it.intraOpAffinities ?: "OFF"}"
+            }
         }
     }
 }

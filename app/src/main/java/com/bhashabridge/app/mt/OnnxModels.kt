@@ -379,6 +379,14 @@ data class OrtTuning(
      * A routing flag for [OnnxModels], not an ORT knob, so [toOptions] ignores it.
      */
     val optCache: Boolean = false,
+    /**
+     * Phase 3: `session.intra_op_thread_affinities` (see [ExecutionPolicy.affinityString]). Pins ORT's
+     * intra-op worker threads to the performance cluster. ORT's contract: the number of `;`-separated
+     * groups must equal `intraThreads - 1`, because ORT never sets affinity on the calling (main)
+     * thread — so this is only meaningful with [intraThreads] set and > 1. `null`/blank = leave
+     * scheduling to the OS (affinity OFF), the pre-Phase-3 behaviour.
+     */
+    val intraOpAffinities: String? = null,
 ) {
     /** Build a fresh SessionOptions with only the non-null knobs applied. */
     fun toOptions(): OrtSession.SessionOptions {
@@ -389,6 +397,10 @@ data class OrtTuning(
         if (parallel) o.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.PARALLEL)
         cpuArena?.let { o.setCPUArenaAllocator(it) }
         memPattern?.let { o.setMemoryPatternOptimization(it) }
+        // Affinity requires intra_op_num_threads set; guarded so the group count always matches.
+        if (intraThreads != null && !intraOpAffinities.isNullOrBlank()) {
+            o.addConfigEntry("session.intra_op_thread_affinities", intraOpAffinities)
+        }
         return o
     }
 
