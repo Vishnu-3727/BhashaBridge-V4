@@ -66,6 +66,12 @@ class MtEngine(
         }
     }
 
+    /**
+     * P8: flush ORT's per-graph profile traces and return their file paths (empty unless the engine was
+     * built with [OrtTuning.profileDir]). Call after the runs to be measured, before [release].
+     */
+    fun endProfiling(): List<String> = models.endProfiling()
+
     /** Releases the native sessions. Only call site is the process-scoped owner (R4.5). */
     fun release() {
         models.release()

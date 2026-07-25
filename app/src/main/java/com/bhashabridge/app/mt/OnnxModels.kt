@@ -107,6 +107,31 @@ class OnnxModels(
     fun decoderInitSession(): OrtSession = decoderInit
     fun decoderStepSession(): OrtSession = decoderStep
 
+    /**
+     * P8: enable ORT's built-in profiler on [options] with a per-graph file prefix, when [tune] opted
+     * in ([OrtTuning.profileDir]). No-op otherwise, so the default path is byte-for-byte unchanged. ORT
+     * appends `_<timestamp>.json` to the prefix, so the encoder / decoder_init / decoder_step traces are
+     * distinct files and no run overwrites another. Overhead falls entirely on opted-in runs.
+     */
+    private fun SessionOptions.maybeProfile(label: String): SessionOptions = apply {
+        val dir = tune.profileDir ?: return@apply
+        File(dir).mkdirs()
+        enableProfiling(File(dir, "ort_$label").absolutePath)
+    }
+
+    /**
+     * P8: flush and close each session's profile file, returning their paths (empty when profiling was
+     * not enabled). ORT's `endProfiling` writes the buffered trace and returns the filename; call it
+     * once, after the runs to be measured and before [release]. Failures are swallowed per-session so a
+     * flush problem on one graph never loses the others or blocks teardown.
+     */
+    fun endProfiling(): List<String> {
+        if (tune.profileDir == null) return emptyList()
+        return listOf(encoder, decoderInit, decoderStep).mapNotNull {
+            runCatching { it.endProfiling() }.getOrNull()
+        }
+    }
+
     /** Closes all three native sessions. Its only call site is the process-scoped owner. */
     fun release() {
         encoder.close()
@@ -186,7 +211,7 @@ class OnnxModels(
             extractNs = System.nanoTime() - extractStart
         }
         val start = System.nanoTime()
-        val session = env.createSession(src.absolutePath, tune.toOptions())
+        val session = env.createSession(src.absolutePath, tune.toOptions().maybeProfile(label))
         return SessionLoad(label, session, verifyNs, extractNs, System.nanoTime() - start, false, src.length())
     }
 
@@ -217,7 +242,7 @@ class OnnxModels(
         if (hit) {
             val start = System.nanoTime()
             try {
-                val session = env.createSession(ort.absolutePath, loadOptions())
+                val session = env.createSession(ort.absolutePath, loadOptions().maybeProfile(label))
                 val ms = (System.nanoTime() - start) / 1_000_000
                 logDebug(LogTag.MT) { "ORT-cache HIT $label: memory-mapped load ${ort.name} in $ms ms, graph optimization skipped" }
                 return SessionLoad(label, session, verifyNs, 0L, System.nanoTime() - start, false, ort.length())
@@ -248,12 +273,12 @@ class OnnxModels(
         val start = System.nanoTime()
         val session = try {
             logDebug(LogTag.MT) { "Building ORT model $label from $name" }
-            env.createSession(src.absolutePath, bakeOptions(ort.absolutePath))
+            env.createSession(src.absolutePath, bakeOptions(ort.absolutePath).maybeProfile(label))
         } catch (e: OrtException) {
             logWarn(LogTag.MT, "ORT build failed for $label; loading source uncached", e)
             runCatching { ort.delete(); stamp.delete() }
             val fbStart = System.nanoTime()
-            val fallback = env.createSession(src.absolutePath, tune.toOptions())
+            val fallback = env.createSession(src.absolutePath, tune.toOptions().maybeProfile(label))
             return SessionLoad(label, fallback, verifyNs, readNs, System.nanoTime() - fbStart, false, src.length())
         }
         val ms = (System.nanoTime() - start) / 1_000_000
@@ -387,6 +412,16 @@ data class OrtTuning(
      * scheduling to the OS (affinity OFF), the pre-Phase-3 behaviour.
      */
     val intraOpAffinities: String? = null,
+    /**
+     * P8 operator profiling. When non-null, ONNX Runtime's built-in profiler is enabled on every
+     * session, writing one Chrome-trace JSON per graph under this directory (see
+     * [OnnxModels.endProfiling]). `null` (default) = profiler off = **zero runtime overhead and no
+     * behaviour change** — this is the "debug flag": profiling exists only when a caller opts in with a
+     * directory. Like [optCache], it is a routing flag for [OnnxModels], not an ORT SessionOptions knob
+     * (the profile file prefix must be per-graph, which [toOptions] cannot know), so [toOptions] ignores
+     * it. Analyse the output with model_pipeline/ort_profile_report.py.
+     */
+    val profileDir: String? = null,
 ) {
     /** Build a fresh SessionOptions with only the non-null knobs applied. */
     fun toOptions(): OrtSession.SessionOptions {
