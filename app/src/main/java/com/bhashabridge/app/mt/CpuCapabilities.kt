@@ -53,12 +53,7 @@ data class CpuCapabilities(
                         .readText().trim().toLong()
                 }.getOrDefault(0L)
             }
-            val top = maxFreqs.maxOrNull() ?: 0L
-            // Cores at the top frequency are the performance cluster, identified by their real cpu ids
-            // (the list index). If cpufreq is unreadable (all zero), treat every core as performance —
-            // a safe over-estimate for the thread policy, and affinity is then skipped (no topology).
-            val perfIds = if (top > 0L) maxFreqs.indices.filter { maxFreqs[it] == top } else (0 until cores).toList()
-            val effIds = (0 until cores).filter { it !in perfIds }
+            val (perfIds, effIds) = perfEffSplit(maxFreqs)
 
             val neon = has("asimd", "neon")
             val fp16 = has("asimdhp", "fphp")
@@ -79,6 +74,32 @@ data class CpuCapabilities(
                 neon = neon, fp16 = fp16, dotProduct = dotprod, i8mm = i8mm,
                 sve = sve, sve2 = sve2, sme = sme, sme2 = sme2,
             )
+        }
+
+        /**
+         * Split logical cores into (performanceIds, efficiencyIds) by max frequency. The **lowest**
+         * frequency tier is the efficiency cluster; **every tier above it** is performance.
+         *
+         * This is the generalisation past 2-cluster big.LITTLE. The old rule ("only cores at the single
+         * top frequency are performance") misclassifies a 3-cluster Armv9 part: on a Snapdragon 8 Gen 1
+         * (Cortex-X2 @ 2995 MHz + 3× A710 @ 2496 + 4× A510 @ 1785) it counted only the X2 as performance
+         * and lumped the three A710 mid cores in with the A510 littles, so inference ran single-threaded.
+         * Splitting at the *bottom* tier keeps big.LITTLE identical (one perf tier, one eff tier) while
+         * putting the A710 mids where they belong (performance). Robust to any number of upper tiers
+         * (e.g. Dimensity's two-frequency prime cluster): only the little tier is efficiency.
+         *
+         * One distinct frequency, or all unreadable (0) — no distinct little cluster exists: treat every
+         * core as performance (a safe over-estimate for the thread count; affinity is then skipped for
+         * lack of a big/LITTLE split). Unreadable (0) cores never join the performance pool. Cpu ids are
+         * the real kernel numbering (the list index). Visible for test; see `CpuCapabilitiesTest`.
+         */
+        internal fun perfEffSplit(maxFreqs: List<Long>): Pair<List<Int>, List<Int>> {
+            val distinct = maxFreqs.filter { it > 0L }.distinct()
+            if (distinct.size <= 1) return maxFreqs.indices.toList() to emptyList()
+            val littleFreq = distinct.min()
+            val perf = maxFreqs.indices.filter { maxFreqs[it] > littleFreq }
+            val eff = maxFreqs.indices.filter { it !in perf }
+            return perf to eff
         }
 
         /**
