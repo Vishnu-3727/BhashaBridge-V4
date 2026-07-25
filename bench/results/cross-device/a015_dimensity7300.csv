@@ -1,0 +1,2 @@
+model,timestampMs,startup.cold.engineInitMs,startup.warm.engineInitMs,startup.hot.engineInitMs,startup.cold.modelLoadMs,startup.warm.tokenizerMs,inference.firstTranslationMs,inference.median,inference.p95,inference.p99,inference.stdev,inference.tokensPerSec,memory.totalPssKb,memory.nativeHeapKb,memory.rssKb,cache.ortBytes,thermal.batteryTempC
+A015,1784864169451,4430,1275,1242,3587,436,242,229.0,237.0,238.0,86.851,200.498,165792,61996,220872,472948560,31.0

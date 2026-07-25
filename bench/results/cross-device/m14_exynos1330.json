@@ -1,0 +1,167 @@
+{
+  "schema": "bb-bench/1",
+  "timestampMs": 1784824569467,
+  "device": {
+    "model": "SM-E146B",
+    "androidSdk": 35,
+    "abi": "arm64-v8a",
+    "cpu": "ARMv8.2 cores=8(perf=2[6, 7],eff=6[0, 1, 2, 3, 4, 5]) neon=true fp16=true dotprod=true i8mm=false sve=false sve2=false sme=false sme2=false",
+    "policy": "arm-adaptive(threads=1) intra=1 arena=false affinity=OFF"
+  },
+  "startup": {
+    "cold": {
+      "tokenizerMs": 964,
+      "modelLoadMs": 5154,
+      "engineInitMs": 6118
+    },
+    "warm": {
+      "tokenizerMs": 514,
+      "modelLoadMs": 1308,
+      "engineInitMs": 1822
+    },
+    "hot": {
+      "tokenizerMs": 497,
+      "modelLoadMs": 990,
+      "engineInitMs": 1487
+    }
+  },
+  "cacheBytes": {
+    "sourceOnnx": 0,
+    "ortCache": 472948560
+  },
+  "inference": {
+    "firstTranslationMs": 327,
+    "iterations": 30,
+    "counterbalanced": true,
+    "tokensPerSec": 152.397,
+    "sustained": {
+      "n": 60,
+      "min": 70.0,
+      "max": 360.0,
+      "mean": 193.233,
+      "median": 288.0,
+      "p95": 327.0,
+      "p99": 336.0,
+      "stdev": 116.49
+    },
+    "perSentence": {
+      "Water.": {
+        "n": 30,
+        "min": 70.0,
+        "max": 88.0,
+        "mean": 77.3,
+        "median": 76.0,
+        "p95": 87.0,
+        "p99": 88.0,
+        "stdev": 4.1
+      },
+      "The weather is very nice today and I want to go outside.": {
+        "n": 30,
+        "min": 288.0,
+        "max": 360.0,
+        "mean": 309.167,
+        "median": 307.0,
+        "p95": 336.0,
+        "p99": 360.0,
+        "stdev": 15.557
+      }
+    },
+    "sampleOutput": "\u092a\u093e\u0928\u0940 \u0964"
+  },
+  "systemBefore": {
+    "label": "before",
+    "elapsedRealtimeMs": 386240,
+    "memory": {
+      "javaHeapKb": 9392,
+      "nativeHeapKb": 6296,
+      "totalPssKb": 50685,
+      "privateDirtyKb": 46156,
+      "sharedDirtyKb": 24868,
+      "nativePssKb": 6332,
+      "dalvikPssKb": 1692,
+      "rssKb": 99280
+    },
+    "cpu": {
+      "processCpuTicks": 107,
+      "clockTicksPerSec": 100,
+      "threadCount": 15,
+      "nrMigrations": null,
+      "voluntaryCtxt": 64,
+      "nonvoluntaryCtxt": 166,
+      "perCoreFreqKhz": [
+        2002000,
+        2002000,
+        2002000,
+        2002000,
+        2002000,
+        2002000,
+        2288000,
+        2288000
+      ]
+    },
+    "thermal": {
+      "batteryTempC": 33.6,
+      "thermalZonesC": {}
+    },
+    "battery": {
+      "levelPct": 78,
+      "status": "charging",
+      "plugged": "usb",
+      "voltageMv": 4177,
+      "chargeCounterUah": 3510000,
+      "energyCounterNwh": null,
+      "currentNowUa": -65
+    },
+    "unavailable": [
+      "battery.energyCounter"
+    ]
+  },
+  "systemAfter": {
+    "label": "after",
+    "elapsedRealtimeMs": 412063,
+    "memory": {
+      "javaHeapKb": 41560,
+      "nativeHeapKb": 480320,
+      "totalPssKb": 566992,
+      "privateDirtyKb": 551596,
+      "sharedDirtyKb": 24648,
+      "nativePssKb": 480352,
+      "dalvikPssKb": 33822,
+      "rssKb": 615968
+    },
+    "cpu": {
+      "processCpuTicks": 3826,
+      "clockTicksPerSec": 100,
+      "threadCount": 15,
+      "nrMigrations": null,
+      "voluntaryCtxt": 65,
+      "nonvoluntaryCtxt": 166,
+      "perCoreFreqKhz": [
+        533000,
+        533000,
+        533000,
+        533000,
+        533000,
+        533000,
+        1536000,
+        1536000
+      ]
+    },
+    "thermal": {
+      "batteryTempC": 33.6,
+      "thermalZonesC": {}
+    },
+    "battery": {
+      "levelPct": 78,
+      "status": "charging",
+      "plugged": "usb",
+      "voltageMv": 4177,
+      "chargeCounterUah": 3510000,
+      "energyCounterNwh": null,
+      "currentNowUa": 625
+    },
+    "unavailable": [
+      "battery.energyCounter"
+    ]
+  }
+}

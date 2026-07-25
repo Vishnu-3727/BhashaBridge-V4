@@ -1,0 +1,2 @@
+model,timestampMs,startup.cold.engineInitMs,startup.warm.engineInitMs,startup.hot.engineInitMs,startup.cold.modelLoadMs,startup.warm.tokenizerMs,inference.firstTranslationMs,inference.median,inference.p95,inference.p99,inference.stdev,inference.tokensPerSec,memory.totalPssKb,memory.nativeHeapKb,memory.rssKb,cache.ortBytes,thermal.batteryTempC
+SM-S908E,1784868782448,16205,1063,1136,15346,393,181,176.0,332.0,390.0,99.434,211.822,231368,113520,313584,472948568,40.7
