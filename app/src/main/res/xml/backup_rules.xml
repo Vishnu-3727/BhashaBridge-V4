@@ -1,13 +1,19 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup rules (applies on API <= 30; see AndroidManifest fullBackupContent).
+
+  Everything the app writes to internal storage (filesDir) and app-specific external
+  storage is a regenerable cache, not user data:
+    - filesDir  : the baked .ort graphs + .ort.stamp, and the one-shot extracted .onnx
+                  source (purged next launch). Rebuilt automatically on next launch.
+    - external  : benchmark JSON reports (files/bench) and ORT profiling traces
+                  (files/ort-profile). Developer artifacts, re-measured on demand.
+
+  These total hundreds of MB and would otherwise be pushed against the ~25 MB backup
+  quota for nothing. Exclude both domains. User-facing state (per-app locale, first-run
+  flag) lives in the sharedpref domain and is still backed up.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="file" path="." />
+    <exclude domain="external" path="." />
 </full-backup-content>
