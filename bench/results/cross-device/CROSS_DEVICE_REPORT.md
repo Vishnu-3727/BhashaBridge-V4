@@ -1,6 +1,6 @@
 # BhashaBridge V4 — Cross-Device Benchmark Report
 
-**Generated:** 2026-07-23 · **Updated:** 2026-07-24 (entries #4–#8 added; #8 is the first i8mm / Armv9 part)
+**Generated:** 2026-07-23 · **Updated:** 2026-07-31 (entry #9 added — first ARMv9 / SVE2 / SME part, and the first run under the uniform-IP classifier fix; §5's platform-exclusive memory finding is **corrected** by it)
 **Benchmark schema:** `bb-bench/1` (unified `BenchmarkSuiteTest`, Phase 5)
 **ONNX Runtime:** 1.27.0 · **EP:** CPU (MLAS) · **App:** BhashaBridge V4
 **Model:** IndicTrans2 distilled 200M, INT8, 3 graphs (encoder / decoder_init / decoder_step), KV-cache, EN→HI
@@ -17,35 +17,41 @@ Raw entries (append-only, never overwritten):
 - `bench/results/cross-device/oppo_cph2603_dimensity7050.json` — OPPO CPH2603 (entry #6)
 - `bench/results/cross-device/vivo_v2338_snapdragon6gen1.json` — vivo V2338 (entry #7, first Qualcomm)
 - `bench/results/cross-device/samsung_s22ultra_snapdragon8gen1.json` — Samsung S22 Ultra (entry #8, first i8mm / Armv9)
+- `bench/results/cross-device/s26ultra_sd8elitegen5.json` — Samsung S26 Ultra (entry #9, first **ARMv9 / SVE2 / SME**, first uniform-IP CPU)
 
 ---
 
 ## 1. Devices Under Test
 
-| Field | #1 SM-M315F | #2 moto g73 5G | #3 SM-E146B | #4 A015 | #5 LXX518 | #6 CPH2603 | #7 V2338 | #8 SM-S908E |
-|---|---|---|---|---|---|---|---|---|
-| Device | Samsung Galaxy M31 | Motorola moto g73 5G | Samsung Galaxy M14 5G | Nothing A015 (board `Tetris`) | LAVA LXX518 | OPPO CPH2603 | vivo V2338 | **Samsung Galaxy S22 Ultra** |
-| SoC | Exynos 9611 | MediaTek Dimensity 930 (mt6855) | Exynos 1330 (erd8535) | MediaTek Dimensity 7300 (MT6878) | MediaTek Dimensity 7300 (MT6878) | MediaTek Dimensity 1080/7050 (MT6877) | Qualcomm Snapdragon 6 Gen 1 (SM6450) | **Qualcomm Snapdragon 8 Gen 1 (SM8450)** |
-| OS / API | Android 12 / 31 | Android 14 / 34 | Android 15 / 35 | **Android 16 / 36** | **Android 16 / 36** | **Android 16 / 36** | **Android 16 / 36** | **Android 16 / 36** |
-| Kernel | not captured | 5.10.240-android12 | 5.15.180-android13 | **6.1.162-android14** | **6.1.138-android14** | **6.6.118-android15** | 5.10.246-android12 | 5.10.236-android12 |
-| Microarchitecture | 4× Cortex-A73 + 4× Cortex-A53 | 2× Cortex-A78 + 6× Cortex-A55 | 2× Cortex-A78 + 6× Cortex-A55 | **4× Cortex-A78 + 4× Cortex-A55** | **4× Cortex-A78 + 4× Cortex-A55** | 2× Cortex-A78 + 6× Cortex-A55 | **4× Cortex-A78 + 4× Cortex-A55** | **1× Cortex-X2 + 3× Cortex-A710 + 4× Cortex-A510** |
-| Core layout | A53 cpu0-3, A73 cpu4-7 | A55 cpu0-5, A78 cpu6-7 | A55 cpu0-5, A78 cpu6-7 | A55 cpu0-3, A78 cpu4-7 | A55 cpu0-3, A78 cpu4-7 | A55 cpu0-5, A78 cpu6-7 | A55 cpu0-3, A78 cpu4-7 | A510 cpu0-3, A710 cpu4-6, X2 cpu7 |
-| **Arm ISA** | **Armv8.0-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.6-A** (cores are Armv9.0; detector reports 8.6, no SVE hwcap) |
-| dotprod (SDOT/UDOT) | **no** | **yes** | **yes** | **yes** | **yes** | **yes** | **yes** | **yes** |
-| fp16 (asimdhp) | no | yes | yes | yes | yes | yes | yes | yes |
-| **i8mm** / SME | no / no | no / no | no / no | no / no | no / no | no / no | no / no | **YES** / no |
-| Perf-core max clock | A73 1664 MHz | A78 2200 MHz | A78 2400 rated (**2288 observed**) | **A78 2500 MHz** | **A78 2500 MHz** | A78 2600 rated (**2400 observed, throttled**) | A78 **2208 MHz** | X2 2995 rated (**2054 observed, throttled**); A710 2496 |
-| Eff-core max clock | A53 910 MHz | A55 2000 MHz | A55 2002 MHz | A55 2000 MHz | A55 2000 MHz | A55 2000 MHz | A55 1805 MHz | A510 1785 MHz |
-| RAM | 6 GB | 8 GB | 6 GB | 5.3 GB (`MemTotal` 5545376 kB) | 7.2 GB (`MemTotal` 7560216 kB) | 7.4 GB (`MemTotal` 7719276 kB) | 7.3 GB (`MemTotal` 7641764 kB) | 11 GB (`MemTotal` 11473784 kB) |
-| Page size | not captured | not captured | not captured | 4096 B | 4096 B | 4096 B | 4096 B | 4096 B |
-| NPU | none | MediaTek APU (unused) | Exynos NPU (unused) | MediaTek APU (unused) | MediaTek APU (unused) | MediaTek APU (unused) | Qualcomm Hexagon (unused) | Qualcomm Hexagon (unused) |
-| **Adaptive policy chosen** | intra=2, **affinity=5,6,7,8 ON** | intra=1, **affinity OFF** | intra=1, **affinity OFF** | intra=2, **affinity=5,6,7,8 ON** | intra=2, **affinity=5,6,7,8 ON** | intra=1, **affinity OFF** | intra=2, **affinity=5,6,7,8 ON** | **intra=1, affinity OFF** (see note) |
+| Field | #1 SM-M315F | #2 moto g73 5G | #3 SM-E146B | #4 A015 | #5 LXX518 | #6 CPH2603 | #7 V2338 | #8 SM-S908E | #9 SM-S948B |
+|---|---|---|---|---|---|---|---|---|---|
+| Device | Samsung Galaxy M31 | Motorola moto g73 5G | Samsung Galaxy M14 5G | Nothing A015 (board `Tetris`) | LAVA LXX518 | OPPO CPH2603 | vivo V2338 | **Samsung Galaxy S22 Ultra** | **Samsung Galaxy S26 Ultra** |
+| SoC | Exynos 9611 | MediaTek Dimensity 930 (mt6855) | Exynos 1330 (erd8535) | MediaTek Dimensity 7300 (MT6878) | MediaTek Dimensity 7300 (MT6878) | MediaTek Dimensity 1080/7050 (MT6877) | Qualcomm Snapdragon 6 Gen 1 (SM6450) | **Qualcomm Snapdragon 8 Gen 1 (SM8450)** | **Qualcomm Snapdragon 8 Elite Gen 5 (SM8850, board `canoe`)** |
+| OS / API | Android 12 / 31 | Android 14 / 34 | Android 15 / 35 | **Android 16 / 36** | **Android 16 / 36** | **Android 16 / 36** | **Android 16 / 36** | **Android 16 / 36** | **Android 16 / 36** |
+| Kernel | not captured | 5.10.240-android12 | 5.15.180-android13 | **6.1.162-android14** | **6.1.138-android14** | **6.6.118-android15** | 5.10.246-android12 | 5.10.236-android12 | **6.12.30-android16 (newest in DB)** |
+| Microarchitecture | 4× Cortex-A73 + 4× Cortex-A53 | 2× Cortex-A78 + 6× Cortex-A55 | 2× Cortex-A78 + 6× Cortex-A55 | **4× Cortex-A78 + 4× Cortex-A55** | **4× Cortex-A78 + 4× Cortex-A55** | 2× Cortex-A78 + 6× Cortex-A55 | **4× Cortex-A78 + 4× Cortex-A55** | **1× Cortex-X2 + 3× Cortex-A710 + 4× Cortex-A510** | **8× Qualcomm Oryon — uniform IP, every core part `0x002` (2 prime + 6 performance)** |
+| Core layout | A53 cpu0-3, A73 cpu4-7 | A55 cpu0-5, A78 cpu6-7 | A55 cpu0-5, A78 cpu6-7 | A55 cpu0-3, A78 cpu4-7 | A55 cpu0-3, A78 cpu4-7 | A55 cpu0-5, A78 cpu6-7 | A55 cpu0-3, A78 cpu4-7 | A510 cpu0-3, A710 cpu4-6, X2 cpu7 | **Oryon perf cpu0-5, Oryon prime cpu6-7 — no little cluster** |
+| **Arm ISA** | **Armv8.0-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.2-A** | **Armv8.6-A** (cores are Armv9.0; detector reports 8.6, no SVE hwcap) | **ARMv9** (SVE2 hwcap present — first in DB) |
+| dotprod (SDOT/UDOT) | **no** | **yes** | **yes** | **yes** | **yes** | **yes** | **yes** | **yes** | **yes** |
+| fp16 (asimdhp) | no | yes | yes | yes | yes | yes | yes | yes | yes |
+| **i8mm** / SME | no / no | no / no | no / no | no / no | no / no | no / no | no / no | **YES** / no | **YES** / **YES** (`sme`, `smei8i32`, `smef16f32`, `smeb16f32`, `smef32f32`; **no `sme2`**) |
+| SVE / SVE2 | no | no | no | no | no | no | no | no (hwcap not exposed) | **`sve`, `sve2`, `svei8mm`, `svebf16`** |
+| Perf-core max clock | A73 1664 MHz | A78 2200 MHz | A78 2400 rated (**2288 observed**) | **A78 2500 MHz** | **A78 2500 MHz** | A78 2600 rated (**2400 observed, throttled**) | A78 **2208 MHz** | X2 2995 rated (**2054 observed, throttled**); A710 2496 | prime **4742 rated**; perf **3629 rated (3187 observed)** |
+| Eff-core max clock | A53 910 MHz | A55 2000 MHz | A55 2002 MHz | A55 2000 MHz | A55 2000 MHz | A55 2000 MHz | A55 1805 MHz | A510 1785 MHz | **none — no efficiency cluster exists** |
+| RAM | 6 GB | 8 GB | 6 GB | 5.3 GB (`MemTotal` 5545376 kB) | 7.2 GB (`MemTotal` 7560216 kB) | 7.4 GB (`MemTotal` 7719276 kB) | 7.3 GB (`MemTotal` 7641764 kB) | 11 GB (`MemTotal` 11473784 kB) | 11.4 GB (`MemTotal` 11389624 kB) |
+| Page size | not captured | not captured | not captured | 4096 B | 4096 B | 4096 B | 4096 B | 4096 B | 4096 B |
+| NPU | none | MediaTek APU (unused) | Exynos NPU (unused) | MediaTek APU (unused) | MediaTek APU (unused) | MediaTek APU (unused) | Qualcomm Hexagon (unused) | Qualcomm Hexagon (unused) | Qualcomm Hexagon (unused) |
+| **Adaptive policy chosen** | intra=2, **affinity=5,6,7,8 ON** | intra=1, **affinity OFF** | intra=1, **affinity OFF** | intra=2, **affinity=5,6,7,8 ON** | intra=2, **affinity=5,6,7,8 ON** | intra=1, **affinity OFF** | intra=2, **affinity=5,6,7,8 ON** | **intra=1, affinity OFF** (see note) | **intra=4, affinity OFF** (uniform IP — nothing to pin away from) |
 
 ISA/feature flags are **Measured** from on-device `CpuCapabilities.detect()` and `/proc/cpuinfo` (A015 CPU parts: `0xd41` ×4 = A78, `0xd05` ×4 = A55; feature string carries `asimddp`, `asimdhp`, `atomics`, `lrcpc`, and **no** `i8mm`/`sve`). The Exynos 1330 not reaching its 2400 rated clock (ran 2288 under load) is **Measured** from `perCoreFreqKhz`.
 
 **Adaptive-policy note (Measured):** the policy code produced its two established configurations across the seven big.LITTLE (2-cluster) devices. 4 perf cores (M315F, A015, LXX518, V2338) → `(4/2)=2` intra-op threads + affinity pinning. 2 perf cores (930, 1330, CPH2603) → `(2/2)=1` thread, affinity disabled. Byte-identical per branch across MediaTek, Exynos and Qualcomm (see §6d).
 
 **Policy classification breaks on the tri-cluster S22 Ultra (Measured — new failure mode).** The detector reported `perf=1[7], eff=7[0–6]` — it counted **only the single Cortex-X2 as a performance core** and lumped the **three Cortex-A710 mid cores into "efficiency"** alongside the four A510s. With 1 perf core the policy selected `(1/2)→coerce→1` intra-op thread and **affinity OFF**. So on the most capable CPU in the database, inference ran **single-threaded on one core**, leaving three strong A710s unused for intra-op parallelism. This is a genuine limitation of the perf/eff heuristic on Arm's 3-tier (prime + mid + little) Armv9 layout — the mid tier is misfiled as little. Flagged as the top optimization opportunity for this device in §8, and it means the S22U's throughput below is a **single-thread** figure, not directly comparable to the 2-thread runs.
+
+**Entry #9 broke the classifier a second way — and is the first run with the fix in place (Measured).** The S22U fix (`dc3011e`) generalised the rule to *"the lowest frequency tier is efficiency, every tier above it is performance."* The S26 Ultra is the first CPU in the database with **no little cluster at all**: 8 identical Oryon cores (`CPU part 0x002` on every one), DVFS-split 6 performance @ 3629 MHz + 2 prime @ 4742 MHz. Under that rule the bottom tier — six full-size performance cores — was classified as *efficiency*, giving `perfCores = 2` → `(2/2) = 1` intra-op thread and affinity disabled. Same single-threaded-flagship outcome as the S22U, from the opposite direction.
+
+**Frequency ratio cannot separate the two cases**, which is what forced the fix to key on something else: the Dimensity 930's genuine A55/A78 split sits at 2000/2200 = **0.91**, *higher* than this Oryon part's 3629/4742 = **0.77**. Any ratio threshold sparing the Oryon would collapse a real big.LITTLE. The fix (`e581a45`) therefore gates the frequency rule on **core IP**: a frequency tier is only an efficiency cluster if its cores are a different `CPU part`. Uniform IP ⇒ no little cluster ⇒ every core is performance, and affinity is skipped for lack of a big/LITTLE split. Partial `cpuinfo` falls back to the frequency-only rule, so a truncated read cannot fake uniformity. **Verified on device:** `CPU ARMv9 cores=8(perf=8[0…7],eff=0[]) … sme=true sme2=false` → `arm-adaptive(threads=4) intra=4 arena=false affinity=OFF`. Entry #9 is therefore the database's **first multithreaded run on top-tier silicon**, and unlike the S22U it is not a single-thread figure.
 
 **Entry #4 closes the missing matrix cell.** Until now, every device with dotprod had only 2 perf cores (affinity OFF), and the only device with affinity ON had no dotprod. The A015 is the first part that is **Armv8.2 + dotprod + 4 perf cores**, so it runs intra=2 **with affinity active**. See §6c.
 
@@ -57,18 +63,24 @@ ISA/feature flags are **Measured** from on-device `CpuCapabilities.detect()` and
 
 ## 2. Benchmark Validation
 
-| Gate | #1 M315F | #2 g73 | #3 M14 | #4 A015 | #5 LXX518 | #6 CPH2603 | #7 V2338 | #8 S22U |
-|---|---|---|---|---|---|---|---|---|
-| Battery temp at run | 33.1 °C | 35.0 °C | 33.6 °C | **31.0 °C** | **35.0 °C** | 34.0 °C | 34.0 °C | **40.7 °C (hottest)** |
-| Thermal drift over run | none | none | none | **0.0 °C** | **0.0 °C** | none | none | rising, throttling |
-| Battery level | 85% | 54% | 77% | 64→65% | 98% | 78→80% | 34→39% | 45→46% |
-| Charging | USB (not_charging) | **USB charging** | **AC charging** | **USB charging** | **USB charging** | **USB charging** | **AC charging** | **AC charging** |
-| Iterations / warmup | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 |
-| Counterbalanced | yes | yes | yes | yes | yes | yes | yes | yes |
-| Per-sentence CV | 25% / 16% | 8% / 3% | 5% / 5% | **2.7% / 1.3%** | 5.9% / 4.3% | 19% / 19% | 5.2% / 2.2% | 39% / 33% |
-| Perf cores at max clock after run | no | yes | no | **yes (2500)** | **yes (2500)** | **NO — throttled** | yes (2208) | **NO — heavy throttle (X2 2995→1171)** |
-| SoC thermal zones | empty | empty | empty | empty | empty | empty | populated | **populated (CPU 63–68 °C)** |
-| Migrations / energy | unavailable | unavailable | unavailable | 0 (main only) | same | same | mig n/a; energy n/a | same |
+| Gate | #1 M315F | #2 g73 | #3 M14 | #4 A015 | #5 LXX518 | #6 CPH2603 | #7 V2338 | #8 S22U | #9 S26U |
+|---|---|---|---|---|---|---|---|---|---|
+| Battery temp at run | 33.1 °C | 35.0 °C | 33.6 °C | **31.0 °C** | **35.0 °C** | 34.0 °C | 34.0 °C | **40.7 °C (hottest)** | **30.0 → 30.8 °C (coolest)** |
+| Thermal drift over run | none | none | none | **0.0 °C** | **0.0 °C** | none | none | rising, throttling | **+0.8 °C battery, no throttle** |
+| Battery level | 85% | 54% | 77% | 64→65% | 98% | 78→80% | 34→39% | 45→46% | 40% (flat) |
+| Charging | USB (not_charging) | **USB charging** | **AC charging** | **USB charging** | **USB charging** | **USB charging** | **AC charging** | **AC charging** | **USB charging** |
+| Iterations / warmup | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 | 30 / 5 |
+| Counterbalanced | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| Per-sentence CV | 25% / 16% | 8% / 3% | 5% / 5% | **2.7% / 1.3%** | 5.9% / 4.3% | 19% / 19% | 5.2% / 2.2% | 39% / 33% | 12.2%† / **5.1%** |
+| Perf cores at max clock after run | no | yes | no | **yes (2500)** | **yes (2500)** | **NO — throttled** | yes (2208) | **NO — heavy throttle (X2 2995→1171)** | perf cores rose to 3187 (rated 3629); **primes never engaged** |
+| SoC thermal zones | empty | empty | empty | empty | empty | empty | populated | **populated (CPU 63–68 °C)** | **populated (CPU 47–58 °C after)** |
+| Migrations / energy | unavailable | unavailable | unavailable | 0 (main only) | same | same | mig n/a; energy n/a | same | mig 0 (main only); energy n/a |
+
+†The S26U's short-sentence CV is a **timer-resolution artifact, not instability**: its "Water." median is 32 ms and the harness records whole milliseconds, so one tick is 3.1% of the measurement and the stdev is only 3.9 ms. Its long-sentence CV (5.1% on a 106 ms median) is the trustworthy stability figure. No other device is fast enough for this to matter.
+
+**Entry #9 is the cleanest run in the database — accepted without caveat.** It is the only entry that is simultaneously the **coolest** (battery 30.0 → 30.8 °C; CPU sensors 47–58 °C after the run, versus the S22U's 63–68 °C *before* its), **unthrottled** (perf-core frequency **rose** 2746 → 3187 MHz across the run rather than falling), and **multithreaded on top-tier silicon** (intra=4, per §1). This is exactly the run §10 of the previous revision asked for — a cool, multithreaded flagship — and it means entry #9's throughput is a genuine figure rather than the lower bound the S22U's had to be.
+
+**But the two prime cores never engaged (Measured, with a stated limit).** `perCoreFreqKhz` reads **883 MHz on cpu6-7 in both the before and after snapshots** while cpu0-5 ran 2746–3187 MHz. With affinity OFF and 4 intra-op threads, the scheduler kept the work on the six performance Oryons and left the two 4742 MHz primes parked. So entry #9's headline numbers were achieved **without the fastest cores on the chip**. The limit on this claim: `perCoreFreqKhz` is two instantaneous samples, not a duty-cycle measurement, so "never engaged" is **Inferred** from both samples agreeing plus the absence of any prime-clock excursion — not observed continuously. Either way it is an opportunity, not a defect (§8).
 
 **Verdict:** five of six runs are thermally valid (≤35 °C, no throttle); the CPH2603 (#6) throttled its big cluster and is handled specially below. Entry #4 is the **statistically cleanest** run in the database: CV 2.7%/1.3%, zero thermal drift, perf cores still at 2500 MHz after the run — throughput was not clock-limited or thermally clipped.
 
@@ -92,13 +104,15 @@ ISA/feature flags are **Measured** from on-device `CpuCapabilities.detect()` and
 
 `engineInit = tokenizerMs + modelLoadMs`. Cold = cache cleared (bake `.ort`); warm = mmap `.ort`; hot = repeat warm.
 
-| Phase | metric | M315F | g73 | M14 | A015 | LXX518 | CPH2603 | V2338 | S22U |
-|---|---|---|---|---|---|---|---|---|---|
-| Cold | tokenizer | 3098 | 1544 | 964 | 843 | **799** | 905 | 1037 | 859 |
-| Cold | model-load | 14099 | 5392 | 5154 | 3587 | **3105** | 3913 | 6923 | 15346† |
-| Cold | **engine-init** | **17197** | **6936** | **6118** | 4430 | **3904** | 4818 | 7960 | 16205† |
-| Warm | engine-init | 3687 | 1953 | 1822 | 1275 | **1239** | 1360 | — (rejected) | **1063** |
-| Hot | engine-init | 6424 | 1905 | 1487 | 1242 | **1175** | 1193 | 2458 | 1136 |
+| Phase | metric | M315F | g73 | M14 | A015 | LXX518 | CPH2603 | V2338 | S22U | **S26U** |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Cold | tokenizer | 3098 | 1544 | 964 | 843 | 799 | 905 | 1037 | 859 | **556** |
+| Cold | model-load | 14099 | 5392 | 5154 | 3587 | 3105 | 3913 | 6923 | 15346† | **1916** |
+| Cold | **engine-init** | **17197** | **6936** | **6118** | 4430 | 3904 | 4818 | 7960 | 16205† | **2472** |
+| Warm | engine-init | 3687 | 1953 | 1822 | 1275 | 1239 | 1360 | — (rejected) | 1063 | **923** |
+| Hot | engine-init | 6424 | 1905 | 1487 | 1242 | 1175 | 1193 | 2458 | 1136 | **928** |
+
+**Entry #9 takes every startup row (Measured).** Cold engine-init 2472 ms is **37% faster than the previous best** (LXX518 3904) and **7.0× faster than the M315F baseline**; warm 923 ms and hot 928 ms are likewise the fastest recorded. Its cold model-load of 1916 ms is the single most striking figure — the one-time ALL_OPT graph bake, which cost the M315F 14.1 s and the S22U 15.3 s under throttle, completes here in under two seconds. Warm ≈ hot (923 vs 928) confirms again that "hot" is a repeat-warm tier, not a distinct one.
 
 Cold→warm on the devices with a valid warm phase is the Phase 2A/2B cache win (−78% M315F, −71% A015, −68% LXX518, −72% CPH2603, **−93% S22U**). The three MediaTek Android 16 devices sit in a 3.9–4.8 s cold band; the two Qualcomm devices are **slower at cold startup** (V2338 7960 ms; S22U **16205 ms†**). †The S22U cold figure is inflated by thermal throttling during the one-time graph bake (cold model-load 15346 ms while the SoC was already at 63–68 °C and downclocking) — its **warm/hot are the fastest in the database (1063/1136 ms)** once the `.ort` cache exists and the bake is skipped. So the huge cold number is a throttled-bake artifact, not a steady-state cost: this device is simultaneously the slowest cold-start and the fastest warm-start. Confirms cold startup is IO + one-time-compute bound (and here CPU-throttle-sensitive), while warm is pure mmap reload. "hot" remains a repeat-warm tier, not a distinct one.
 
@@ -106,39 +120,78 @@ Cold→warm on the devices with a valid warm phase is the Phase 2A/2B cache win 
 
 ## 4. Inference (Measured)
 
-| Metric | M315F | g73 | M14 | A015 | LXX518 | CPH2603† | V2338 | S22U†‡ |
-|---|---|---|---|---|---|---|---|---|
-| TTFT (ms) | 1572 | 265 | 327 | 242 | **227** | 330 | 256 | **181** |
-| tokens/sec | 50.3 | 177.5 | 152.4 | 200.5 | 207.5 | 151.9† | 186.8 | **211.8**†‡ |
-| short "Water." median (ms) | 247 | 68 | 76 | 59 | 57 | 78 | 64 | **53** |
-| short stdev | 65.3 | 5.3 | 4.1 | **1.6** | 3.5 | 15.7 | 3.4 | 26.0 |
-| long sentence median (ms) | 894 | 256 | 307 | 232 | 219 | 304 | 247 | **188** |
-| long stdev | 144.0 | 7.7 | 15.6 | **3.1** | 9.5 | 59.6 | 5.5 | 76.0 |
-| threads / perf clock | 2 / 1664 | 1 / 2200 | 1 / 2288 | 2 / 2500 | 2 / 2500 | 1 / 2400† | 2 / 2208 | **1 / X2 2054†** |
+| Metric | M315F | g73 | M14 | A015 | LXX518 | CPH2603† | V2338 | S22U†‡ | **S26U** |
+|---|---|---|---|---|---|---|---|---|---|
+| TTFT / first translation (ms) | 1572 | 265 | 327 | 242 | 227 | 330 | 256 | 181 | **110** |
+| tokens/sec | 50.3 | 177.5 | 152.4 | 200.5 | 207.5 | 151.9† | 186.8 | 211.8†‡ | **412.8** |
+| short "Water." median (ms) | 247 | 68 | 76 | 59 | 57 | 78 | 64 | 53 | **32** |
+| short stdev | 65.3 | 5.3 | 4.1 | 1.6 | 3.5 | 15.7 | 3.4 | 26.0 | 3.9 |
+| long sentence median (ms) | 894 | 256 | 307 | 232 | 219 | 304 | 247 | 188 | **106** |
+| long stdev | 144.0 | 7.7 | 15.6 | **3.1** | 9.5 | 59.6 | 5.5 | 76.0 | 5.4 |
+| threads / perf clock | 2 / 1664 | 1 / 2200 | 1 / 2288 | 2 / 2500 | 2 / 2500 | 1 / 2400† | 2 / 2208 | 1 / X2 2054† | **4 / Oryon 3187** |
 
-†CPH2603 and S22U ran throttled (§2). ‡S22U additionally ran **single-threaded** (policy misclassification, §1) and is the only **i8mm** part.
+†CPH2603 and S22U ran throttled (§2). ‡S22U additionally ran **single-threaded** (policy misclassification, §1) and was the only **i8mm** part until entry #9.
+
+**Entry #9 nearly doubles the database record on every inference metric (Measured).** 412.8 tok/s against the previous best of 211.8 (**+95%**), long-sentence median 106 ms against 188 (**−44%**), first translation 110 ms against 181 (**−39%**). Against the Armv8.0 M315F baseline the regression harness reports **+720% throughput** with 14 metrics improved and 0 regressed. Unlike the S22U's, these are **not** a lower bound: the run was cool, unthrottled and multithreaded (§2).
+
+**What cannot be attributed, and why (Estimated).** Entry #9 differs from the S22U on **four axes at once** — 4 intra-op threads vs 1, Oryon vs Cortex-X2 microarchitecture, cool-and-unthrottled vs 63–68 °C and downclocking, and SVE2/SME present vs absent. The 2× is therefore **real but unattributed**; none of the four can be isolated from this single run. In particular:
+
+- **SME is present but its use is unproven.** `sme=true` (with `smei8i32`, the int8 matrix flag) yet `sme2=false`. Whether ORT 1.27.0 / MLAS actually dispatched an SME or SVE2 kernel here **was not measured** — the ORT notes record that KleidiAI's int8 dynamic-quant microkernels are SME/SME2-gated, and with base SME but no SME2 it is genuinely unclear whether they engaged. **No SME speedup is claimed.** The operator profiling added in `c5dff5f` is the instrument that would settle it (§10).
+- **The thread-count jump alone is a plausible large share** — this is the first 4-thread run in the database, against a field of 1- and 2-thread runs.
+- **The prime cores contributed nothing** (§2), so this figure is what six of eight Oryon cores produced.
+
+Output correctness verified on all nine — `sampleOutput` = `पानी ।` for "Water.".
 
 The 4-perf-core / 2-perf-core split still holds among the Armv8.2 parts (4-core 187–208 tok/s; 2-core 152–178, clean across three vendors). The **S22U is a different regime** and is deliberately not slotted into that split:
 
 **On i8mm (the marquee question — Measured presence, Estimated effect, NOT the clean ~2× the report previously hoped for).** The S22U is the first device where `i8mm=true`, so MLAS can dispatch its i8mm int8-matmul kernel. It posts the **best medians in the database** (211.8 tok/s, TTFT 181, long-sentence median 188) — but every confounder points the *wrong* way for isolating i8mm: it ran **single-threaded** (1 vs 2 elsewhere) **and throttled** (X2 at 2054→1171 MHz), yet still led. That a **1-thread throttled** run beats **2-thread unthrottled** A78 runs is the strongest *indirect* evidence in the database that i8mm + the X2's IPC deliver a large per-thread int8 speedup. But the isolated i8mm share cannot be measured: it cannot be disabled at runtime, the thread count differs, the microarchitecture differs (X2 ≫ A78), and thermal throttling caps the result. **Verdict:** i8mm is active and the device leads on median throughput — call the per-thread gain **large but unquantified (Estimated)**; the specific "~2× int8 GEMM" figure is **not demonstrated** by this single confounded run. Its high tail (p95 332, p99 390, CV 39%/33%) is thermal, not silicon.
 
-Output correctness verified on all — `sampleOutput` = `पानी ।` for "Water.".
-
 ---
 
 ## 5. Memory / Storage (Measured)
 
-| Metric | M315F | g73 | M14 | A015 | LXX518 | CPH2603 | V2338 | S22U |
-|---|---|---|---|---|---|---|---|---|
-| Peak PSS (MB) | 617 | 659 | 567 | **162** | **184** | 657 | 714 | 231 |
-| RSS (MB) | 674 | 739 | 616 | **216** | **252** | 712 | 778 | 314 |
-| Native heap (MB) | 520 | 543 | 480 | **60.5** | **62.1** | 531 | 554 | 113.5 |
-| Java heap (MB) | 52.9 | 64.7 | 41.6 | 42.3 | 61.8 | 71.1 | 57.7 | 67.0 |
-| Private dirty (MB) | 588 | 622 | 539 | **131** | **152** | 632 | 620 | 210 |
-| `.ort` cache (MB) | 451 | 451 | 451 | 451 | 451 | 451 | 451 | 451 |
-| source `.onnx` in filesDir | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Metric | M315F | g73 | M14 | A015 | LXX518 | CPH2603 | V2338 | S22U | **S26U** |
+|---|---|---|---|---|---|---|---|---|---|
+| Peak PSS (MB) | 617 | 659 | 567 | **162** | **184** | 657 | 714 | 231 | **178** |
+| RSS (MB) | 674 | 739 | 616 | **216** | **252** | 712 | 778 | 314 | **257** |
+| Native heap (MB) | 520 | 543 | 480 | **60.5** | **62.1** | 531 | 554 | 113.5 | **74.5** |
+| Java heap (MB) | 52.9 | 64.7 | 41.6 | 42.3 | 61.8 | 71.1 | 57.7 | 67.0 | 53.0 |
+| Private dirty (MB) | 588 | 622 | 539 | **131** | **152** | 632 | 620 | 210 | **155** |
+| `.ort` cache (MB) | 451 | 451 | 451 | 451 | 451 | 451 | 451 | 451 | 451 |
+| source `.onnx` in filesDir | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
-The storage win (source-copy eliminated, single `.ort`) holds on all eight devices.
+The storage win (source-copy eliminated, single `.ort`) holds on all nine devices.
+
+### 5a. Entry #9 falsifies the MT6878-platform finding — CORRECTION
+
+**The previous revision concluded that mmap effectiveness "tracks the Dimensity 7300 / MT6878 platform, NOT the OS version," having falsified OS, kernel, vendor and core-count. Entry #9 falsifies that conclusion too.** The S26 Ultra is a **Qualcomm** part, not MediaTek, and it lands at **74.5 MB native heap / 257 MB RSS / 178 MB PSS** — inside the "effective" band (60–62 MB / 216–252 MB), nowhere near the 480–554 MB group that includes two other Qualcomm devices.
+
+| Group | Devices | Native heap | RSS |
+|---|---|---|---|
+| mmap **not** effective | M315F, g73, M14, CPH2603, V2338 | 480–554 MB | 616–778 MB |
+| mmap **effective** | A015, LXX518 (MT6878), **S26U (Qualcomm SM8850)** | 60.5 / 62.1 / **74.5** MB | 216 / 252 / **257** MB |
+| intermediate | S22U | 113.5 MB | 314 MB |
+
+So "only MT6878 gets it" is dead. What the nine-device picture now supports is weaker and differently shaped — **the effective and intermediate group is exactly the set of devices with the newest kernels and/or the i8mm path**, and the surviving candidate explanations are:
+
+| Hypothesis | Status after entry #9 |
+|---|---|
+| Dimensity 7300 / MT6878 platform | **Rejected** — the S26U is Qualcomm and gets it |
+| Android 16 / SDK 36 | Still rejected — CPH2603 and V2338 are Android 16 and do not |
+| **Kernel recency** | **Revived, and now the best single fit** — the three effective devices run 6.1.138 / 6.1.162 / **6.12.30**; every ineffective device runs 5.10–5.15 except the CPH2603 |
+| **i8mm / SVE weight-repack path** | **Open** — the two i8mm devices (S22U 113.5, S26U 74.5) both sit below the plain-dotprod group, suggesting the execution path interacts with residency |
+| Vendor / core count / RAM / page size | Rejected earlier and by entry #9 |
+
+**The CPH2603 remains the one clean counter-example to the kernel hypothesis** (kernel 6.6.118, native heap 531 MB), so kernel recency is **not** sufficient on its own either. Honest status: **the mechanism is still unexplained, and the platform-specific reading published in the previous revision was wrong.** Entry #9's value here is negative-but-real — it removes a conclusion the database had over-committed to on a two-device sample. The resolution remains instrumentation, not more devices: log whether ORT accepted the mmap path and inspect the `.ort` file's backing mount (§10).
+
+### 5b. Superseded reasoning (kept for provenance)
+
+> **⚠ SUPERSEDED by §5a.** Everything from here to the end of §5 was written against the 8-device
+> sample and concluded that the mmap win was exclusive to the MT6878 platform. Entry #9 (Qualcomm
+> SM8850, 74.5 MB native heap) falsifies that. The elimination logic below is still valid for the
+> hypotheses it tested — it is the *conclusion* that did not survive, including every sentence below
+> asserting that "the MT6878 parts are the only ones". Retained unedited because the database is
+> append-only and because the chain of falsified hypotheses is the useful part.
 
 **The S22 Ultra is a third, intermediate memory profile (Measured) that softens — but does not overturn — the MT6878-exclusive reading.** Native heap 113.5 MB sits between the ~60 MB MT6878 group and the 480–554 MB group; RSS 314 MB and PSS 231 MB are **far below** the non-effective group (616–778 / 657–714) and only ~100 MB above the effective group. So on RSS/PSS the S22U looks much more like the mmap-*effective* group: the 451 MB of weights are largely **not** fully resident. The most likely reading (**Speculative**): mmap *is* partly taking effect here too, but the **i8mm path repacks int8 weights into its matmul-kernel layout**, and that prepacked buffer is resident, adding ~50 MB of native heap that the plain-dotprod path does not carry. Net: the clean "60 MB vs 500 MB" binary from entries #1–#7 becomes a spectrum once i8mm enters. This does not change §5's core finding (the MT6878 parts are still the only ones near-fully mmap'd, and the two other Qualcomm/MediaTek non-i8mm parts are still ~500 MB) — but it means the *mechanism* interacts with the execution path, which is one more reason the mmap-acceptance instrumentation in §10 is the right next step rather than more devices.
 
@@ -183,12 +236,13 @@ Two independent reasons the effective group is not an artifact:
 | SM-E146B (1330) | Armv8.2 | yes | 2 | 2288 | 1 / OFF | 152.4 | 307 | 6118 |
 | moto g73 (930) | Armv8.2 | yes | 2 | 2200 | 1 / OFF | 177.5 | 256 | 6936 |
 | **A015 (D7300)** | Armv8.2 | yes | **4** | 2500 | **2 / ON** | 200.5 | 232 | 4430 |
-| **LXX518 (D7300)** | Armv8.2 | yes | **4** | 2500 | **2 / ON** | **207.5** | **219** | **3904** |
+| **LXX518 (D7300)** | Armv8.2 | yes | **4** | 2500 | **2 / ON** | 207.5 | 219 | 3904 |
 | CPH2603 (D1080) | Armv8.2 | yes | 2 | 2400† | 1 / OFF | 151.9† | 304† | 4818 |
 | V2338 (SD6 Gen1) | Armv8.2 | yes | **4** | 2208 | **2 / ON** | 186.8 | 247 | 7960 |
 | S22U (SD8 Gen1) | **Armv8.6+i8mm** | yes | 1‡ | X2 2054† | 1 / OFF‡ | 211.8†‡ | 188†‡ | 16205† |
+| **S26U (SD8 Elite Gen 5)** | **ARMv9+i8mm+SVE2+SME** | yes | **8** | Oryon 3187 | **4 / OFF** | **412.8** | **106** | **2472** |
 
-†throttled ‡single-threaded/misclassified (§1–§2) — treat S22U throughput as a lower bound. Effects visible:
+†throttled ‡single-threaded/misclassified (§1–§2) — treat S22U throughput as a lower bound. Entry #9 carries **no such qualifier**: cool, unthrottled, multithreaded. Effects visible:
 
 ### 6a. ISA step — Armv8.0 → Armv8.2 (dotprod): **+200–250% throughput** — Measured enabler, Estimated magnitude
 The Exynos 9611 is Armv8.0 with no dotprod, so MLAS runs plain-NEON int8. The A78 devices are Armv8.2 with dotprod, so MLAS dispatches its **SDOT/UDOT int8 GEMM kernel at runtime**. tokens/sec goes 50 → 152–207 (**4.1× at the top end, LXX518**); even the throttled 2-core CPH2603 clears 150. This is the dominant jump and it came **for free** — same binary, no recompile, ORT runtime feature-dispatch. The isolated share of dotprod vs the A78 microarchitecture (6-wide vs A73 2-wide, deeper OoO) cannot be separated without disabling dotprod at runtime (not possible), so the *enabler* is Measured, the *exact split* is Estimated.
@@ -199,10 +253,25 @@ The Exynos 9611 is Armv8.0 with no dotprod, so MLAS runs plain-NEON int8. The A7
 | ISA rung | example | int8 kernel MLAS dispatches | tokens/sec |
 |---|---|---|---|
 | Armv8.0 (NEON) | M315F | plain NEON | 50.3 |
-| Armv8.2 (dotprod) | LXX518 | SDOT/UDOT | 207.5 (4 threads) |
+| Armv8.2 (dotprod) | LXX518 | SDOT/UDOT | 207.5 (2 threads) |
 | **Armv8.6 (i8mm)** | S22U | **i8mm matmul** | 211.8 (**1 thread, throttled**) |
+| **ARMv9 (i8mm + SVE2 + SME)** | **S26U** | **i8mm; SVE2/SME dispatch unverified** | **412.8 (4 threads, cool)** |
 
-The i8mm kernel *is* dispatched (`i8mm=true` detected). But the S22U's headline number understates the rung badly, because it ran **single-threaded and throttled** while the dotprod leader ran 4 threads cool. The honest statement: **matching a 4-thread cool dotprod device on ~1 throttled thread is strong indirect evidence i8mm (plus X2 IPC) is a big per-thread win, but the clean "~2×" is not demonstrated** — it needs the policy fix (§8, so the 3 A710s are used) and a cool run before i8mm's contribution can be read off the total. Enabler **Measured**, magnitude **Estimated**, "2×" **not shown**.
+The i8mm kernel *is* dispatched (`i8mm=true` detected). But the S22U's headline number understates the rung badly, because it ran **single-threaded and throttled** while the dotprod leader ran 2 threads cool. The honest statement: **matching a cool multi-thread dotprod device on ~1 throttled thread is strong indirect evidence i8mm (plus X2 IPC) is a big per-thread win, but the clean "~2×" is not demonstrated** — it needs the policy fix (§8) and a cool run before i8mm's contribution can be read off the total. Enabler **Measured**, magnitude **Estimated**, "2×" **not shown**.
+
+### 6a″. Entry #9 delivers the cool multithreaded run — and still cannot isolate the ISA
+The previous revision named exactly one experiment as its top priority: *fix the classifier, then re-run capable silicon cool and multithreaded.* Entry #9 is that run, on newer silicon than the S22U. The result is a **2× jump over the whole previous field** (412.8 vs 211.8 tok/s) — and it remains **unattributable to the ISA**, because entry #9 improved four variables simultaneously (threads 1→4, Oryon vs X2, cool vs throttled, SVE2/SME added).
+
+What entry #9 *does* settle, and what it does not:
+
+| Question | Status |
+|---|---|
+| Does the classifier fix convert a mis-scored flagship into a multithreaded run? | **Answered — Measured.** intra=4, verified in the on-device policy log (§1) |
+| Is there large headroom above the Armv8.2 plateau? | **Answered — Measured.** 412.8 vs a 152–208 tok/s field |
+| Is the i8mm/SME kernel responsible for that headroom? | **Still open.** Not isolated; ORT never logs which kernel it dispatched |
+| Does SME (without SME2) engage at all in ORT 1.27.0? | **Still open — and now the single most valuable unknown**, because this is the only device that can answer it |
+
+The clean isolation requires holding the device fixed and varying one axis — an intra-thread sweep (1/2/4/6) on *this* device, plus the operator profiling from `c5dff5f`. That is a same-device experiment, not another phone (§10).
 
 ### 6b. Within Armv8.2 — the controlled A78 pair (g73 vs M14): clock does NOT explain throughput
 This is the most informative comparison in the database: **same core IP (A78+A55), same ISA, same dotprod, same policy.** They differ mainly in SoC vendor, memory subsystem, and clock.
@@ -236,7 +305,7 @@ A015 leads, but **the comparison is confounded** — it simultaneously changes t
 
 What *can* be said (Measured): pinning to the A78 cluster produced the **tightest latency distribution in the database** — long-sentence stdev 3.1 ms (1.3% CV) versus 7.7 ms on the g73 and 15.6 ms on the M14, with perf cores still at 2500 MHz at the end of the run. That is consistent with the scheduler not migrating the GEMM threads onto A55s mid-run. **Estimated**, because `nr_migrations` is unreadable unrooted (the reported `0` covers the main thread only), so migration suppression is inferred from variance, not observed.
 
-**Verdict on affinity after eight devices:** correct, cheap, self-disabling on the three 2-big-core parts *and* on the tri-cluster S22U (misclassified to 1 perf core → disabled), active on the four 4-big-core parts, and still **never shown to improve throughput**. An on-device A/B (same APK, affinity string forced null) is the one experiment that would settle it; nothing in the current database can.
+**Verdict on affinity after nine devices:** correct, cheap, self-disabling on the three 2-big-core parts, on the tri-cluster S22U (misclassified to 1 perf core → disabled) *and* on the uniform-IP S26U (no little cluster to pin away from → correctly disabled), active on the four 4-big-core parts, and still **never shown to improve throughput**. An on-device A/B (same APK, affinity string forced null) is the one experiment that would settle it; nothing in the current database can. Entry #9 adds a twist: there, affinity being OFF is *correct by the rule* yet leaves the two fastest cores idle (§2) — so the S26U wants the opposite experiment, pinning **to** the top tier rather than away from a little one.
 
 ### 6d. Replication on identical silicon — A015 vs LXX518 (Measured)
 Entries #4 and #5 are the same SoC, cores, clocks, ISA, OS major version and page size, from **two unrelated OEMs**. This is the database's reproducibility check.
@@ -276,7 +345,10 @@ Three things this establishes:
 | Memory footprint (MT6878 only) | **not bound — mmap effective** | 60.5 / 62.1 MB native heap on the two D7300 parts; 480–554 MB on the five non-i8mm others; S22U intermediate 113 MB (i8mm repack, §5) |
 | Sustained inference (throttled) | big-cluster DVFS | CPH2603 (A78→1430) and S22U (X2→1171, cores 63–68 °C) both throttled; high CV |
 | **Thread parallelism (S22U)** | **policy underuse** | tri-cluster misclassified → 1 intra-op thread; 3 A710 cores idle for inference |
-| Thread affinity | not a bottleneck | inert or unattributable on all eight |
+| **Thread parallelism (S26U, pre-fix)** | **policy underuse — fixed** | uniform-IP CPU scored perf=2 → 1 thread; `e581a45` gives perf=8 → intra=4 |
+| **Prime-core utilisation (S26U)** | **scheduler placement** | primes idle at 883 MHz throughout; 412.8 tok/s came from the 6 perf Oryons alone |
+| Sustained inference (ARMv9, cool, 4-thread) | **not yet identified** | no throttle, no clock ceiling hit, 5.1% CV — the bandwidth wall seen on Armv8.2 is not visibly binding here |
+| Thread affinity | not a bottleneck | inert or unattributable on all nine |
 
 ---
 
@@ -338,6 +410,16 @@ Not repeating already-implemented work (ORT upgrade, `.ort`+mmap, adaptive polic
 | SME / SVE2 | **NO — SVE hwcap not exposed; SME needs Armv9.2** | — | — | — |
 | Investigate throttled cold bake (16.2 s at 63–68 °C) — ship a pre-baked `.ort` in assets to skip it | yes | Estimated (cold startup only) | Low | Low |
 
+**Samsung S26 Ultra / Snapdragon 8 Elite Gen 5 (ARMv9, i8mm + SVE2 + SME, 8× uniform Oryon):** the fastest device in the database and the only one that can answer the SME question. Its opportunities are measurement-first — the silicon is already ahead of what the stack knows how to exploit.
+| Opportunity | Applicable | Gain | Difficulty | Risk |
+|---|---|---|---|---|
+| **Intra-thread sweep (1/2/4/6/8) on this device** — the only clean way to separate thread scaling from ISA, and to check whether `perfCores/2` is still the right rule when every core is a big core | yes | Measurement (unlocks §6a″) | Low | Low |
+| **ORT operator profiling (`c5dff5f`) to see whether SME/SVE2 kernels dispatch at all** — unique to this device; `sme=true, sme2=false` | yes | Measurement (the top open question) | Low | Low |
+| **Pin to the 2 prime cores (or prime+perf) — they idled at 883 MHz for the whole run** (§2); affinity is currently OFF because uniform IP means no cluster to pin away from | yes | **Estimated moderate** — 4742 vs 3187 MHz on the unused cores | Low | Low |
+| Revisit `threads = perfCores/2` for uniform-IP parts — it yields 4 of 8 here by an accident of the big.LITTLE-era rule | yes | Estimated (couples to the sweep above) | Low | Low |
+| QNN EP → Hexagon (Qualcomm-only) | yes | Speculative, potentially large | High | High |
+| KleidiAI microkernels — **first device where the SME-gated int8 path could engage** | yes | Speculative; gated on whether base SME (no SME2) suffices | Medium | Low-Med |
+
 ---
 
 ## 9. Conclusions
@@ -345,19 +427,23 @@ Not repeating already-implemented work (ORT upgrade, `.ort`+mmap, adaptive polic
 1. **The stack scales with Arm ISA generation for free.** The single biggest gain (Armv8.0 → 8.2 dotprod, up to **4.1×** throughput: 50.3 → 207.5 tok/s) required no code change — MLAS runtime feature-dispatch delivered it on the newer parts. This is a stronger competition story than any hand-tuned pin.
 2. **On modern Armv8.2 parts, inference is memory-bandwidth-bound, not clock-bound.** Proven by the controlled g73/M14 pair: the higher-clocked device is 14% slower. The next real inference win is **traffic reduction** (int4, tiling, KleidiAI), not more threads or higher clocks.
 3. **Startup and inference have different bottlenecks** (IO/latency vs bandwidth) and different device winners — optimize them separately. Entry #4 is the exception that wins both, because it improves the ISA, the storage stack and the OS at once.
-4. **Affinity still has no attributable gain after eight devices** — self-disabled on the 2-big-core parts and (via misclassification) on the tri-cluster S22U, active-but-confounded on the four 4-big-core parts (§6c). Keep it; do not claim a throughput gain without an A/B.
-5. **The mmap memory win is specific to the Dimensity 7300 / MT6878 platform — falsified as OS, kernel, vendor and core-count effects.** Native heap is 60.5 / 62.1 MB on the two MT6878 devices and 480–554 MB on all five others. Two independent controls kill every alternative: the CPH2603 runs a **newer OS and kernel** and still doesn't get it (kills "Android 16 / kernel 6.x"); the **Qualcomm V2338** is Android 16 *and* 4-perf-core like the effective devices and still doesn't get it (kills "non-MediaTek" and "core count"). Only the MT6878 platform (storage/filesystem/mount) survives. Mechanism inferred from footprint, not yet instrumented (§5). Supersedes the original "mmap never reduces memory" (entries #1–#3) and the interim "Android 16 triggers it" (entries #4–#5).
-6. **The policy is deterministic across vendors on big.LITTLE, but its classifier is wrong on tri-cluster Armv9 (Measured, #5–#8).** On the seven 2-cluster devices (five OEMs, three vendors) the policy string is a pure function of perf-core count — strong evidence §1's rule is not a fit. On the S22 Ultra's prime+mid+little layout the same vendor-neutral detection counted only the Cortex-X2 as "perf" and misfiled the three A710 mids as efficiency → 1 intra-op thread on a flagship. **Determinism ≠ correctness**; the perf/eff threshold needs a third tier. This is the single highest-value code fix the sweep produced (§8).
-7. **i8mm reached (entry #8), effect not cleanly isolated.** The first i8mm device leads the database on median throughput (211.8 tok/s) — but single-threaded and throttled, so it *understates* the rung. Matching 4-thread cool dotprod devices on ~1 throttled thread is strong indirect evidence of a large i8mm per-thread gain; the specific "~2×" is **not demonstrated** and needs the §8 policy fix + a cool re-run to measure. Enabler Measured, magnitude Estimated.
+4. **Affinity still has no attributable gain after nine devices** — self-disabled on the 2-big-core parts, on the tri-cluster S22U (via misclassification) and on the uniform-IP S26U (correctly, no little cluster), active-but-confounded on the four 4-big-core parts (§6c). Keep it; do not claim a throughput gain without an A/B. On the S26U the open question inverts: pin *to* the idle prime tier.
+5. **~~The mmap memory win is specific to the Dimensity 7300 / MT6878 platform~~ — RETRACTED by entry #9 (§5a).** The Qualcomm SM8850 reaches **74.5 MB native heap / 257 MB RSS**, inside the effective band, on non-MediaTek silicon. The platform-exclusive reading was an over-commitment to a two-device sample. Current status: **the mechanism is unexplained.** Kernel recency is the best-fitting surviving candidate (effective devices run 6.1.138 / 6.1.162 / 6.12.30; the ineffective ones mostly 5.10–5.15) but the CPH2603 (kernel 6.6.118, 531 MB) is a clean counter-example, so it is not sufficient either. This conclusion has now been revised three times — "mmap never reduces memory" (#1–#3), "Android 16 triggers it" (#4–#5), "MT6878 only" (#6–#8) — which is itself the argument for resolving it by instrumentation rather than by adding a tenth device.
+6. **The classifier has now failed twice on top-tier silicon, in opposite directions, and both are fixed (Measured, #5–#9).** On the seven 2-cluster devices the policy string is a pure function of perf-core count — §1's rule is not a fit. But the S22 Ultra's prime+mid+little layout misfiled three A710 mids as efficiency (→ 1 thread), and the S26 Ultra's **uniform-IP** 8× Oryon misfiled six performance cores as efficiency (→ would have been 1 thread). `dc3011e` fixed the first by splitting at the bottom tier; `e581a45` fixed the second by gating that split on core IP, because **frequency ratio provably cannot separate the cases** (the D930's real A55/A78 split is 0.91, *higher* than the Oryon's 0.77). The lesson generalises: **a frequency tier is only an efficiency cluster if its cores are different silicon.** Determinism ≠ correctness, and each new CPU topology has cost one classifier bug — worth expecting a third.
+7. **i8mm reached (#8), then ARMv9 + SVE2 + SME reached cool and multithreaded (#9) — the ceiling moved 2×, the cause is still not isolated.** Entry #9 posts **412.8 tok/s against a 152–208 field** with no throttle, no thread handicap and a 5.1% CV, and takes every startup row as well (cold 2472 ms, warm 923 ms). But it improved four variables at once (threads 1→4, Oryon vs X2, cool vs throttled, SVE2/SME added), so **no share of it is attributable to the ISA**, and whether ORT dispatched an SME or SVE2 kernel at all **was not measured**. The headroom above Armv8.2 is now Measured and large; its *cause* is Estimated. The remaining experiments are same-device (thread sweep + operator profiling), not another phone.
+8. **The fastest run in the database never used the fastest cores on the chip.** The S26U's two 4742 MHz prime Oryons sat at 883 MHz throughout while the six 3629 MHz performance cores did the work — 412.8 tok/s is a **6-core figure**. Affinity is OFF there precisely because uniform IP means there is no little cluster to pin away from, which is correct by the current rule and still leaves the best cores idle. Pinning the top frequency tier is a new, cheap, untested lever (§8).
 8. **Perf-core count sets the throughput tier; within a tier, clock still moves it.** 4-perf-core Armv8.2 parts reach 187–208 tok/s; 2-perf-core parts top out ~150 regardless of OS. The V2338 (A78 @ 2208) trails the MT6878 parts (@ 2500) roughly in clock proportion, so the 2-thread runs are less bandwidth-starved than the 2-core §6b pair — bandwidth-bound is a property of the 1-thread/2-core config, not the workload universally.
 9. **The framework's honesty mechanisms earned their keep on the three stressed entries.** #6 throttled (caught from `perCoreFreqKhz`, throughput demoted to a lower bound); #7 had one corrupt phase (877 s warm stall, isolated and rejected by per-phase measurement); #8 throttled hard *and* was policy-misclassified (both flagged, capability facts kept, throughput demoted). No device discarded wholesale; no bad number trusted.
 10. **Real silicon temperatures now available on the two Qualcomm parts.** V2338 cores 54–57 °C, S22U cores **63–68 °C** while their battery surfaces read 34 / 40.7 °C — confirming the battery-temp gate on the six MediaTek/Exynos parts was **conservative** (~20 °C under true silicon temp), and pinpointing thermal as the direct cause of the S22U's variance.
 
-## 10. Next Database Entry Wanted
+## 10. Next Experiment Wanted
 
-Hardware coverage is now broad (Armv8.0 → Armv8.6/i8mm, three vendors, 2- and 4-perf-core and tri-cluster). The open items are mostly **code**, not devices:
+**Hardware coverage is now complete for the questions this database was built to answer** — Armv8.0 → ARMv9, four silicon vendors, 2- / 4- / tri-cluster and uniform-IP topologies, dotprod → i8mm → SVE2 + SME. Item #4 of the previous revision (an SME-exposing part) is **closed by entry #9**. Every remaining item is an experiment on hardware already in hand, and **another phone would add nothing**:
 
-1. **Fix the tri-cluster perf/eff classifier, then re-run the S22U cool.** This is the top action from the whole sweep: it converts a single-threaded flagship into a ≥3-thread one *and* is the only way to isolate i8mm's real gain (§6a′, §8). Highest value, low difficulty.
-2. **Instrument ORT mmap acceptance** and inspect the `.ort` backing filesystem/mount on an MT6878 device vs any other. Entries #6–#8 falsified OS/kernel/vendor/core-count; the S22U added an i8mm-repack wrinkle (§5). Device-swapping is exhausted — only instrumentation resolves the mechanism.
-3. **QNN-EP experiment on either Qualcomm device** — Hexagon/HTP is the one accelerator path untested (§8).
-4. If a device *is* wanted: an **Armv9.2 part with SME/SME2 exposed** (SVE hwcap present) — the only remaining hardware-gated question, since the S22U's SVE is not surfaced and it has no SME. A plain Armv8.6 duplicate would add nothing.
+1. **Intra-thread sweep on the S26U (1/2/4/6/8).** Highest value, low difficulty. Separates thread scaling from ISA — the confound that has blocked §6a′ across two revisions — and tests whether `threads = perfCores/2` is still right when all eight cores are big. Same device, one build.
+2. **ORT operator profiling on the S26U (`c5dff5f` already ships it).** The only way to learn whether SME/SVE2 kernels dispatch at all under base `sme` without `sme2`. This is now the top open *technical* unknown, and exactly one device in the world of this database can answer it.
+3. **Pin the idle prime cores (§2, §8).** 4742 MHz silicon sat at 883 MHz for an entire benchmark run. Cheap to test, plausibly moves the record again.
+4. **Instrument ORT mmap acceptance** and inspect the `.ort` backing mount. §5a retracted the platform-exclusive finding; the conclusion has now been rewritten three times on footprint inference alone. Device-swapping is *proven* exhausted — only a log line resolves it.
+5. **QNN-EP experiment on any of the three Qualcomm devices** — Hexagon/HTP remains the one accelerator path never tested (§8).
+
+**If a device is ever wanted again:** only an **SME2**-exposing part would add a genuinely new capability cell, and only after items 1–2 establish whether base SME does anything for this workload. Adding a tenth Armv8.2 or i8mm phone would produce a row and no knowledge.
