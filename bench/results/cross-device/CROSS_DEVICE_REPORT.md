@@ -415,10 +415,11 @@ Not repeating already-implemented work (ORT upgrade, `.ort`+mmap, adaptive polic
 **Samsung S26 Ultra / Snapdragon 8 Elite Gen 5 (ARMv9, i8mm + SVE2 + SME, 8× uniform Oryon):** the fastest device in the database and the only one that can answer the SME question. Its opportunities are measurement-first — the silicon is already ahead of what the stack knows how to exploit.
 | Opportunity | Applicable | Gain | Difficulty | Risk |
 |---|---|---|---|---|
-| **Intra-thread sweep (1/2/4/6/8) on this device** — the only clean way to separate thread scaling from ISA, and to check whether `perfCores/2` is still the right rule when every core is a big core | yes | Measurement (unlocks §6a″) | Low | Low |
-| **ORT operator profiling (`c5dff5f`) to see whether SME/SVE2 kernels dispatch at all** — unique to this device; `sme=true, sme2=false` | yes | Measurement (the top open question) | Low | Low |
-| **Pin to the 2 prime cores (or prime+perf) — they idled at 883 MHz for the whole run** (§2); affinity is currently OFF because uniform IP means no cluster to pin away from | yes | **Estimated moderate** — 4742 vs 3187 MHz on the unused cores | Low | Low |
-| Revisit `threads = perfCores/2` for uniform-IP parts — it yields 4 of 8 here by an accident of the big.LITTLE-era rule | yes | Estimated (couples to the sweep above) | Low | Low |
+| ~~Intra-thread sweep~~ **DONE** — `intra1`/`intra2` beat shipping `intra4` by ≈5% long / ≈13% short on the production path | — | **Measured**, see `S26U_EXPERIMENTS.md` §2b | — | — |
+| ~~ORT operator profiling for SME/SVE2 dispatch~~ **DONE — cannot answer it**; MLAS's SIMD choice is invisible to ORT profiling. Needs `simpleperf` | — | **Negative result**, §1 there | — | — |
+| ~~Pin to the 2 prime cores~~ **DONE — NO GAIN.** `intra2_primePin` 99 ms vs plain `intra2` 99 ms. The idle primes were not costing throughput; opportunity withdrawn | — | **Negative result**, §2b C3 | — | — |
+| Revisit `threads = perfCores/2` for uniform-IP parts — measured ≈5% on the table here, but **not applied**: one device, one 8-perf-core topology, versus a nine-device-validated rule | yes | Estimated small; needs a second 8-perf-core part | Low | Med (over-fit risk) |
+| `simpleperf` symbol capture — the only remaining route to the SME/i8mm question | yes | Measurement | Medium | Low |
 | QNN EP → Hexagon (Qualcomm-only) | yes | Speculative, potentially large | High | High |
 | KleidiAI microkernels — **first device where the SME-gated int8 path could engage** | yes | Speculative; gated on whether base SME (no SME2) suffices | Medium | Low-Med |
 
@@ -446,7 +447,7 @@ Not repeating already-implemented work (ORT upgrade, `.ort`+mmap, adaptive polic
 
 1. ~~Intra-thread sweep on the S26U.~~ **DONE.** Result: `intra1`/`intra2` beat the shipping `intra4` by ≈10% drift-corrected, and `cpuArena=false` (also shipping) costs ≈12% on this device. But the sweep runs the **non-production load path** (`optCache` off, ALL_OPT, source `.onnx`), so this is evidence, not proof. **The replacement item is a production-path A/B at intra 1/2/4** — it bears directly on a shipping default and is the highest-value open experiment.
 2. ~~ORT operator profiling to detect SME/SVE2 dispatch.~~ **DONE, and it cannot answer the question.** MLAS's internal SIMD dispatch is invisible to ORT profiling. It did establish that the workload is **not GEMM-dominated** (int8 GEMM ≈45%, tensor movement ≈31%, ORT dispatch overhead ≈21%), which redirects effort toward **fusion and traffic reduction rather than more threads**. **The replacement item is `simpleperf record` + symbol capture**, the only remaining route to the SME question.
-3. **Pin the idle prime cores (§2, §8).** 4742 MHz silicon sat at 883 MHz for an entire benchmark run. Cheap to test, plausibly moves the record again. Unchanged.
+3. ~~Pin the idle prime cores.~~ **DONE — no gain.** Workers pinned to the two idle 4742 MHz Oryons measured 99 ms against plain `intra2`'s 99 ms on the production path. The idle prime tier was not costing throughput, so this opportunity is **closed, not pending**. Also settled on the same run: `cpuArena=false` (shipping) is **correct** — turning the arena on is 1.9% slower, refuting the non-production sweep's claim that it cost 12%.
 4. **Instrument ORT mmap acceptance** and inspect the `.ort` backing mount. §5a retracted the platform-exclusive finding; the conclusion has now been rewritten three times on footprint inference alone. Device-swapping is *proven* exhausted — only a log line resolves it.
 5. **QNN-EP experiment on any of the three Qualcomm devices** — Hexagon/HTP remains the one accelerator path never tested (§8).
 6. **Regenerate the Baseline Profile.** Blocked since Phase 4 because ART needs API 33+ to collect and the only phone was API 31. The S26U is **API 36**, so `:app:generateReleaseBaselineProfile` can finally run — the hand-authored `baseline-prof.txt` can be replaced with a real one.
