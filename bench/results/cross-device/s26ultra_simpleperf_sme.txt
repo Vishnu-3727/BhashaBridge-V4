@@ -1,0 +1,61 @@
+=== simpleperf: cpu-clock, 31232 samples, 0 lost, 10.99 s under BenchmarkSuiteTest load ===
+
+Event count: 31232000000
+
+Overhead  Shared Object
+83.23%    /data/app/~~bTGE91pVScUmc6cbWIQBYQ==/com.bhashabridge.app-lKEDAJvX55mFrfe70zjvyQ==/base.apk!/lib/arm64-v8a/libonnxruntime.so
+7.54%     /apex/com.android.runtime/lib64/bionic/libc.so
+4.90%     /apex/com.android.art/lib64/libart.so
+3.44%     [JIT app cache]
+0.40%     /system/lib64/libz.so
+0.21%     /apex/com.android.art/lib64/libdexfile.so
+0.16%     /apex/com.android.i18n/lib64/libicuuc.so
+
+=== hottest symbols (library is STRIPPED - offsets only) ===
+
+Overhead  Symbol
+4.34%     libonnxruntime.so[+9afae8]
+3.59%     libonnxruntime.so[+9afaf8]
+2.38%     libonnxruntime.so[+9afaf0]
+2.13%     libonnxruntime.so[+9afafc]
+2.09%     libonnxruntime.so[+9afaec]
+1.66%     __memcpy_aarch64_nt
+1.41%     libonnxruntime.so[+9afb08]
+1.30%     libonnxruntime.so[+9afae0]
+1.26%     libonnxruntime.so[+16758d4]
+
+=== DISASSEMBLY of the hot cluster 0x9afad0.. (21.7% of all ORT time) ===
+    Library is stripped, so this was decoded directly from the .text bytes (capstone).
+  0x9afad0  zero       {za}
+  0x9afad4  ldr        x24, [x0, #0x48]
+  0x9afad8  add        x14, x10, x24
+  0x9afadc  ld1w       {z4.s}, p0/z, [x10]
+  0x9afae0  addvl      x10, x10, #1
+  0x9afae4  ld1h       {z8.h}, p3/z, [x11]
+  0x9afae8  ld1h       {z9.h}, p3/z, [x11, #1, mul vl]
+  0x9afaec  smopa      za0.s, p2/m, p2/m, z4.b, z8.b
+  0x9afaf0  smopa      za1.s, p2/m, p2/m, z4.b, z9.b
+  0x9afaf4  ld1h       {z10.h}, p4/z, [x11, #2, mul vl]
+  0x9afaf8  ld1h       {z11.h}, p4/z, [x11, #3, mul vl]
+  0x9afafc  smopa      za2.s, p2/m, p2/m, z4.b, z10.b
+  0x9afb00  smopa      za3.s, p2/m, p2/m, z4.b, z11.b
+  0x9afb04  addvl      x11, x11, #4
+  0x9afb08  cmp        x10, x14
+  0x9afb0c  b.lt       #0x9afadc
+
+=== KleidiAI kernel name strings present in the shipped libonnxruntime.so ===
+    kai_run_imatmul_clamp_f32_f32p2vlx1_f32p2vlx1b_2vlx2vl_sme2_mopa
+    kai_run_imatmul_clamp_f32_f32p2vlx1_f32p2vlx1b_2vlx2vl_sme_mopa
+    kai_run_matmul_clamp_f32_f32_f32p2vlx1b_1x16vl_sme2_mla
+    kai_run_matmul_clamp_f32_f32_f32p2vlx1b_1x8vl_sme_mla
+    kai_run_matmul_clamp_f32_f32p2vlx1_f32p2vlx1b_2vlx2vl_sme_mopa
+    kai_run_matmul_clamp_f32_f32p2vlx1_f32p2vlx1biasf32_sme2_mopa
+    kai_run_matmul_clamp_f32_qai8dxp1vlx4_qsi8cxp4vlx4_1vlx4vl_sme2_mopa
+    kai_run_matmul_clamp_f32_qai8dxp1vlx4_qsi8cxp4vlx4_1vlx4vl_sme_mopa
+    kai_run_matmul_clamp_f32_qai8dxp1x4_qsi4c32p4x4_1x4_neon_dotprod
+    kai_run_matmul_clamp_f32_qai8dxp1x8_qsi4c32p4x8_1x4x32_neon_dotprod
+    kai_run_matmul_clamp_f32_qai8dxp4x4_qsi4c32p4x4_16x4_neon_dotprod
+    kai_run_matmul_clamp_f32_qai8dxp4x8_qsi4c32p4x8_16x4x32_neon_i8mm
+
+=== MLAS config key ===
+    mlas.disable_kleidiai  (ORT session config entry; used for the A/B)

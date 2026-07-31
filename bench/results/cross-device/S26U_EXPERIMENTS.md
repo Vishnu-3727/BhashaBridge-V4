@@ -172,6 +172,78 @@ single data point would be exactly that over-fit. **Recommendation: cap at 2 onl
 
 ---
 
+## 2c. simpleperf — **the SME question is ANSWERED: SME is live, and it is not the 2×**
+
+§1 established that ORT's profiler cannot see MLAS's SIMD dispatch. `simpleperf` can. Recorded
+`cpu-clock -f 1000 --app com.bhashabridge.app` for 11.0 s under `BenchmarkSuiteTest` load:
+**31,232 samples, 0 lost**. Raw: `s26ultra_simpleperf_sme.txt`.
+
+| Shared object | Overhead |
+|---|---|
+| **`libonnxruntime.so`** | **83.23%** |
+| `libc.so` | 7.54% |
+| `libart.so` | 4.90% |
+| `[JIT app cache]` | 3.44% |
+
+### SME is executing (Measured, direct)
+
+The shipped `libonnxruntime.so` has no `.symtab` and exports only 3 sized functions, so symbol
+attribution is impossible — every hot entry is a bare offset. But the hottest cluster is a **40-byte
+span carrying 21.7% of all ORT time**, which is an inner loop, so it can be decoded straight from
+`.text`:
+
+```
+0x9afad0  zero     {za}                                  ← SME: zero the ZA tile
+0x9afadc  ld1w     {z4.s}, p0/z, [x10]                   ← SVE predicated load
+0x9afae0  addvl    x10, x10, #1                          ← SVE vector-length-scaled increment
+0x9afae4  ld1h     {z8.h}, p3/z, [x11]
+0x9afaec  smopa    za0.s, p2/m, p2/m, z4.b, z8.b         ← SME int8 outer-product accumulate
+0x9afaf0  smopa    za1.s, p2/m, p2/m, z4.b, z9.b
+0x9afafc  smopa    za2.s, p2/m, p2/m, z4.b, z10.b
+0x9afb00  smopa    za3.s, p2/m, p2/m, z4.b, z11.b
+0x9afb0c  b.lt     #0x9afadc
+```
+
+`smopa … z4.b, z8.b` is **signed 8-bit** outer-product into 32-bit accumulators. This is
+`kai_run_matmul_clamp_f32_qai8dxp1vlx4_qsi8cxp4vlx4_1vlx4vl_sme_mopa` — KleidiAI's **SME int8**
+kernel, whose name is present as a string in the shipped library. **SME is dispatched, and it is the
+single hottest piece of code in the application.**
+
+**This corrects a standing project assumption.** The ORT-upgrade notes recorded that "KleidiAI ships
+in the AAR but is inert: its int8 dynamic-quant kernels are SME/SME2-gated; its NEON dotprod/i8mm
+kernels are 4-bit only." Both halves are confirmed by the kernel names — the `neon_dotprod` /
+`neon_i8mm` kernels are `qsi4c32p` (**4-bit**, useless for our 8-bit weights) while the SME kernels
+are `qsi8cxp` (**8-bit**). The conclusion "inert" was correct **for Armv8.0–8.6 hardware only**. On
+SME silicon KleidiAI is live, and the 8-bit gap closes.
+
+### But it is worth single digits, not 2× (Measured direction, loose magnitude)
+
+`mlas.disable_kleidiai` (found in the library, plumbed through `OrtTuning.disableKleidiAi` as a
+benchmark-only knob) forces MLAS's own kernels, which isolates the contribution. Two runs, both
+thread counts:
+
+| | `intra4` | `intra4` no-KleidiAI | `intra1` | `intra1` no-KleidiAI |
+|---|---|---|---|---|
+| Run A (33.0 °C start) | 102 ms | 107 ms (**+4.9%**) | 111 ms | 115 ms (**+3.6%**) |
+| Run B (34.8 → 36.7 °C) | 110 ms | 120 ms (**+9.1%**) | 122 ms | 133 ms (**+9.0%**) |
+
+**Direction is consistent at all four measurement points: KleidiAI/SME on is faster.** Magnitude is
+**loosely bounded at ~4–9%** and deliberately not pinned tighter — both A/B runs were thermally
+degraded (stdev 12–25 ms against the 3–8 ms of the clean §2b run), and the device passed 35 °C
+mid-sequence. Benchmarking was stopped rather than collect more compromised data.
+
+### What this settles
+
+**The S26U's 2× lead over the S22U is NOT explained by SME.** SME is real, active, and the hottest
+kernel — and disabling it costs only single-digit percent. The remaining advantage must come from the
+Oryon microarchitecture, the 4-thread configuration, and the cool unthrottled run. `CROSS_DEVICE_REPORT`
+§6a′ hoped an SME part would show "~2×"; the honest answer, now measured directly rather than
+inferred, is **no — the ISA rung is worth a few percent here, and the microarchitecture carries the
+rest.** That is the opposite of the tempting narrative and is the single most useful result of this
+session.
+
+---
+
 ## 3. Speech pipeline — ASR crosses the realtime threshold
 
 `SpeechPipelineBenchmarkTest`, fixture `speech_i_need_water.wav`, **2.65 s @ 16 kHz mono** — the same
@@ -246,6 +318,6 @@ Four of the six items this session opened were closed by it, three of them negat
 | Re-examine `cpuArena=false` | **Closed — refuted (§2b C2).** Keep the shipping default |
 | Pin the idle prime cores | **Closed — no gain (§2b C3).** Opportunity withdrawn |
 | Baseline Profile generation | **Closed.** Generated on device (API 36); 4510 rules vs 27 hand-written. Effect on TTID still unmeasured |
-| `simpleperf` symbol capture for SME/i8mm | **Still open** — the only route left to the SME question |
+| `simpleperf` symbol capture for SME/i8mm | **Closed (§2c).** SME confirmed executing (`smopa` int8, hottest loop in the app) and isolated by A/B at **~4–9%, not 2×** |
 | Cap `threads` at 2 for 8-perf-core parts | **Open, deliberately not applied** — needs a second 8-perf-core device before changing a nine-device-validated rule (§2b) |
 | Startup profile rules | **Open** — `BaselineProfileGenerator` does not set `includeInStartupProfile = true`, so there is no startup profile |

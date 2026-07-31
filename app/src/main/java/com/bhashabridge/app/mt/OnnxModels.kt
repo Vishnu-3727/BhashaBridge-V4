@@ -413,6 +413,13 @@ data class OrtTuning(
      */
     val intraOpAffinities: String? = null,
     /**
+     * Sets MLAS's `mlas.disable_kleidiai`, turning off Arm's KleidiAI microkernels. **Benchmark-only**
+     * — the default of false is what ships, because KleidiAI is a straight win where it dispatches.
+     * Exists so the SME/i8mm contribution can be isolated by A/B, which neither ORT profiling nor the
+     * CPU feature flags can do on their own.
+     */
+    val disableKleidiAi: Boolean = false,
+    /**
      * P8 operator profiling. When non-null, ONNX Runtime's built-in profiler is enabled on every
      * session, writing one Chrome-trace JSON per graph under this directory (see
      * [OnnxModels.endProfiling]). `null` (default) = profiler off = **zero runtime overhead and no
@@ -436,6 +443,11 @@ data class OrtTuning(
         if (intraThreads != null && !intraOpAffinities.isNullOrBlank()) {
             o.addConfigEntry("session.intra_op_thread_affinities", intraOpAffinities)
         }
+        // Measurement knob only — never set in production. MLAS dispatches KleidiAI microkernels on
+        // capable silicon; on the SM-S948B (SME) the hot int8 GEMM is KleidiAI's `smopa` SME kernel,
+        // confirmed by simpleperf. Turning it off is the only way to attribute the gain, since the
+        // dispatch is otherwise invisible to ORT profiling. See bench/results/cross-device/.
+        if (disableKleidiAi) o.addConfigEntry("mlas.disable_kleidiai", "1")
         return o
     }
 

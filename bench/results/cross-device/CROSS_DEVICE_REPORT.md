@@ -138,7 +138,7 @@ Cold→warm on the devices with a valid warm phase is the Phase 2A/2B cache win 
 
 **What cannot be attributed, and why (Estimated).** Entry #9 differs from the S22U on **four axes at once** — 4 intra-op threads vs 1, Oryon vs Cortex-X2 microarchitecture, cool-and-unthrottled vs 63–68 °C and downclocking, and SVE2/SME present vs absent. The 2× is therefore **real but unattributed**; none of the four can be isolated from this single run. In particular:
 
-- **SME is present but its use is unproven.** `sme=true` (with `smei8i32`, the int8 matrix flag) yet `sme2=false`. Whether ORT 1.27.0 / MLAS actually dispatched an SME or SVE2 kernel here **was not measured** — the ORT notes record that KleidiAI's int8 dynamic-quant microkernels are SME/SME2-gated, and with base SME but no SME2 it is genuinely unclear whether they engaged. **No SME speedup is claimed.** The operator profiling added in `c5dff5f` is the instrument that would settle it (§10).
+- **SME is present, executing, and worth ~4–9% — NOT the 2× (Measured; see `S26U_EXPERIMENTS.md` §2c).** `simpleperf` shows 83.2% of CPU inside `libonnxruntime.so`, and the hottest 40-byte loop (21.7% of all ORT time) disassembles to KleidiAI's **SME int8 kernel** — `smopa za0.s, p2/m, p2/m, z4.b, z8.b`, signed 8-bit outer-product into 32-bit accumulators. So SME *is* dispatched. But disabling it via `mlas.disable_kleidiai` costs only **4–9%** across two runs and both thread counts. **The 2× is therefore microarchitecture + thread count + thermal headroom, not the ISA rung.**
 - **The thread-count jump alone is a plausible large share** — this is the first 4-thread run in the database, against a field of 1- and 2-thread runs.
 - **The prime cores contributed nothing** (§2), so this figure is what six of eight Oryon cores produced.
 
@@ -270,10 +270,12 @@ What entry #9 *does* settle, and what it does not:
 |---|---|
 | Does the classifier fix convert a mis-scored flagship into a multithreaded run? | **Answered — Measured.** intra=4, verified in the on-device policy log (§1) |
 | Is there large headroom above the Armv8.2 plateau? | **Answered — Measured.** 412.8 vs a 152–208 tok/s field |
-| Is the i8mm/SME kernel responsible for that headroom? | **Still open.** Not isolated; ORT never logs which kernel it dispatched |
-| Does SME (without SME2) engage at all in ORT 1.27.0? | **Still open — and now the single most valuable unknown**, because this is the only device that can answer it |
+| Is the i8mm/SME kernel responsible for that headroom? | **Answered — NO.** Isolated by `mlas.disable_kleidiai`: worth **4–9%**, not the 2× (`S26U_EXPERIMENTS.md` §2c) |
+| Does SME (without SME2) engage at all in ORT 1.27.0? | **Answered — YES.** `simpleperf` + disassembly show KleidiAI's `smopa` int8 SME kernel is the hottest loop in the app |
 
 The clean isolation requires holding the device fixed and varying one axis — an intra-thread sweep (1/2/4/6) on *this* device, plus the operator profiling from `c5dff5f`. That is a same-device experiment, not another phone (§10).
+
+**Both were run, and the answer is in (see `S26U_EXPERIMENTS.md`).** The thread sweep on the production path shows `intra1`/`intra2` beating shipping `intra4` by ≈5%; `simpleperf` proves KleidiAI's SME int8 kernel is executing and is the hottest loop in the app; and the `mlas.disable_kleidiai` A/B prices that kernel at **4–9%**. **So the ISA rung is worth single digits and the 2× belongs to the Oryon core, the thread count and the thermal headroom.** §6a′'s hoped-for "~2× from i8mm/SME" is answered in the negative — by measurement, not inference.
 
 ### 6b. Within Armv8.2 — the controlled A78 pair (g73 vs M14): clock does NOT explain throughput
 This is the most informative comparison in the database: **same core IP (A78+A55), same ISA, same dotprod, same policy.** They differ mainly in SoC vendor, memory subsystem, and clock.

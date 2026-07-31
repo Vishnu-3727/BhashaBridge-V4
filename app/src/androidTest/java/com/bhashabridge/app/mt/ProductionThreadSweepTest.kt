@@ -68,6 +68,12 @@ class ProductionThreadSweepTest {
                 val group = primeIds.joinToString(",") { (it + 1).toString() }
                 add("intra2_primePin" to base.copy(name = "intra2_primePin", intraThreads = 2, intraOpAffinities = group))
             }
+            // KleidiAI off: the ONLY way to attribute the SME contribution. simpleperf shows the hot
+            // int8 GEMM on this device is KleidiAI's SME `smopa` kernel; disabling it forces MLAS's
+            // own kernels, so the delta is what SME+KleidiAI is worth. Measured at both the shipping
+            // thread count and the fastest one so the two variables do not confound.
+            add("intra4_noKleidiAI" to base.copy(name = "intra4_noKleidiAI", intraThreads = 4, disableKleidiAi = true, intraOpAffinities = null))
+            add("intra1_noKleidiAI" to base.copy(name = "intra1_noKleidiAI", intraThreads = 1, disableKleidiAi = true, intraOpAffinities = null))
         }
 
         val longSamples = LinkedHashMap<String, MutableList<Long>>()
