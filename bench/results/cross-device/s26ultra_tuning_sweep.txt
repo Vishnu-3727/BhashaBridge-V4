@@ -1,0 +1,45 @@
+﻿=== PARITY ===
+  all outputs identical to baseline
+
+=== TOTAL_MS median (Δ% vs baseline), per sentence ===
+config                          s0                s1   mem_MB
+baseline             63.1 ( +0.0%)    106.8 ( +0.0%)      692
+opt_none             84.6 (+34.1%)    136.3 (+27.7%)      952
+opt_extended         61.2 ( -3.0%)    108.8 ( +1.9%)      677
+intra1               57.6 ( -8.7%)    100.3 ( -6.1%)      679
+intra2               58.3 ( -7.5%)    101.2 ( -5.3%)      706
+intra4               63.7 ( +1.0%)    113.6 ( +6.4%)      697
+intra8               89.4 (+41.7%)    155.0 (+45.1%)      698
+parallel             67.6 ( +7.1%)    128.2 (+20.1%)      703
+parallel_inter2      95.6 (+51.6%)    162.6 (+52.3%)      694
+arena_off            76.8 (+21.8%)    131.9 (+23.5%)      667
+mempattern_off       68.5 ( +8.6%)    141.2 (+32.3%)      701
+baseline_end         67.4 ( +6.9%)    121.1 (+13.4%)      674
+
+=== DECODE_MS median (Δ% vs baseline) ===
+baseline             56.0 ( +0.0%)     98.1 ( +0.0%)
+opt_none             73.9 (+31.9%)    124.1 (+26.5%)
+opt_extended         53.6 ( -4.3%)     99.5 ( +1.5%)
+intra1               50.1 (-10.5%)     90.0 ( -8.2%)
+intra2               52.1 ( -7.0%)     93.5 ( -4.6%)
+intra4               55.8 ( -0.4%)    102.6 ( +4.6%)
+intra8               81.7 (+46.0%)    137.5 (+40.2%)
+parallel             58.9 ( +5.1%)    117.0 (+19.3%)
+parallel_inter2      79.9 (+42.7%)    143.0 (+45.8%)
+arena_off            67.7 (+21.0%)    120.2 (+22.6%)
+mempattern_off       60.6 ( +8.3%)    128.5 (+31.0%)
+baseline_end         56.9 ( +1.7%)    107.9 (+10.0%)
+
+=== spread (longest sentence s1) ===
+  baseline         median=  106.8  p95=  112.6  stdev=  3.4  n=30
+  opt_none         median=  136.3  p95=  142.3  stdev=  3.0  n=30
+  opt_extended     median=  108.8  p95=  129.7  stdev=  8.4  n=30
+  intra1           median=  100.3  p95=  107.7  stdev=  3.3  n=30
+  intra2           median=  101.2  p95=  112.2  stdev=  4.1  n=30
+  intra4           median=  113.6  p95=  122.3  stdev=  5.0  n=30
+  intra8           median=  155.0  p95=  211.6  stdev= 22.5  n=30
+  parallel         median=  128.2  p95=  139.3  stdev=  6.7  n=30
+  parallel_inter2  median=  162.6  p95=  172.2  stdev=  4.7  n=30
+  arena_off        median=  131.9  p95=  144.3  stdev= 12.9  n=30
+  mempattern_off   median=  141.2  p95=  158.8  stdev= 13.6  n=30
+  baseline_end     median=  121.1  p95=  143.3  stdev= 12.3  n=30

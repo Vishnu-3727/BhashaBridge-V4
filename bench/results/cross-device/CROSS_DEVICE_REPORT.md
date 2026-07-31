@@ -19,6 +19,8 @@ Raw entries (append-only, never overwritten):
 - `bench/results/cross-device/samsung_s22ultra_snapdragon8gen1.json` — Samsung S22 Ultra (entry #8, first i8mm / Armv9)
 - `bench/results/cross-device/s26ultra_sd8elitegen5.json` — Samsung S26 Ultra (entry #9, first **ARMv9 / SVE2 / SME**, first uniform-IP CPU)
 
+**Same-device follow-up experiments for entry #9 live in [`S26U_EXPERIMENTS.md`](S26U_EXPERIMENTS.md)** — operator profiling, the intra-op thread sweep, the speech pipeline, and the affinity A/B. Two of them returned results that bear on shipping defaults; §10 below is updated from them.
+
 ---
 
 ## 1. Devices Under Test
@@ -440,10 +442,13 @@ Not repeating already-implemented work (ORT upgrade, `.ort`+mmap, adaptive polic
 
 **Hardware coverage is now complete for the questions this database was built to answer** — Armv8.0 → ARMv9, four silicon vendors, 2- / 4- / tri-cluster and uniform-IP topologies, dotprod → i8mm → SVE2 + SME. Item #4 of the previous revision (an SME-exposing part) is **closed by entry #9**. Every remaining item is an experiment on hardware already in hand, and **another phone would add nothing**:
 
-1. **Intra-thread sweep on the S26U (1/2/4/6/8).** Highest value, low difficulty. Separates thread scaling from ISA — the confound that has blocked §6a′ across two revisions — and tests whether `threads = perfCores/2` is still right when all eight cores are big. Same device, one build.
-2. **ORT operator profiling on the S26U (`c5dff5f` already ships it).** The only way to learn whether SME/SVE2 kernels dispatch at all under base `sme` without `sme2`. This is now the top open *technical* unknown, and exactly one device in the world of this database can answer it.
-3. **Pin the idle prime cores (§2, §8).** 4742 MHz silicon sat at 883 MHz for an entire benchmark run. Cheap to test, plausibly moves the record again.
+**Items 1 and 2 have now been run** — see [`S26U_EXPERIMENTS.md`](S26U_EXPERIMENTS.md). Both returned partly negative results, which changes what is worth doing next:
+
+1. ~~Intra-thread sweep on the S26U.~~ **DONE.** Result: `intra1`/`intra2` beat the shipping `intra4` by ≈10% drift-corrected, and `cpuArena=false` (also shipping) costs ≈12% on this device. But the sweep runs the **non-production load path** (`optCache` off, ALL_OPT, source `.onnx`), so this is evidence, not proof. **The replacement item is a production-path A/B at intra 1/2/4** — it bears directly on a shipping default and is the highest-value open experiment.
+2. ~~ORT operator profiling to detect SME/SVE2 dispatch.~~ **DONE, and it cannot answer the question.** MLAS's internal SIMD dispatch is invisible to ORT profiling. It did establish that the workload is **not GEMM-dominated** (int8 GEMM ≈45%, tensor movement ≈31%, ORT dispatch overhead ≈21%), which redirects effort toward **fusion and traffic reduction rather than more threads**. **The replacement item is `simpleperf record` + symbol capture**, the only remaining route to the SME question.
+3. **Pin the idle prime cores (§2, §8).** 4742 MHz silicon sat at 883 MHz for an entire benchmark run. Cheap to test, plausibly moves the record again. Unchanged.
 4. **Instrument ORT mmap acceptance** and inspect the `.ort` backing mount. §5a retracted the platform-exclusive finding; the conclusion has now been rewritten three times on footprint inference alone. Device-swapping is *proven* exhausted — only a log line resolves it.
 5. **QNN-EP experiment on any of the three Qualcomm devices** — Hexagon/HTP remains the one accelerator path never tested (§8).
+6. **Regenerate the Baseline Profile.** Blocked since Phase 4 because ART needs API 33+ to collect and the only phone was API 31. The S26U is **API 36**, so `:app:generateReleaseBaselineProfile` can finally run — the hand-authored `baseline-prof.txt` can be replaced with a real one.
 
 **If a device is ever wanted again:** only an **SME2**-exposing part would add a genuinely new capability cell, and only after items 1–2 establish whether base SME does anything for this workload. Adding a tenth Armv8.2 or i8mm phone would produce a row and no knowledge.
