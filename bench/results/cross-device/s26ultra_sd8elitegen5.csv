@@ -1,0 +1,2 @@
+model,timestampMs,startup.cold.engineInitMs,startup.warm.engineInitMs,startup.hot.engineInitMs,startup.cold.modelLoadMs,startup.warm.tokenizerMs,inference.firstTranslationMs,inference.median,inference.p95,inference.p99,inference.stdev,inference.tokensPerSec,memory.totalPssKb,memory.nativeHeapKb,memory.rssKb,cache.ortBytes,thermal.batteryTempC
+SM-S948B,1785483828878,2472,923,928,1916,291,110,99.0,113.0,117.0,37.628,412.768,178109,74548,256712,472948560,30.0
