@@ -87,6 +87,10 @@ Configs run in list order, so the penalty is ≈ **+1.2% per position**. Long se
 
 ### Findings
 
+> **⚠ §2's F1 and F2 were both revised by §2b below.** F1 (thread count) survives with its magnitude
+> cut from ≈10% to ≈5%; **F2 (`cpuArena=false`) is refuted outright** — it was a non-production-path
+> artifact. Read §2b before quoting anything here.
+
 **F1 — `threads = perfCores/2` overshoots on this device (Measured, with a caveat).** The classifier
 fix correctly established `perfCores = 8`; the *derived* thread count of 4 is then ~10% slower than
 1 or 2. The fix is still right — labelling six 3.6 GHz Oryon cores "efficiency" was factually wrong —
@@ -113,6 +117,58 @@ production-path A/B at intra 1/2/4, which has not been run.** Until then F1 and 
 
 Supporting evidence that the ~10% gap is signal, not noise: §4 below measured **~1% run-to-run spread
 between two runs of an identical config** on this device.
+
+---
+
+## 2b. Production-path A/B — **run; it corrects §2 twice**
+
+`ProductionThreadSweepTest` (new). Keeps `ExecutionPolicy.current` intact — `optCache=true`, so every
+config loads the baked `.ort` under NO_OPT with mmap, the real shipping path — and varies one knob on
+top. **7 configs × 3 rounds, order rotated each round, n=45 per config**, so position (and therefore
+thermal drift) averages out instead of accumulating as it does in §2. Battery 31.7 → 34.7 °C during
+the run. All arms parity-exact. Raw: `s26ultra_production_sweep.txt`.
+
+| Config | long median | stdev | short median | Δ long vs shipping |
+|---|---|---|---|---|
+| **`intra1`** | **98 ms** | 3.9 | **27 ms** | **−5.8%** |
+| **`intra2`** | **99 ms** | 3.0 | **27 ms** | **−4.8%** |
+| `intra2_primePin` | 99 ms | 3.8 | 27 ms | −4.8% |
+| `intra4` *(shipping)* | 104 ms | 4.2 | 31 ms | — |
+| `intra4_arenaOn` | 106 ms | 6.1 | 32 ms | +1.9% |
+| `intra6` | 116 ms | 8.2 | 38 ms | +11.5% |
+| `intra8` | 150 ms | 14.9 | 39 ms | +44.2% |
+
+### C1 — F1 confirmed, but smaller than §2 claimed (now **Measured**)
+
+`intra1`/`intra2` beat the shipping `intra4` on the production path too — but by **≈5% on the long
+sentence, not the ≈10% the non-production sweep suggested**. The short-sentence gap is larger
+(27 vs 31 ms, **−12.9%**), which matters because short utterances are the common case in an
+emergency-phrase translator. Direction confirmed, magnitude revised down. `intra6`/`intra8` degrade
+steeply, reproducing the oversubscription pattern.
+
+### C2 — **F2 is REFUTED. `cpuArena=false` should stay.**
+
+§2 claimed the shipping `cpuArena=false` costs ≈12%. On the production path turning the arena **on**
+is **1.9% slower** (106 vs 104 ms) and noisier (stdev 6.1 vs 4.2). The §2 result was an artifact of
+the non-production load path, exactly the caveat that kept it *Inferred*. **No change to the arena
+default is warranted** — Phase 7's decision stands on this device as well.
+
+### C3 — **Prime-core pinning gains nothing (negative result)**
+
+`CROSS_DEVICE_REPORT` §2 flagged that the two 4742 MHz prime Oryons idled at 883 MHz for the whole
+entry-#9 run, and §8 ranked pinning to them as an **Estimated moderate** win. Measured:
+`intra2_primePin` (workers pinned to cpu6-7, ORT ids `7,8`) is **99 ms — identical to plain `intra2`
+at 99 ms**, within stdev. **Pinning to the idle prime tier does not help.** The idle primes were not
+costing throughput, so that opportunity is closed, not pending.
+
+### What this does *not* license
+
+The rule is `threads = (perfCores/2).coerceIn(1,4)`. Capping at 2 would fix this device and change
+nothing on any other entry in the database (every other part has ≤4 perf cores, so it already derives
+1 or 2). But **this is one device with one 8-perf-core topology**, and the report's own §6d argues the
+policy's value is that it is a rule rather than a fit. Changing a nine-device-validated default on a
+single data point would be exactly that over-fit. **Recommendation: cap at 2 only after a second
+8-perf-core part confirms it** — recorded as a recommendation, deliberately not applied.
 
 ---
 
@@ -182,10 +238,14 @@ Phase 2B cache design.
 
 ## 6. Open items after this session
 
-1. **Production-path thread A/B at intra 1/2/4** — the one experiment that would convert §2's F1 from
-   Inferred to Measured, and it bears on a shipping default.
-2. **Re-examine `cpuArena=false`** as a universal default (§2 F2).
-3. **`simpleperf` symbol capture** — the only remaining route to the SME/i8mm dispatch question.
-4. **Pin the idle prime cores** and re-measure.
-5. **Baseline Profile generation** — blocked since Phase 4 on needing API 33+; this device is API 36,
-   so `:app:generateReleaseBaselineProfile` can finally run. Not attempted in this session.
+Four of the six items this session opened were closed by it, three of them negatively.
+
+| Item | Status |
+|---|---|
+| Production-path thread A/B | **Closed (§2b).** F1 confirmed at ≈5%, not ≈10% |
+| Re-examine `cpuArena=false` | **Closed — refuted (§2b C2).** Keep the shipping default |
+| Pin the idle prime cores | **Closed — no gain (§2b C3).** Opportunity withdrawn |
+| Baseline Profile generation | **Closed.** Generated on device (API 36); 4510 rules vs 27 hand-written. Effect on TTID still unmeasured |
+| `simpleperf` symbol capture for SME/i8mm | **Still open** — the only route left to the SME question |
+| Cap `threads` at 2 for 8-perf-core parts | **Open, deliberately not applied** — needs a second 8-perf-core device before changing a nine-device-validated rule (§2b) |
+| Startup profile rules | **Open** — `BaselineProfileGenerator` does not set `includeInStartupProfile = true`, so there is no startup profile |
