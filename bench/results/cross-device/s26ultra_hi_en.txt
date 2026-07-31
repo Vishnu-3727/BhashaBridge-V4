@@ -1,0 +1,11 @@
+
+===== C:/Users/vishn/AppData/Local/Temp/claude/C--WINDOWS-system32/9b80ad79-46a8-441d-90d7-076ade8feedc/scratchpad/hien2.log =====
+Traceback (most recent call last):
+  File "C:\Users\vishn\AndroidStudioProjects\BhashaBridgeV4\model_pipeline\bench_parse.py", line 95, in <module>
+    parse(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else sys.argv[1])
+  File "C:\Users\vishn\AndroidStudioProjects\BhashaBridgeV4\model_pipeline\bench_parse.py", line 86, in parse
+    print(f"\n[{i}] \"{sent_text.get(i,'')[:50]}\"  out=\"{sent_out.get(i,'')}\"")
+  File "C:\Users\vishn\.pyenv\pyenv-win\versions\3.12.9\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 7-11: character maps to <undefined>

@@ -291,6 +291,63 @@ the interesting experiment is pinning *to* the two idle 4742 MHz prime cores (§
 
 ---
 
+## 4b. HI→EN — the reverse direction, measured for the first time on entry #9
+
+Every cross-device entry to date is EN→HI only. `HiEnBenchmarkTest`, warm `.ort` cache, production
+policy (`intra=4`), 30 runs/sentence:
+
+| Input | Output | tokens | median | p95 | stdev | tok/s |
+|---|---|---|---|---|---|---|
+| `पानी।` | `Water .` | 2 | **23.8 ms** | 28.6 | 3.0 | 116.1 |
+| `नमस्ते, आप कैसे हैं?` | `Hi , how are you ?` | 6 | **43.2 ms** | 51.5 | 3.9 | 159.0 |
+| `आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ।` | `The weather is great today and I want to go out .` | 12 | **76.7 ms** | 81.5 | 3.6 | 177.0 |
+
+**HI→EN is ~28% faster than EN→HI on the same device** (76.7 ms vs ~106 ms at 12 tokens),
+reproducing the Phase 12 result from the SM-M315F for the same reason: the indic-en checkpoint's
+per-token `lm_head` is 32k wide, not 122k. Output correct in all three cases.
+
+### A within-device memory asymmetry — and a trap that nearly became a false finding
+
+| State (warm, cache hit) | total PSS |
+|---|---|
+| EN→HI only (entry #9 benchmark) | **174 MB** |
+| HI→EN only | **528 MB** |
+| both directions resident | **1077 MB** |
+
+The first HI→EN reading was **761 MB**, which looked like "mmap is ineffective for HI→EN". It was
+not a finding — it was the **one-time `.ort` bake**: that run was the first to load HI→EN under the
+production policy, so `bakeOrt` extracted the 318 MB of source `.onnx` and ran ALL_OPT. Confirmed by
+inspecting `filesDir` (the `hi_en_*.onnx` sources were present while the EN→HI ones were already
+purged) and by re-running: sources gone, PSS 761 → 528 MB. **Anything measuring memory on a
+direction's first-ever production launch is measuring the bake, not the steady state.**
+
+The remaining 174 vs 528 MB gap *is* real — same device, same session options, same mmap flag, and
+the HI→EN model is **smaller on disk** (318 MB of `.ort` vs 451 MB) yet **3× more resident**. This is
+a useful constraint on the §5a mmap mystery: whatever governs mmap effectiveness **cannot be a pure
+device/platform/kernel property**, because two models differ 3× on one device in one session. It is
+at least partly graph- or model-dependent. Recorded as an observation; the mechanism still needs the
+ORT-acceptance instrumentation §5a asks for.
+
+---
+
+## 4c. Static analysis and host-side checks
+
+- **Python selftests pass**: `ort_profile_report.py --selftest` OK; `verify_cache.py --selfcheck` 6/6
+  PASS (flatten/unflatten round-trip, cache growth, cross-attn constancy, K/V shapes).
+- **Android lint had never been run in this project. It reports 22 errors and 63 warnings**, all
+  pre-existing. Most are cosmetic (21 `MissingTranslation`, 14 `GradleDependency`, 10
+  `IconLauncherShape`). Two are worth attention:
+
+| Finding | Why it matters |
+|---|---|
+| **`Aligned16KB`: `arm64-v8a/libvosk.so` (`com.alphacephei:vosk-android:0.3.47`) is not 16 KB aligned** | Android 15+ devices ship **16 KB page sizes**, and Play requires 16 KB support for new targets. `libonnxruntime.so` **is** aligned, so translation is safe — but **the speech path would fail to load on a 16 KB-page device**. This device uses 4 KB pages, so it does not manifest here. Fixing needs a newer Vosk build, i.e. a dependency decision, not a code change. |
+| `LockedOrientationActivity` ×2 | Expected — the deliberate Phase 10 portrait lock that fixed the unusable landscape layout. Not a defect; a candidate for a lint baseline/suppression. |
+
+Neither was fixed: both are outside "run the tests", and the first is a dependency upgrade with its
+own validation burden.
+
+---
+
 ## 5. Three tests were passing while measuring nothing
 
 A theme across this session, worth recording because all three look green in CI:
