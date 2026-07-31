@@ -53,7 +53,9 @@ data class CpuCapabilities(
                         .readText().trim().toLong()
                 }.getOrDefault(0L)
             }
-            val (perfIds, effIds) = perfEffSplit(maxFreqs)
+            val cpuParts = Regex("(?im)^CPU part\\s*:\\s*(\\S+)\\s*$")
+                .findAll(cpuinfo).map { it.groupValues[1] }.toList()
+            val (perfIds, effIds) = perfEffSplit(maxFreqs, cpuParts)
 
             val neon = has("asimd", "neon")
             val fp16 = has("asimdhp", "fphp")
@@ -92,10 +94,28 @@ data class CpuCapabilities(
          * core as performance (a safe over-estimate for the thread count; affinity is then skipped for
          * lack of a big/LITTLE split). Unreadable (0) cores never join the performance pool. Cpu ids are
          * the real kernel numbering (the list index). Visible for test; see `CpuCapabilitiesTest`.
+         *
+         * [cpuParts] are the `CPU part` ids from `/proc/cpuinfo`, in processor order, and gate the whole
+         * frequency rule: **a frequency tier is only an efficiency cluster if the cores in it are a
+         * different core IP.** On a uniform-IP CPU (Snapdragon 8 Elite Gen 5: 8× Oryon, all part `0x002`,
+         * 2 prime @ 4742 MHz + 6 performance @ 3629) the bottom tier is six big cores, not a little
+         * cluster, and splitting on frequency would leave one intra-op thread on an 8-core flagship.
+         * Frequency ratio cannot substitute for this: the Dimensity 930's genuine A55/A78 split sits at
+         * 2000/2200 = 0.91, *higher* than that Oryon part's 0.77, so any ratio threshold that spared the
+         * Oryon would collapse a real big.LITTLE. Empty or partial [cpuParts] (kernel did not describe
+         * every core) fall back to the frequency-only rule.
          */
-        internal fun perfEffSplit(maxFreqs: List<Long>): Pair<List<Int>, List<Int>> {
+        internal fun perfEffSplit(
+            maxFreqs: List<Long>,
+            cpuParts: List<String> = emptyList(),
+        ): Pair<List<Int>, List<Int>> {
             val distinct = maxFreqs.filter { it > 0L }.distinct()
             if (distinct.size <= 1) return maxFreqs.indices.toList() to emptyList()
+            // Uniform core IP ⇒ no little cluster, whatever the DVFS tiers say. Only trusted when the
+            // kernel described every core, so a partial cpuinfo can never fake uniformity.
+            if (cpuParts.size == maxFreqs.size && cpuParts.distinct().size == 1) {
+                return maxFreqs.indices.toList() to emptyList()
+            }
             val littleFreq = distinct.min()
             val perf = maxFreqs.indices.filter { maxFreqs[it] > littleFreq }
             val eff = maxFreqs.indices.filter { it !in perf }

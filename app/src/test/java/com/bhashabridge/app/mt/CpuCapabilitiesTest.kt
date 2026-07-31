@@ -52,4 +52,36 @@ class CpuCapabilitiesTest {
         assertEquals(listOf(2, 3), perf)
         assertEquals(listOf(0, 1), eff)
     }
+
+    @Test fun uniformCoreIpIsAllPerformanceDespiteTwoFrequencyTiers() {
+        // SM-S948B (SD 8 Elite Gen 5): 8× Oryon, every core part 0x002 — 6 perf @3629, 2 prime @4742.
+        // No little cluster exists, so the bottom tier must NOT become the efficiency pool.
+        val freqs = listOf(
+            3628800L, 3628800L, 3628800L, 3628800L, 3628800L, 3628800L, 4742400L, 4742400L,
+        )
+        val (perf, eff) = CpuCapabilities.perfEffSplit(freqs, List(8) { "0x002" })
+        assertEquals("all 8 Oryon cores are performance", (0..7).toList(), perf)
+        assertEquals("a uniform-IP CPU has no efficiency cluster", emptyList<Int>(), eff)
+    }
+
+    @Test fun heterogeneousPartsStillSplitByFrequency() {
+        // Same tri-cluster part as the first test, now with its real CPU part ids supplied: the parts
+        // differ, so the frequency rule still applies and the split is unchanged.
+        val freqs = listOf(
+            1785000L, 1785000L, 1785000L, 1785000L, 2496000L, 2496000L, 2496000L, 2995000L,
+        )
+        val parts = listOf("0xd46", "0xd46", "0xd46", "0xd46", "0xd47", "0xd47", "0xd47", "0xd4e")
+        val (perf, eff) = CpuCapabilities.perfEffSplit(freqs, parts)
+        assertEquals(listOf(4, 5, 6, 7), perf)
+        assertEquals(listOf(0, 1, 2, 3), eff)
+    }
+
+    @Test fun partialCpuPartsFallBackToFrequencyRule() {
+        // Kernel described only some cores: uniformity is unproven, so the frequency split must stand
+        // rather than silently promoting a genuine little cluster to performance.
+        val freqs = listOf(2000000L, 2000000L, 2000000L, 2000000L, 2500000L, 2500000L, 2500000L, 2500000L)
+        val (perf, eff) = CpuCapabilities.perfEffSplit(freqs, listOf("0xd05", "0xd41"))
+        assertEquals(listOf(4, 5, 6, 7), perf)
+        assertEquals(listOf(0, 1, 2, 3), eff)
+    }
 }
