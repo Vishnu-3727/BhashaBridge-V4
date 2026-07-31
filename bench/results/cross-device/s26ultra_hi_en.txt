@@ -1,11 +1,30 @@
+﻿
+===== C:\Users\vishn\AppData\Local\Temp\claude\C--WINDOWS-system32\9b80ad79-46a8-441d-90d7-076ade8feedc\scratchpad\hien2.log =====
 
-===== C:/Users/vishn/AppData/Local/Temp/claude/C--WINDOWS-system32/9b80ad79-46a8-441d-90d7-076ade8feedc/scratchpad/hien2.log =====
-Traceback (most recent call last):
-  File "C:\Users\vishn\AndroidStudioProjects\BhashaBridgeV4\model_pipeline\bench_parse.py", line 95, in <module>
-    parse(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else sys.argv[1])
-  File "C:\Users\vishn\AndroidStudioProjects\BhashaBridgeV4\model_pipeline\bench_parse.py", line 86, in parse
-    print(f"\n[{i}] \"{sent_text.get(i,'')[:50]}\"  out=\"{sent_out.get(i,'')}\"")
-  File "C:\Users\vishn\.pyenv\pyenv-win\versions\3.12.9\Lib\encodings\cp1252.py", line 19, in encode
-    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-UnicodeEncodeError: 'charmap' codec can't encode characters in position 7-11: character maps to <undefined>
+[0] "पानी।"  out="Water ."
+    runs=30  avg_tokens=2.0  avg_steps=2.0
+    total_ms   median=23.8  p95=28.6  stdev=3.0
+    encoder_ms median=3.8
+    decode_ms  median=17.2  p95=23.1  stdev=2.7
+    tokens/sec median=116.1
+
+[1] "नमस्ते, आप कैसे हैं?"  out="Hi , how are you ?"
+    runs=30  avg_tokens=6.0  avg_steps=6.0
+    total_ms   median=43.2  p95=51.5  stdev=3.9
+    encoder_ms median=4.9
+    decode_ms  median=37.7  p95=46.1  stdev=3.5
+    tokens/sec median=159.0
+
+[2] "आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ।"  out="The weather is great today and I want to go out ."
+    runs=30  avg_tokens=12.0  avg_steps=12.0
+    total_ms   median=76.7  p95=81.5  stdev=3.6
+    encoder_ms median=7.7
+    decode_ms  median=67.8  p95=73.1  stdev=2.7
+    tokens/sec median=177.0
+
+[3] "memory probe (not a benchmark)"  out=""
+    runs=2  avg_tokens=2.0  avg_steps=2.0
+    total_ms   median=27.9  p95=30.8  stdev=2.9
+    encoder_ms median=4.4
+    decode_ms  median=23.3  p95=26.1  stdev=2.8
+    tokens/sec median=87.3
