@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.bhashabridge.app.Direction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.sqrt
@@ -49,6 +50,18 @@ class AffinityBenchmarkTest {
         Log.i(TAG, "AFFINITY threads=$threads perfIds=${caps.performanceCoreIds} effIds=${caps.efficiencyCoreIds}")
         Log.i(TAG, "AFFINITY_STRING on='${base.intraOpAffinities}' little='$littleAffinity'")
         Log.i(TAG, "TEMP_START ${batteryTemp()}")
+
+        // The ON arm is only an arm if the policy actually produced an affinity string. It returns null
+        // when there is no efficiency cluster to pin away from (a uniform-IP CPU such as the Snapdragon
+        // 8 Elite Gen 5's 8x Oryon) or when intraThreads <= 1 — and then ON and OFF are byte-identical
+        // configurations, so the A/B measures scheduler noise while reporting a green pass. Skip
+        // visibly instead; the topology lines above still record why.
+        assumeTrue(
+            "affinity is OFF on this CPU (perfIds=${caps.performanceCoreIds}, effIds=" +
+                "${caps.efficiencyCoreIds}, threads=$threads) so ON and OFF would be the same config " +
+                "— nothing to A/B here",
+            base.intraOpAffinities != null,
+        )
 
         val off = base.copy(name = "affinity-off", intraOpAffinities = null)
         val on = base.copy(name = "affinity-on")

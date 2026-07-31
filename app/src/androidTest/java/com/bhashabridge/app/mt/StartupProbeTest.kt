@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.BufferedReader
@@ -81,12 +82,20 @@ class StartupProbeTest {
     @Test
     fun probeSessionCreation() {
         val env = OrtEnvironment.getEnvironment()
-        for (model in listOf("encoder_int8.onnx", "decoder_init_int8.onnx")) {
-            val path = File(app.filesDir, model)
-            if (!path.exists()) {
-                Log.i(TAG, "SESSION $model SKIPPED (not extracted yet)")
-                continue
-            }
+        val present = listOf("encoder_int8.onnx", "decoder_init_int8.onnx")
+            .map { File(app.filesDir, it) }
+            .filter { it.exists() }
+        // Phase 2B keeps only the `.ort` cache in filesDir and purges the source `.onnx`, so on the
+        // shipping load path this probe has nothing to open. It used to log SKIPPED and pass green,
+        // which made a probe that measured nothing indistinguishable from one that measured fine.
+        // An assumption reports it as skipped in the run results instead. See ARCHITECTURE_RULES.
+        assumeTrue(
+            "no source .onnx in filesDir — the production cache purges it; run a build with " +
+                "OrtTuning.optCache=false to exercise this probe",
+            present.isNotEmpty(),
+        )
+        for (path in present) {
+            val model = path.name
             val diskMs = measure {
                 path.inputStream().use { input ->
                     val buf = ByteArray(1 shl 20)
@@ -120,10 +129,12 @@ class StartupProbeTest {
         val models = listOf("encoder_int8.onnx", "decoder_init_int8.onnx", "decoder_step_int8.onnx")
             .map { File(app.filesDir, it) }
             .filter { it.exists() }
-        if (models.size < 3) {
-            Log.i(TAG, "PARALLEL SKIPPED (models not extracted)")
-            return
-        }
+        // Same Phase 2B purge as probeSessionCreation: skip visibly rather than pass green.
+        assumeTrue(
+            "fewer than 3 source .onnx in filesDir — the production cache purges them; run a build " +
+                "with OrtTuning.optCache=false to exercise this probe",
+            models.size == 3,
+        )
 
         val serialMs = measure {
             models.forEach { env.createSession(it.absolutePath, ExecutionPolicy.current.toOptions()).close() }
