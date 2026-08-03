@@ -163,11 +163,8 @@ private class CachedLogitsSource(
     }
 
     /** Reads logits for the last position from a run's output 0, shape `[1, dec_len, vocab]`. */
-    private fun lastLogitsRow(result: OrtSession.Result): FloatArray {
-        @Suppress("UNCHECKED_CAST")
-        val logits = (result[0] as OnnxTensor).value as Array<Array<FloatArray>>
-        return logits[0].last().copyOf()
-    }
+    private fun lastLogitsRow(result: OrtSession.Result): FloatArray =
+        lastLogitsRow(result[0] as OnnxTensor)
 
     /** True if [prefix] starts with all of [prev] (prev is prefix's leading slice). */
     private fun prefixMatches(prefix: LongArray, prev: LongArray): Boolean {
@@ -179,4 +176,48 @@ private class CachedLogitsSource(
         pastCache?.close()
         pastCache = null
     }
+}
+
+/**
+ * The last position's logits row out of a `[1, dec_len, vocab]` output tensor — one row of 122,672
+ * floats for EN→HI, read once per generated token, on the critical path.
+ *
+ * This used to be `(tensor.value as Array<Array<FloatArray>>)[0].last().copyOf()`, which copies the
+ * data **twice**: `value` materialises the whole output as boxed nested Java arrays, then `copyOf`
+ * duplicates the one surviving row. None of it shows up in ORT's operator profiler, which sees kernel
+ * time only — it lands in the 21% "outside kernels" bucket entry #9 measured and could not attribute
+ * (bench/results/cross-device/S26U_EXPERIMENTS.md §1).
+ *
+ * **`getFloatBuffer()` is not a zero-copy view** — worth stating, because the name suggests otherwise
+ * and the plan for this change assumed it. Disassembling ORT 1.27.0's `OnnxTensor` shows it does
+ * `FloatBuffer.allocate(capacity)` then `put(nativeView)`: a full heap copy of the entire tensor.
+ * Swapping `value` for it, on its own, buys nothing.
+ *
+ * What it does buy is the *second* copy, and only because that heap buffer is array-backed. When
+ * `dec_len == 1` — every `decoder_step` call, i.e. all but the first token of every translation — the
+ * buffer's backing array *is* the row, so [java.nio.FloatBuffer.array] hands it over with nothing
+ * further copied: two full-width copies per token become one. `dec_len > 1` (`decoder_init`, once per
+ * translation) still needs the slice.
+ *
+ * The returned array must stay mutable and unshared — [applyRepetitionPenalty] and
+ * [blockRepeatedNgrams] write into it in place. Both branches satisfy that: `allocate` produced the
+ * backing array fresh inside `getFloatBuffer`, and nothing else holds a reference to it.
+ *
+ * Batch is assumed to be 1, as it is everywhere in this runtime — one translation at a time, never a
+ * batched fan-out. Both branches read `shape[1]`/`shape[2]` only, so a batched tensor would be wrong
+ * in either; the assumption belongs to the engine, not to this function.
+ *
+ * ponytail: the real lever is upstream. `decoder_init` computes and returns logits for every prefix
+ * position and the runtime discards all but the last, so the copy is proportional to a prefix nothing
+ * reads. Slicing the last position inside the exported graph would shrink the ORT-side allocation too,
+ * not just this copy — a model_pipeline re-export, tracked as a finding rather than done here.
+ */
+internal fun lastLogitsRow(tensor: OnnxTensor): FloatArray {
+    val shape = tensor.info.shape               // [1, dec_len, vocab]
+    val buffer = tensor.floatBuffer
+    if (shape[1] == 1L && buffer.hasArray() && buffer.arrayOffset() == 0) return buffer.array()
+    val vocab = shape[2].toInt()
+    val row = FloatArray(vocab)
+    buffer.duplicate().apply { position((shape[1].toInt() - 1) * vocab) }.get(row)
+    return row
 }
