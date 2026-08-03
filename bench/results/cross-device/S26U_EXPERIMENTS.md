@@ -170,6 +170,18 @@ policy's value is that it is a rule rather than a fit. Changing a nine-device-va
 single data point would be exactly that over-fit. **Recommendation: cap at 2 only after a second
 8-perf-core part confirms it** — recorded as a recommendation, deliberately not applied.
 
+> **Revisited and applied, 2026-08-03.** The reasoning above conflates two things. The *rule*
+> (`perfCores / 2`) is nine-device-validated and is unchanged. The *clamp* is not: `[1,4]` was a
+> guess, written before any 8-perf-core part existed to test it, and its upper bound has now been
+> exercised exactly once and measured as a regression. No entry in this database has ever measured 4
+> threads as optimal — Phase 7 found 2 > 4 on the SM-M315F too. Keeping a bound whose only
+> measurement is negative is not caution, it is deference to a number nobody chose on evidence.
+> `coerceIn(1,4)` → `coerceIn(1,2)`; eight of nine devices are byte-identical under it, and
+> `ExecutionPolicyTest` now pins the derivation so the bound cannot move again unnoticed. The gain on
+> this device remains **unverified post-change** — it is inferred from §2b's table, not re-measured
+> after the edit, because no device was attached when the change was made. Re-run
+> `ProductionThreadSweepTest` and `BenchmarkSuiteTest` here to confirm.
+
 ---
 
 ## 2c. simpleperf — **the SME question is ANSWERED: SME is live, and it is not the 2×**
@@ -376,5 +388,5 @@ Four of the six items this session opened were closed by it, three of them negat
 | Pin the idle prime cores | **Closed — no gain (§2b C3).** Opportunity withdrawn |
 | Baseline Profile generation | **Closed.** Generated on device (API 36); 4510 rules vs 27 hand-written. Effect on TTID still unmeasured |
 | `simpleperf` symbol capture for SME/i8mm | **Closed (§2c).** SME confirmed executing (`smopa` int8, hottest loop in the app) and isolated by A/B at **~4–9%, not 2×** |
-| Cap `threads` at 2 for 8-perf-core parts | **Open, deliberately not applied** — needs a second 8-perf-core device before changing a nine-device-validated rule (§2b) |
+| Cap `threads` at 2 for 8-perf-core parts | **Closed — APPLIED 2026-08-03.** See the note below |
 | Startup profile rules | **Open** — `BaselineProfileGenerator` does not set `includeInStartupProfile = true`, so there is no startup profile |

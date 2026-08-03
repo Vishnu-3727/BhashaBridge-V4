@@ -52,7 +52,7 @@ dot-product or i8mm acceleration, which is exactly what the detector reports.
 
 | knob | rule | on SM-M315F | why it is a rule, not a constant |
 |---|---|---|---|
-| intra_op threads | `(performanceCores / 2)` clamped to `[1,4]` | 4 perf → **2** | small int8 GEMMs are latency-bound and saturate parallelism fast; half the big cluster hits the Phase-7 optimum and scales (1-big→1, 8-big→4) |
+| intra_op threads | `(performanceCores / 2)` clamped to `[1,2]` | 4 perf → **2** | small int8 GEMMs are latency-bound and saturate parallelism fast; half the big cluster hits the Phase-7 optimum, and no device has ever measured more than 2 as better (see below) |
 | inter_op | sequential | — | one latency-bound stream, not a throughput fan-out |
 | CPU arena | off | off | Phase 7: the arena pool is pure overhead for this steady single-stream workload (−37% memory, no latency cost) — a workload property, not a device one |
 | int8 kernels | (not set) | NEON | ORT/MLAS dispatches SDOT/i8mm/SME on HWCAP at runtime; nothing to toggle from Java |
@@ -68,9 +68,31 @@ The naive rule "threads = all performance cores" was tried first and **regressed
 
 This matches Phase 7's intra-op sweep exactly (2 was the sweet spot; 4 jittered; 8 collapsed): past
 ~2 threads, big.LITTLE scheduler sync/migration overhead outweighs the parallelism these small
-per-token GEMMs can use. Half the big cluster encodes that as a portable rule. The `[1,4]` clamp
-reflects that more than ~4 threads never helps a small-GEMM latency stream. The exact count should be
-re-validated per new topology — the heuristic is the default, not a proof for cores not yet measured.
+per-token GEMMs can use. Half the big cluster encodes that as a portable rule.
+
+### Why the clamp is `[1,2]` and not `[1,4]`
+
+It was `[1,4]` originally, on the untested reasoning that an 8-big flagship should scale to 4 threads.
+Entry #9 is that flagship — the SM-S948B's eight uniform Oryon cores classify as `perfCores = 8`, so
+the rule derived 4 — and the production-path A/B measured it as a regression
+(`bench/results/cross-device/S26U_EXPERIMENTS.md` §2b, `ProductionThreadSweepTest`, real shipping load
+path with `optCache` on, 7 configs × 3 rotated rounds, n=45 per config, all arms parity-exact):
+
+| config | long median | stdev | short median |
+|---|---|---|---|
+| `intra1` | 98 ms | 3.9 | 27 ms |
+| **`intra2`** | **99 ms** | **3.0** | **27 ms** |
+| `intra4` (old rule) | 104 ms | 4.2 | 31 ms |
+| `intra6` | 116 ms | 8.2 | 38 ms |
+| `intra8` | 150 ms | 14.9 | 39 ms |
+
+−4.8% on the long sentence and −12.9% on the short one, and short utterances are the common case for
+an emergency-phrase translator. Across nine devices spanning Armv8.0 → ARMv9 and four silicon vendors,
+**no entry has ever measured 4 threads as the optimum**, and the only topology that could derive 4
+measured it as a loss. Eight of the nine already derive 1 or 2, so tightening the clamp changes
+behaviour on that one part alone. `ExecutionPolicyTest` pins the derivation so the bound cannot move
+silently. The exact count should still be re-validated per new topology — the heuristic is the
+default, not a proof for cores no entry has measured.
 
 ## Memory strategy
 

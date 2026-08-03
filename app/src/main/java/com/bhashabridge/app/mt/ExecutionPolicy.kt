@@ -16,16 +16,26 @@ object ExecutionPolicy {
     /**
      * Derive session options from [caps].
      *
-     * - **Threads:** intra-op parallelism = **half the performance cluster**, bounded to [1, 4]. The
+     * - **Threads:** intra-op parallelism = **half the performance cluster**, bounded to [1, 2]. The
      *   work is a sequence of *small* int8 GEMMs (one token at a time), which is latency-bound and
-     *   saturates its intra-op parallelism quickly. Phase 7 measured this directly on the 4-big-core
+     *   saturates its intra-op parallelism almost immediately. Phase 7 measured this on the 4-big-core
      *   SM-M315F: 2 threads was the sweet spot; 4 added big.LITTLE scheduler sync/migration jitter for
-     *   no median gain, and 8 (all cores, onto the efficiency cluster) collapsed. Half the big cluster
-     *   reproduces that optimum (4 perf → 2) and scales conservatively — a single-big-core phone → 1,
-     *   an 8-big flagship → 4 — with no device constant. The [1, 4] cap reflects that more than ~4
-     *   threads never helps a small-GEMM latency stream. (inter-op stays sequential: one stream, not a
-     *   throughput fan-out.) Re-validate the exact count per new topology; the heuristic is the default,
-     *   not a proof for cores this phase could not measure.
+     *   no median gain, and 8 (all cores, onto the efficiency cluster) collapsed.
+     *
+     *   The upper bound used to be 4, on the reasoning that an 8-big flagship should scale to 4. Entry
+     *   #9 measured exactly that case and it does not: on the SM-S948B (8 uniform Oryon cores, so
+     *   `perfCores = 8` → 4 threads) the production-path A/B — `optCache` on, NO_OPT, mmap `.ort`, the
+     *   real shipping load path, 7 configs × 3 rotated rounds, n=45 each, every arm parity-exact —
+     *   put `intra2` at 99 ms against `intra4`'s 104 ms on the long sentence (−4.8%) and 27 ms against
+     *   31 ms on the short one (−12.9%), with `intra6`/`intra8` degrading steeply beyond that. See
+     *   bench/results/cross-device/S26U_EXPERIMENTS.md §2b.
+     *
+     *   So the cap is 2: across nine devices spanning Armv8.0 → ARMv9 and four vendors, **no entry has
+     *   ever measured 4 threads as the optimum**, and the only device whose topology could derive 4
+     *   measured it as a regression. Eight of the nine already derive 1 or 2 from `perfCores / 2`, so
+     *   this bound changes behaviour on that one part alone. (inter-op stays sequential: one stream,
+     *   not a throughput fan-out.) Re-validate per new topology; the heuristic is the default, not a
+     *   proof for cores no entry has measured.
      * - **Memory:** the CPU arena is disabled. Phase 7 measured it as pure overhead for this steady,
      *   one-translation-at-a-time workload (−37% process memory, no latency cost) — a property of the
      *   workload, not the device, so it holds across the Arm ecosystem.
@@ -35,7 +45,7 @@ object ExecutionPolicy {
      *   kernels; [caps] informs threads, logging, and future execution-provider selection.
      */
     fun select(caps: CpuCapabilities): OrtTuning {
-        val threads = (caps.performanceCores / 2).coerceIn(1, 4)
+        val threads = (caps.performanceCores / 2).coerceIn(1, 2)
         val affinity = affinityString(caps, threads)
         return OrtTuning(
             name = "arm-adaptive(threads=$threads${if (affinity != null) ",affinity" else ""})",

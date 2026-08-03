@@ -265,8 +265,10 @@ across the Arm ecosystem. See `ARM_PLATFORM_OPTIMIZATION.md`.
 **Implementation.** `CpuCapabilities.detect()` reads ISA features from `/proc/cpuinfo` (NEON, FP16,
 Dot Product, I8MM, SVE/SVE2, SME/SME2) and big/little topology from `/sys` cpufreq; it infers the
 architecture level from features. `ExecutionPolicy.select(caps)` derives an `OrtTuning`: intra_op =
-half the performance cluster clamped to [1,4], CPU arena off, sequential. This is the default for
-`OnnxModels`/`MtEngine`; no device constant remains in code.
+half the performance cluster clamped to [1,2], CPU arena off, sequential. This is the default for
+`OnnxModels`/`MtEngine`; no device constant remains in code. (The clamp was [1,4] until entry #9
+measured the 8-perf-core case the upper bound existed for and found 4 slower than 2 — see
+docs/ARM_PLATFORM_OPTIMIZATION.md, "Why the clamp is [1,2]".)
 
 **Verification.** On-device detection: `ARMv8.0 cores=8 (perf=4, eff=4) neon=true`, all higher ISA
 flags false — correct for the A73+A53 Exynos 9611. Derived `intra_op=2`. Translation output identical
@@ -354,7 +356,7 @@ process-owned, cached, INT8, capability-aware one — with translation output he
   (NEON, FP16, Dot Product, I8MM, SVE/SVE2, SME/SME2) and big/little topology from `/sys` cpufreq, with
   best-effort fallbacks. On the test device it correctly reports Armv8.0, 4 performance + 4 efficiency
   cores, NEON only.
-- **Execution policy.** intra-op threads = half the performance cluster (clamped [1,4]); CPU arena off;
+- **Execution policy.** intra-op threads = half the performance cluster (clamped [1,2]); CPU arena off;
   sequential execution. The thread rule was corrected from a naive "all performance cores," which was
   measured to regress, to the half-cluster rule that reproduces the Phase 7 optimum.
 - **Portable optimization.** The memory (arena) and cache complexity wins are workload properties, not
