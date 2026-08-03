@@ -53,8 +53,17 @@ plan untouched. That is the return on keeping decoding logic and model I/O in se
 ## 3. The two strategies (semantics mirror v3.4.1)
 
 Both reproduce `Translator`'s behaviour so the eventual parity gate has a like-for-like baseline:
-start/eos token `2`, `maxSteps = 18`, length cap `max(14, sourceLen)`, repetition penalty `1.1`,
-no-repeat-3-gram blocking, and — for beam — length-normalised scoring at width `2`.
+start/eos token `2`, length cap `max(14, sourceLen)`, repetition penalty `1.1`, no-repeat-3-gram
+blocking, and — for beam — length-normalised scoring at width `2`.
+
+**One deliberate divergence from v3.4.1: `maxSteps` is `128`, not `18`.** v3.4.1 paired a length cap
+of `max(14, sourceLen)` with a decode loop bounded at 18 steps, so the cap was fiction above 18
+tokens and longer inputs were silently truncated mid-sentence. `maxSteps` is now an absolute runaway
+ceiling rather than the working limit, and `DecodeConfig.targetCap` clamps into it so a single number
+bounds generation. Outputs at 2/6/12 tokens — every benchmark sentence and every parity golden in the
+project — are unaffected; only sources over 18 tokens change, and they change from truncated to
+complete. The ceiling stays finite because `Tokenizer.encode` applies no source-length limit; see the
+KDoc on `DecodeConfig.maxSteps` for the latency arithmetic.
 
 - **Greedy:** one `nextLogits` call per token; argmax after the penalty/blocking rules; stop on eos
   or the cap. This is what v3.4.1 shipped for both directions.

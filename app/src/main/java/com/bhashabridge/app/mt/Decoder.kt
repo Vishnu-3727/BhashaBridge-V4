@@ -51,13 +51,34 @@ fun interface LogitsSource {
 data class DecodeConfig(
     val startToken: Long = 2L,
     val eosToken: Long = 2L,
-    val maxSteps: Int = 18,
+    /**
+     * The absolute ceiling on generated tokens — a runaway guard, not the normal stop. The normal stop
+     * is EOS, and failing that [targetCap].
+     *
+     * **This was 18, and that was a defect.** [targetCap] says a translation may run to the source
+     * length, but both decoders loop `0 until maxSteps`, so 18 was the real limit and every input over
+     * 18 tokens was silently cut off mid-sentence with nothing shown to the user. v3.4.1 shipped the
+     * same pair of numbers.
+     *
+     * 128 is past any sentence a user types and still bounds the worst case, which matters because
+     * `Tokenizer.encode` applies no source-length limit: an unbounded cap would let a long pasted
+     * passage run hundreds of sequential decoder steps. At the SM-M315F's ~45 ms/step (the slowest
+     * device in the cross-device database) 128 steps is ~5.8 s.
+     *
+     * ponytail: one ceiling for both the runaway case and the paste case. If pasted passages become a
+     * real use case, cap the *input* in the UI and raise this, rather than splitting it in two.
+     */
+    val maxSteps: Int = 128,
     val minTargetLen: Int = 14,
     val repetitionPenalty: Float = 1.1f,
     val noRepeatNgram: Int = 3,
 ) {
-    /** The hard length cap for one translation: never shorter than [minTargetLen], grows with input. */
-    fun targetCap(sourceLen: Int): Int = maxOf(minTargetLen, sourceLen)
+    /**
+     * The length cap for one translation: never shorter than [minTargetLen], grows with the input, and
+     * never past [maxSteps]. Clamping here rather than in the decoders keeps a single number bounding
+     * generation — the loop bound and the cap can no longer disagree, which is what hid the truncation.
+     */
+    fun targetCap(sourceLen: Int): Int = maxOf(minTargetLen, sourceLen).coerceAtMost(maxSteps)
 }
 
 // --- Shared decode rules. Both decoders apply these to a logits row before selecting tokens. ---

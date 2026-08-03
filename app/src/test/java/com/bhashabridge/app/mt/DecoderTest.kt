@@ -70,6 +70,29 @@ class DecoderTest {
         assertEquals(3L, out.count { it != 5L }.toLong()) // no eos in the result
     }
 
+    /**
+     * The regression that would have caught the truncation defect: a 40-token source must be allowed
+     * 40 generated tokens. Both decoders loop `0 until maxSteps`, which defaulted to 18, so anything
+     * longer was cut off mid-sentence with no signal — [DecodeConfig.targetCap] promised the source
+     * length and never got it.
+     */
+    @Test
+    fun `a long source is allowed to decode past the old 18-step limit`() {
+        val alwaysT1 = TableSource(mapOf(0L to r(1), 1L to r(1)), vocab = 6)
+        val defaults = DecodeConfig(startToken = 0, eosToken = 5, repetitionPenalty = 1.0f, noRepeatNgram = 0)
+        val out = GreedyDecoder(defaults).decode(alwaysT1, sourceLen = 40)
+        assertEquals("start token + 39 generated", 40, out.size)
+    }
+
+    /** ...but not without a ceiling: `Tokenizer.encode` never truncates, so the cap must clamp. */
+    @Test
+    fun `an absurd source length clamps to maxSteps`() {
+        val alwaysT1 = TableSource(mapOf(0L to r(1), 1L to r(1)), vocab = 6)
+        val cfg = DecodeConfig(startToken = 0, eosToken = 5, repetitionPenalty = 1.0f, noRepeatNgram = 0)
+        assertEquals(cfg.maxSteps, cfg.targetCap(sourceLen = 5000))
+        assertEquals(cfg.maxSteps, GreedyDecoder(cfg).decode(alwaysT1, sourceLen = 5000).size)
+    }
+
     /** A logits row of `vocab` size with token [best] set high, rest low. */
     private fun r(best: Int, vocab: Int = 6) = FloatArray(vocab) { if (it == best) 5f else -10f }
 
