@@ -260,6 +260,22 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
     /** Ends the session cleanly: the flow still emits its final transcript before completing. */
     fun stopRecording() {
         capture.stop()
+        // A file transcription ignores capture.stop() — it is a different object with its own
+        // Recognizer — so cancelling the job is the only way to end one. Without this there was no
+        // way to abort an import at all: `micJob` stayed non-null and the microphone stayed inert
+        // until the transcription finished on its own.
+        micJob?.cancel()
+    }
+
+    /**
+     * Stops playback of whatever is being spoken. Called when the screen stops.
+     *
+     * The engine speaks through the device's own audio path, so without this a translation kept
+     * talking after the user had left the app — the audible half of "the microphone must not
+     * outlive the visible screen".
+     */
+    fun stopSpeaking() {
+        tts.stop()
     }
 
     /** The user denied the microphone. Not an error — just say why nothing happened. */

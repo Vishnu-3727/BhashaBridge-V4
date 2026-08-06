@@ -128,10 +128,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** A recording session must not outlive the visible screen — the mic light would stay on. */
+    /**
+     * Nothing audible may outlive the visible screen: the microphone light would stay on, and a
+     * translation would carry on speaking out loud after the user had left the app.
+     */
     override fun onStop() {
         super.onStop()
         viewModel.stopRecording()
+        viewModel.stopSpeaking()
     }
 
     private fun bindViews() {

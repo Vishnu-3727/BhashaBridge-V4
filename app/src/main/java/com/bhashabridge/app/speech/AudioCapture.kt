@@ -9,6 +9,7 @@ import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import com.bhashabridge.app.LogTag
 import com.bhashabridge.app.logDebug
+import com.bhashabridge.app.logError
 import com.bhashabridge.app.logWarn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -19,6 +20,7 @@ import kotlinx.coroutines.isActive
 import org.json.JSONObject
 import org.vosk.Model
 import org.vosk.Recognizer
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.sqrt
 
 /** What one recording session reports as it runs. */
@@ -51,11 +53,27 @@ sealed interface SpeechEvent {
  */
 class AudioCapture(private val sampleRate: Int = SAMPLE_RATE) {
 
-    @Volatile private var recording = false
+    /**
+     * Sessions are numbered so a stop can never be lost to a start that has not happened yet.
+     *
+     * A `@Volatile Boolean` could not express that. `stop()` set it false and [record] set it true
+     * **inside the flow builder** — which runs only once collection begins, after the model load,
+     * the state updates and a dispatcher hop. A stop arriving in that window was overwritten by the
+     * start it was meant to cancel, and the microphone stayed live until the user stopped it a
+     * second time. `MainActivity.onStop` is one of those callers: leave the app while the model is
+     * still loading and the recording outlived the visible screen, which is exactly what that call
+     * exists to prevent.
+     *
+     * [stopRequested] records the newest session number that has been asked to stop, so a stop
+     * issued before a session starts still applies to it.
+     */
+    private val generation = AtomicInteger(0)
+    private val stopRequested = AtomicInteger(0)
 
     /** Ends the session cleanly: the flow emits [SpeechEvent.Final] (or [SpeechEvent.NoSpeech]) and completes. */
     fun stop() {
-        recording = false
+        // The session about to start counts as stopped too: claim the next number, not the current.
+        stopRequested.set(generation.get() + 1)
     }
 
     /**
@@ -64,9 +82,20 @@ class AudioCapture(private val sampleRate: Int = SAMPLE_RATE) {
      */
     @SuppressLint("MissingPermission")
     fun record(model: Model): Flow<SpeechEvent> = flow {
+        // Claimed here, at the top of the flow body, so a stop() issued while the caller was still
+        // loading the model has already claimed this number and the loop below never starts.
+        val session = generation.incrementAndGet()
+        // getMinBufferSize returns ERROR (-1) / ERROR_BAD_VALUE (-2) when the device cannot serve
+        // this format. Feeding that to AudioRecord throws IllegalArgumentException out of the flow
+        // and takes the collector down; report "no speech" instead, which the UI already handles.
         val bufferSize = AudioRecord.getMinBufferSize(
             sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
+        if (bufferSize <= 0) {
+            logError(LogTag.SPEECH, "AudioRecord rejects ${sampleRate}Hz mono 16-bit (code $bufferSize)")
+            emit(SpeechEvent.NoSpeech)
+            return@flow
+        }
         val recorder = AudioRecord(
             MediaRecorder.AudioSource.VOICE_RECOGNITION,
             sampleRate,
@@ -74,17 +103,50 @@ class AudioCapture(private val sampleRate: Int = SAMPLE_RATE) {
             AudioFormat.ENCODING_PCM_16BIT,
             bufferSize * 2,
         )
-        val effects = Effects.attach(recorder.audioSessionId)
-        val recognizer = Recognizer(model, sampleRate.toFloat())
+        // An AudioRecord that failed to initialise (mic held by another app, resource exhaustion)
+        // reads nothing forever. Release it here rather than spin on a dead session.
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            logError(LogTag.SPEECH, "AudioRecord did not initialise (state=${recorder.state})")
+            recorder.release()
+            emit(SpeechEvent.NoSpeech)
+            return@flow
+        }
+        // Effects and the recognizer are acquired inside a guard, not before the main `try`: only the
+        // last acquisition would be covered by that `finally`, so a throw from `Recognizer(...)` — a
+        // truncated model directory, native OOM — left the AudioRecord and its effects unreleased.
+        // A leaked AudioRecord holds a microphone input session for the life of the process, which
+        // can lock the mic out of this app and sometimes others.
+        val effects: Effects
+        val recognizer: Recognizer
+        try {
+            effects = Effects.attach(recorder.audioSessionId)
+        } catch (e: Throwable) {
+            recorder.release()
+            throw e
+        }
+        try {
+            recognizer = Recognizer(model, sampleRate.toFloat())
+        } catch (e: Throwable) {
+            recorder.release()
+            effects.release()
+            throw e
+        }
 
-        recording = true
         var lastCompleted = ""
         try {
             recorder.startRecording()
             val buffer = ShortArray(BUFFER_SAMPLES)
-            while (recording && currentCoroutineContext().isActive) {
+            while (stopRequested.get() < session && currentCoroutineContext().isActive) {
                 val read = recorder.read(buffer, 0, buffer.size)
-                if (read <= 0) continue
+                // Negative is an error code (ERROR_DEAD_OBJECT when the session is torn down under
+                // us, ERROR_INVALID_OPERATION after a failed start). `continue` on those spins a
+                // hot loop that never recovers, so end the session and let the flush report what
+                // was heard up to that point. Zero is a normal empty read.
+                if (read < 0) {
+                    logWarn(LogTag.SPEECH, "AudioRecord.read failed (code $read); ending the session and flushing")
+                    break
+                }
+                if (read == 0) continue
                 emit(SpeechEvent.Amplitude((rms(buffer, read) * AMPLITUDE_GAIN).coerceIn(0f, 1f)))
                 // acceptWaveForm() true = Vosk closed a sentence; false = utterance still open.
                 if (recognizer.acceptWaveForm(buffer, read)) {
@@ -104,7 +166,9 @@ class AudioCapture(private val sampleRate: Int = SAMPLE_RATE) {
                 ?: lastCompleted.takeIf { it.isNotBlank() }
             emit(if (final != null) SpeechEvent.Final(final) else SpeechEvent.NoSpeech)
         } finally {
-            recording = false
+            // Mark this session stopped however it ended — cancellation, a read error, a throw —
+            // so a stop() that arrives afterwards is not left pointing at a session that is gone.
+            stopRequested.set(session)
             runCatching { recorder.stop() }
             recorder.release()
             effects.release()
