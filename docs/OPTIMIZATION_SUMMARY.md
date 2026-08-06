@@ -894,6 +894,61 @@ through a file-mapped `ByteBuffer` with `use_ort_model_bytes_directly` +
 `use_ort_model_bytes_for_initializers`, which ORT's Java surface does expose
 (`createSession(ByteBuffer, …)`).
 
+
+### 3.27 File-backed initializers (Q14) — WORKS, but it is a change of memory *kind*, not amount
+
+**Problem.** §3.26 left the weights as ~559 MB of **anonymous** native heap: the `.ort` mapping is
+dropped once the sessions are built, because a path-based load copies every initializer into the
+session allocator. Anonymous pages must be swapped or killed under pressure; clean file-backed pages
+can be dropped and re-read.
+
+**Implementation.** `OrtTuning.mappedInitializers` (default **off**). Maps the `.ort` with
+`FileChannel.map` and builds the session from ORT's `createSession(ByteBuffer, …)` overload with
+`session.use_ort_model_bytes_directly` + `session.use_ort_model_bytes_for_initializers`, so
+initializers point into the mapping. `session.use_memory_mapped_ort_model` is *ignored* on the buffer
+path — ORT says so in its own strings — which is why the mapping is made here rather than requested.
+The `MappedByteBuffer` is retained until `release()`: ORT holds pointers into those bytes for the
+session's life, and the JDK has no explicit unmap, so dropping the reference **is** the contract. The
+list is declared above the `init` block, because Kotlin runs property initializers in declaration
+order and the three graphs load during `init`.
+
+**Benchmark (SM-M315F, ~31.9 °C, both arm orderings, n=10 translations per arm).** Both orders were
+run because the first arm reads 451 MB off storage and the second finds it in the page cache:
+
+| | path load | mapped initializers |
+|---|---|---|
+| load, cold page cache | 6,981 ms | 4,058 ms |
+| load, warm page cache | 3,292 ms | 2,703 ms |
+| native heap allocated | 559.0 / 559.4 MB | **407.8 / 407.5 MB** |
+| native PSS | 595 / 652 MB | **366 / 351 MB** |
+| total PSS | 680 / 735 MB | 766 / 759 MB |
+| `.ort` mapped after load | 0 | **451 MB, 3 mappings** |
+| translate median | 779 / 626 ms | 692 / 668 ms |
+
+Output was byte-identical in every arm.
+
+**What survives both orderings** — the only claims made:
+
+- **451 MB becomes file-backed** and stays mapped for the session's life.
+- **Anonymous native heap falls 151 MB (−27%)**; native PSS falls 230–300 MB (−39–46%).
+- **Total PSS rises 30–86 MB**, because those mapped pages are resident and counted.
+
+**What does not survive.** The −61% load time was **page cache**: whichever arm ran first was slower,
+in both directions. No load-time claim. Translate latency overlaps between orderings (779/626 against
+692/668) — no latency claim either way.
+
+**Evidence grade:** MEASURED for the memory result; explicitly NOT MEASURED for load and latency,
+where the ordering confound is larger than any effect.
+
+**Decision.** **OPEN — kept off by default.** This is not a smaller footprint, it is a *better* one:
+the same weights held as clean, evictable, file-backed pages instead of anonymous pages the kernel
+can only swap or kill for. That should make the process a worse OOM victim, which is what §3.24b's
+1.72 GB two-engine measurement was really about. But "should" is not measured, the headline PSS number
+moves the wrong way, and one device's single run does not flip a shipping default.
+
+**Next:** Q15 — drive the app under real memory pressure on the M31 and compare survival and re-read
+cost between the arms. Until then the knob stays off and documented.
+
 ---
 
 ## 4. Optimization Decision Matrix
@@ -1062,8 +1117,8 @@ Three consequences worth stating once:
 | ~~Q10~~ | ~~Price the single-engine eviction~~ | — | **CLOSED 2026-08-06** — swap peak −511.7 MB (−36.7%), post-swap −392.9 MB, reload 3.5 s not 10 s (§3.24b) | done |
 | ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |
 | ~~Q13~~ | ~~Is prepacking what unmaps the model?~~ | — | **CLOSED 2026-08-06** — refuted. 451 MB *is* mapped during load and unmapped after, with or without prepacking. Disabling prepacking is 4.6× slower and uses 2× the heap: a REVERT (§3.26) | done |
-| **Q14** | Can the weights stay file-backed? | The mapping is dropped because ORT copies initializers into the session allocator during a path-based load. `createSession(ByteBuffer, …)` plus `use_ort_model_bytes_directly` + `use_ort_model_bytes_for_initializers` should let initializers point into a `FileChannel.map` of the `.ort` instead | Map the `.ort` with `FileChannel.map`, load through the ByteBuffer overload, then check `/proc/self/maps` after load and compare heap alloc, PSS and translate median against the path-based arm | Up to ~450 MB moved from anonymous heap to evictable file pages || **Q9** | R8 enabled on release | R8 has never been on; it changes the inference path and must be benchmarked, not assumed | `BenchmarkSuiteTest` before/after with `optimization { enable = true }` | Neutral-to-positive; the point is to prove it is not negative |
-
+| ~~Q14~~ | ~~Can the weights stay file-backed?~~ | — | **CLOSED 2026-08-06** — yes: 451 MB stays mapped, anonymous heap −151 MB, native PSS −230–300 MB, output identical. Total PSS rises 30–86 MB; the load and latency claims died to a page-cache confound (§3.27). Kept OFF by default | done |
+| **Q15** | Is file-backed actually a better OOM victim? | §3.27 trades anonymous pages for clean file-backed ones and total PSS goes *up*. The benefit is reclaim behaviour under pressure, which nothing measured so far touches | Drive competing allocations on the M31 until the kernel reclaims, with each arm resident: compare survival, what gets evicted, and the re-read cost when model pages come back | Decides whether `mappedInitializers` ships |
 **Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
 NO EFFECT. Deleting a row because it turned out not to work is how a ledger starts lying.
 

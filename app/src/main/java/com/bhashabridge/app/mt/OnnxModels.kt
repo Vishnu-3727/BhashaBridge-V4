@@ -59,6 +59,18 @@ class OnnxModels(
     private val decoderStep: OrtSession
 
     /**
+     * The file mappings backing the sessions when [OrtTuning.mappedInitializers] is on; empty
+     * otherwise. Held for exactly as long as the sessions are — see [createMappedSession].
+     *
+     * **Declared above the `init` block on purpose.** Kotlin runs property initializers in
+     * declaration order, interleaved with `init`, so a list declared further down would still be
+     * null when [createMappedSession] runs during session load. Synchronised because the three
+     * graphs load on three threads.
+     */
+    private val mappedModels =
+        java.util.Collections.synchronizedList(ArrayList<java.nio.ByteBuffer>(3))
+
+    /**
      * The decoder_step graph's `past_key_values.*` input names, in graph order, which is exactly the
      * order of decoder_init/decoder_step's `present.*` outputs after the leading `logits`. Read from
      * the model rather than hard-coded, so it stays correct for any layer count and cannot drift from
@@ -138,6 +150,8 @@ class OnnxModels(
         encoder.close()
         decoderInit.close()
         decoderStep.close()
+        // After the sessions, never before: ORT reads these bytes for the session's whole life.
+        mappedModels.clear()
     }
 
     /**
@@ -243,7 +257,11 @@ class OnnxModels(
         if (hit) {
             val start = System.nanoTime()
             try {
-                val session = env.createSession(ort.absolutePath, loadOptions().maybeProfile(label))
+                val session = if (tune.mappedInitializers) {
+                    createMappedSession(ort, label)
+                } else {
+                    env.createSession(ort.absolutePath, loadOptions().maybeProfile(label))
+                }
                 val ms = (System.nanoTime() - start) / 1_000_000
                 logDebug(LogTag.MT) { "ORT-cache HIT $label: memory-mapped load ${ort.name} in $ms ms, graph optimization skipped" }
                 return SessionLoad(label, session, verifyNs, 0L, System.nanoTime() - start, false, ort.length())
@@ -351,6 +369,36 @@ class OnnxModels(
             addConfigEntry("session.save_model_format", "ORT")
             setOptimizedModelFilePath(ortPath)
         }
+
+    /**
+     * Q14: build a session from a **file mapping** of [ort] instead of from its path.
+     *
+     * `FileChannel.map` returns a direct `MappedByteBuffer`, which is the one thing ORT's
+     * `createSession(ByteBuffer, …)` overload accepts, and `use_ort_model_bytes_directly` tells ORT
+     * to read the flatbuffer in place rather than copying it in.
+     * `use_ort_model_bytes_for_initializers` is the half that matters: without it ORT copies every
+     * constant tensor into the session allocator, which is what leaves ~559 MB of anonymous heap
+     * behind on the path-based load.
+     *
+     * **The buffer must outlive the session.** ORT holds pointers into these bytes for the life of
+     * the session, so the reference is retained in [mappedModels] and dropped only in [release];
+     * letting it be collected would unmap memory ORT is still reading. There is no explicit unmap in
+     * the JDK — clearing the reference is the whole contract.
+     */
+    private fun createMappedSession(ort: File, label: String): OrtSession {
+        val buffer = java.io.RandomAccessFile(ort, "r").use { raf ->
+            raf.channel.use { channel ->
+                channel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, 0, channel.size())
+            }
+        }
+        mappedModels += buffer
+        val options = tune.toOptions().apply {
+            setOptimizationLevel(OptLevel.NO_OPT)
+            addConfigEntry("session.use_ort_model_bytes_directly", "1")
+            addConfigEntry("session.use_ort_model_bytes_for_initializers", "1")
+        }.maybeProfile(label)
+        return env.createSession(buffer, options)
+    }
 
     /** NO_OPT + mmap the ORT-format file: the graph on disk is already optimized, so skip optimizers. */
     private fun loadOptions(): SessionOptions =
@@ -473,6 +521,19 @@ data class OrtTuning(
      * flag is a measurement instrument and a REVERT, never a tuning option.
      */
     val disablePrepacking: Boolean = false,
+    /**
+     * Load the `.ort` graph through a **file-mapped `ByteBuffer`** instead of a file path, with
+     * `session.use_ort_model_bytes_directly` and `session.use_ort_model_bytes_for_initializers`, so
+     * ORT's initializers point into the mapped file rather than into copies on the native heap.
+     *
+     * Q14, and the reason it exists: on the path-based load ORT maps 451 MB while building the
+     * sessions and then drops the mapping, leaving the weights as ~559 MB of anonymous heap
+     * (§3.25/§3.26). Anonymous pages must be swapped or killed under pressure; clean file-backed
+     * pages can simply be dropped and re-read. `session.use_memory_mapped_ort_model` is *ignored*
+     * for buffer loads (ORT says so in its own strings), which is why the mapping is done here
+     * rather than asked for.
+     */
+    val mappedInitializers: Boolean = false,
     /**
      * P8 operator profiling. When non-null, ONNX Runtime's built-in profiler is enabled on every
      * session, writing one Chrome-trace JSON per graph under this directory (see
