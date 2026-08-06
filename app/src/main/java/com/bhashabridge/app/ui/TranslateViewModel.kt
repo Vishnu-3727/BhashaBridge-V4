@@ -16,6 +16,7 @@ import com.bhashabridge.app.speech.AudioCapture
 import com.bhashabridge.app.speech.AudioFileTranscriber
 import com.bhashabridge.app.speech.SpeechEvent
 import com.bhashabridge.app.speech.Tts
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.Job
@@ -112,7 +113,9 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
             }
             val result = withContext(mt) {
                 try {
-                    app.translator(direction).translate(input)
+                    // Inside withResources for the whole call: the engine's native sessions must not
+                    // be released by a trim while ONNX Runtime is running in them.
+                    app.withResources { app.translator(direction).translate(input) }
                 } catch (e: Throwable) {
                     logError(LogTag.UI, "Translate failed: $direction", e)
                     null
@@ -194,26 +197,28 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
     fun startRecording() {
         if (micJob != null) return
         val direction = _state.value.direction
+        // Silence any translation still being spoken. VOICE_RECOGNITION does not fully suppress the
+        // device's own loudspeaker, so recording over playback feeds the previous Hindi output back
+        // into Vosk as if the user had said it.
+        tts.stop()
         lastStreamed = ""
         lastStreamAt = 0L
         micJob = viewModelScope.launch {
             _state.update { it.copy(mic = MicState.Loading, micStatus = R.string.mic_loading) }
-            // First mic use of the session pays the model load; later ones find it resident.
-            val model = withContext(Dispatchers.IO) {
-                try {
-                    app.speechModels.model(direction)
-                } catch (e: Throwable) {
-                    logError(LogTag.UI, "Speech model unavailable: $direction", e)
-                    null
-                }
-            }
-            if (model == null) {
-                _state.update { it.copy(mic = MicState.Idle, micStatus = R.string.mic_unavailable) }
-                return@launch
-            }
-            _state.update { it.copy(mic = MicState.Listening, micStatus = R.string.mic_listening) }
             try {
-                capture.record(model).collect { event -> onSpeechEvent(event, direction) }
+                // The pin opens BEFORE the model handle exists and closes after the last use of it.
+                // The session builds a Recognizer bound to this model and uses it until the flow
+                // completes — including the flush after stop() — and freeing the model underneath a
+                // live Recognizer is a native use-after-free, not an exception.
+                // First mic use of the session pays the model load; later ones find it resident.
+                app.withSpeechModel(direction) { model ->
+                    _state.update { it.copy(mic = MicState.Listening, micStatus = R.string.mic_listening) }
+                    capture.record(model).collect { event -> onSpeechEvent(event, direction) }
+                }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                logError(LogTag.UI, "Speech model unavailable: $direction", e)
+                _state.update { it.copy(micStatus = R.string.mic_unavailable) }
             } finally {
                 _state.update { it.copy(mic = MicState.Idle) }
             }
@@ -232,22 +237,19 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
         val direction = _state.value.direction
         micJob = viewModelScope.launch {
             _state.update { it.copy(mic = MicState.Loading, micStatus = R.string.mic_loading) }
-            val model = withContext(Dispatchers.IO) {
-                try {
-                    app.speechModels.model(direction)
-                } catch (e: Throwable) {
-                    logError(LogTag.UI, "Speech model unavailable: $direction", e)
-                    null
-                }
-            }
-            if (model == null) {
-                _state.update { it.copy(mic = MicState.Idle, micStatus = R.string.mic_unavailable) }
-                return@launch
-            }
-            _state.update { it.copy(mic = MicState.Loading, micStatus = R.string.file_transcribing) }
             try {
-                AudioFileTranscriber.transcribe(getApplication(), uri, model)
-                    .collect { event -> onSpeechEvent(event, direction) }
+                // Same pin as the microphone path, and for the same reason: a Recognizer bound to
+                // this model lives for the length of the collection. This path resumes from the
+                // system document picker, so a background trim is the likeliest of all to land here.
+                app.withSpeechModel(direction) { model ->
+                    _state.update { it.copy(mic = MicState.Loading, micStatus = R.string.file_transcribing) }
+                    AudioFileTranscriber.transcribe(getApplication(), uri, model)
+                        .collect { event -> onSpeechEvent(event, direction) }
+                }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                logError(LogTag.UI, "Speech model unavailable: $direction", e)
+                _state.update { it.copy(micStatus = R.string.mic_unavailable) }
             } finally {
                 _state.update { it.copy(mic = MicState.Idle) }
             }

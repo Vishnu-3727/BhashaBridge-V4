@@ -7,6 +7,9 @@ import android.os.SystemClock
 import com.bhashabridge.app.bench.Metrics
 import com.bhashabridge.app.mt.MtEngine
 import com.bhashabridge.app.speech.VoskModels
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.vosk.Model
 
 /**
  * Purpose:  Process entry point, and the sole owner of every native resource in the app.
@@ -91,7 +94,41 @@ class BhashaBridgeApp : Application() {
      * is lazy inside [VoskModels] too, so a session that never uses the mic never pays for it.
      */
     private val speechModelsLazy = lazy { VoskModels(this) }
-    val speechModels: VoskModels get() = speechModelsLazy.value
+
+    /**
+     * `@PublishedApi internal`, not public, and that is the fix rather than a style choice.
+     *
+     * Both speech paths used to fetch a `Model` here and *then* open a borrow around the code that
+     * used it. A `TRIM_MEMORY_BACKGROUND` in between saw `borrowers == 0`, called
+     * `VoskModels.release()`, and freed the model — after which `Recognizer(model, …)` ran Vosk JNI
+     * against a freed pointer. A SIGSEGV, not a catchable exception, and unattributable because the
+     * stack is inside `libvosk.so`. The window is widest on the file-import path, which resumes from
+     * the system document picker with a trim genuinely in flight.
+     *
+     * Callers now go through [withSpeechModel], which cannot express the mistake: the handle only
+     * exists inside the pin.
+     */
+    @PublishedApi
+    internal val speechModels: VoskModels get() = speechModelsLazy.value
+
+    /**
+     * Runs [block] with [direction]'s acoustic model, pinned for the whole call — including the
+     * model load itself, which is seconds on first use.
+     *
+     * The load being inside the borrow means a trim arriving during a cold Vosk load is deferred
+     * rather than executed. That is the same rule the MT path has always lived under.
+     *
+     * The load is dispatched to [Dispatchers.IO] here rather than left to the caller, because the
+     * callers are `viewModelScope` coroutines on the main dispatcher and "pin first" must not be
+     * bought by moving an asset unpack plus a native model load onto the UI thread.
+     */
+    suspend inline fun <T> withSpeechModel(
+        direction: Direction,
+        crossinline block: suspend (Model) -> T,
+    ): T = withResources {
+        val model = withContext(Dispatchers.IO) { speechModels.model(direction) }
+        block(model)
+    }
 
     override fun onCreate() {
         super.onCreate()
