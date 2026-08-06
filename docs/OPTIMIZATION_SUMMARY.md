@@ -776,6 +776,26 @@ copies (§3.22). At ~12 tokens that is ~5.9 MB of large-object-space churn per t
 no output-binding API in ORT's Java surface to write into a reused buffer, so the only lever is
 making the tensor smaller: §9 Q1's graph-side slice.
 
+**Post-change regression check — MEASURED 2026-08-06, SM-M315F, cooled** (`MtBenchmarkTest`, 30 runs
+per sentence, 31.4 → 31.1 °C — the device *cooled* during the run rather than ramping):
+
+| sentence | frozen baseline (§3.9) | after this session | Δ median |
+|---|---|---|---|
+| Water. (2 tok) | 163.2 ms · p95 193.0 · sd 11.1 | 166.4 · 173.4 · 9.5 | +2.0% (p95 −10.2%) |
+| Hello, how are you? (6 tok) | 365.1 · 400.3 · 16.4 | 350.0 · 390.1 · 17.6 | −4.1% |
+| The weather… (12 tok) | 667.2 · 686.5 · 18.4 | 640.1 · 670.5 · 22.6 | −4.1% |
+
+No regression from the lifecycle pass, the escape fix or the cap change. The 4.1% is **not** credited
+to this session: the baseline is Phase 8, and ORT 1.27.0, the ORT-format mmap cache and the logits
+copy all landed in between — of which only the logits copy is separately priced (~1 point, §3.22).
+
+**The thermal warning is worth more than the result.** The same build, same device, same test read
+**640 / 680 / 690 / 864 ms** on the 12-token sentence across one afternoon as the phone went from
+31 °C to 34 °C under repeated 938 MB installs — a **35% spread with no code change at all**. Two of
+those numbers were nearly written up as a regression. Every comparison against the frozen baseline
+must state its temperature, and a run whose stdev is 5× the baseline's (115.7 ms, seen at 33.8 °C)
+is a discarded run, not a data point.
+
 **Decision.** KEEP — all seven. **Next:** §9 Q10 prices §3.24b; the rest are correctness and cost
 nothing to hold.
 
