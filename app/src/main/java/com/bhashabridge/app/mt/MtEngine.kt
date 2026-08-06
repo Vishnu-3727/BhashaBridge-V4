@@ -6,6 +6,9 @@ import android.content.Context
 import com.bhashabridge.app.Direction
 import com.bhashabridge.app.bench.Metrics
 import java.nio.LongBuffer
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
 
 /**
  * Purpose:  Translates one direction's text end-to-end: tokenize → encode → decode → detokenize.
@@ -31,8 +34,44 @@ class MtEngine(
     tune: OrtTuning = ExecutionPolicy.current,
 ) {
 
-    private val tokenizer = Tokenizer.load(context, direction)
-    private val models = OnnxModels(context, direction, tune)
+    private val tokenizer: Tokenizer
+    private val models: OnnxModels
+
+    init {
+        // The two dictionary parses used to run first, alone, on this thread — about a second of a
+        // ~10.5 s cold start doing nothing the three session loads could not do at the same time.
+        // They share nothing: the tokenizer reads two JSON files into two maps, `OnnxModels` reads
+        // three graphs and builds three sessions, and neither looks at the other's output until both
+        // are done. `OnnxModels` already fans out across three threads (§3.12), so this adds a
+        // fourth rather than introducing concurrency to a serial load.
+        val pool = Executors.newSingleThreadExecutor { r ->
+            Thread(r, "bb-tokenizer-load").apply { isDaemon = true }
+        }
+        try {
+            val parsing = pool.submit(Callable {
+                val start = System.nanoTime()
+                val loaded = Tokenizer.load(context, direction)
+                loaded to (System.nanoTime() - start)
+            })
+            models = OnnxModels(context, direction, tune)
+            // Awaited unconditionally, and before anything can throw out of this block: a tokenizer
+            // still parsing on a daemon thread after a failed construction would touch a context the
+            // caller has already given up on.
+            val (parsed, elapsedNanos) = try {
+                parsing.get()
+            } catch (e: ExecutionException) {
+                models.release() // the sessions loaded; nothing else will ever close them
+                throw e.cause ?: e
+            }
+            tokenizer = parsed
+            // A Metrics run is thread-confined (R6.3), so the stage marks inside `Tokenizer.load`
+            // now land on a worker with no active run and are dropped. The elapsed time is replayed
+            // here, on the thread that owns the `engine_init` run, so the breakdown survives the move.
+            Metrics.counter("tokenizer_us", elapsedNanos / 1000)
+        } finally {
+            pool.shutdown()
+        }
+    }
 
     /** Translates [text]. Returns the target-language string. */
     fun translate(text: String): String {
@@ -42,9 +81,18 @@ class MtEngine(
         Metrics.stage("tokenize")
 
         val mask = OnnxTensor.createTensor(models.env, LongBuffer.wrap(LongArray(srcIds.size) { 1L }), longArrayOf(1, srcIds.size.toLong()))
-        val srcTensor = OnnxTensor.createTensor(models.env, LongBuffer.wrap(srcIds), longArrayOf(1, srcIds.size.toLong()))
-        val encoderOut = models.encoderSession().run(mapOf("input_ids" to srcTensor, "attention_mask" to mask))
-        srcTensor.close()
+        // A throw out of the encoder run must not strand native tensors: `mask` outlives this block
+        // (the decoder feeds it every step) so it is closed by hand on the failure path, and the
+        // input ids tensor is scoped to the run that uses it.
+        val encoderOut = try {
+            OnnxTensor.createTensor(models.env, LongBuffer.wrap(srcIds), longArrayOf(1, srcIds.size.toLong()))
+                .use { srcTensor ->
+                    models.encoderSession().run(mapOf("input_ids" to srcTensor, "attention_mask" to mask))
+                }
+        } catch (e: Throwable) {
+            mask.close()
+            throw e // the unfinished Metrics run is discarded by the next begin() — see Metrics.beginNow
+        }
         val encoderHidden = encoderOut[0] as OnnxTensor
         Metrics.stage("encoder")
 
@@ -123,21 +171,27 @@ private class CachedLogitsSource(
         return lastLogitsRow(result)
     }
 
-    /** decoder_init: full prefix in, logits + fresh present out. Rebuilds the cache. */
-    private fun runInit(prefix: LongArray): OrtSession.Result {
-        val decIds = OnnxTensor.createTensor(models.env, LongBuffer.wrap(prefix), longArrayOf(1, prefix.size.toLong()))
-        val t0 = System.nanoTime()
-        val result = models.decoderInitSession().run(
-            mapOf(
-                "decoder_input_ids" to decIds,
-                "encoder_hidden_states" to encoderHidden,
-                "encoder_attention_mask" to mask,
-            )
-        )
-        initNanos += System.nanoTime() - t0
-        decIds.close()
-        return result
-    }
+    /**
+     * decoder_init: full prefix in, logits + fresh present out. Rebuilds the cache.
+     *
+     * `use` rather than a trailing `close()`: a throw out of `run` would otherwise skip the close,
+     * and `translate`'s `finally` cannot reach this tensor — it only knows about the mask, the
+     * encoder output and the cache. One leaked input tensor per failed step.
+     */
+    private fun runInit(prefix: LongArray): OrtSession.Result =
+        OnnxTensor.createTensor(models.env, LongBuffer.wrap(prefix), longArrayOf(1, prefix.size.toLong()))
+            .use { decIds ->
+                val t0 = System.nanoTime()
+                val result = models.decoderInitSession().run(
+                    mapOf(
+                        "decoder_input_ids" to decIds,
+                        "encoder_hidden_states" to encoderHidden,
+                        "encoder_attention_mask" to mask,
+                    )
+                )
+                initNanos += System.nanoTime() - t0
+                result
+            }
 
     /**
      * decoder_step: one new token + the retained cache in, logits + grown present out. No
@@ -147,19 +201,22 @@ private class CachedLogitsSource(
      */
     private fun runStep(newToken: Long): OrtSession.Result {
         val past = pastCache!!
-        val decIds = OnnxTensor.createTensor(models.env, LongBuffer.wrap(longArrayOf(newToken)), longArrayOf(1, 1))
-        val feed = HashMap<String, OnnxTensor>(models.pastInputNames.size + 2)
-        feed["decoder_input_ids"] = decIds
-        feed["encoder_attention_mask"] = mask
-        models.pastInputNames.forEachIndexed { i, name ->
-            feed[name] = past[i + 1] as OnnxTensor
-        }
-        val t0 = System.nanoTime()
-        val result = models.decoderStepSession().run(feed)
-        stepNanos += System.nanoTime() - t0
-        steps++
-        decIds.close()
-        return result
+        // `use`, for the same reason as runInit: this is the per-token path, so a failure here
+        // without it leaks one input tensor for every step already taken.
+        return OnnxTensor.createTensor(models.env, LongBuffer.wrap(longArrayOf(newToken)), longArrayOf(1, 1))
+            .use { decIds ->
+                val feed = HashMap<String, OnnxTensor>(models.pastInputNames.size + 2)
+                feed["decoder_input_ids"] = decIds
+                feed["encoder_attention_mask"] = mask
+                models.pastInputNames.forEachIndexed { i, name ->
+                    feed[name] = past[i + 1] as OnnxTensor
+                }
+                val t0 = System.nanoTime()
+                val result = models.decoderStepSession().run(feed)
+                stepNanos += System.nanoTime() - t0
+                steps++
+                result
+            }
     }
 
     /** Reads logits for the last position from a run's output 0, shape `[1, dec_len, vocab]`. */

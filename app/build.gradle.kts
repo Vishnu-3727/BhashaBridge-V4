@@ -104,6 +104,11 @@ android {
     // ONNX Runtime mmaps model files from disk; a compressed asset cannot be mmapped and
     // would force a full decompress-to-memory on every load.
     androidResources {
+        // NOT `json`. The vocabularies ship DEFLATE-compressed (3.39 MB → 1.19 MB) and storing them
+        // uncompressed looked like free speed on the tokenizer load. Measured on the SM-M315F, three
+        // fresh processes each: 2,605 ms uncompressed against 2,622 ms compressed — no effect. The
+        // cost is the parser, not the inflate (§3.29). Left compressed; the 2.6 MB is not worth an
+        // unmeasurable change.
         noCompress += setOf("onnx", "bin", "pb")
     }
 
