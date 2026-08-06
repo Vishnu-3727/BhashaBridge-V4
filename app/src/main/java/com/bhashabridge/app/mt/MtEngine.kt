@@ -6,9 +6,6 @@ import android.content.Context
 import com.bhashabridge.app.Direction
 import com.bhashabridge.app.bench.Metrics
 import java.nio.LongBuffer
-import java.util.concurrent.Callable
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.Executors
 
 /**
  * Purpose:  Translates one direction's text end-to-end: tokenize → encode → decode → detokenize.
@@ -38,39 +35,22 @@ class MtEngine(
     private val models: OnnxModels
 
     init {
-        // The two dictionary parses used to run first, alone, on this thread — about a second of a
-        // ~10.5 s cold start doing nothing the three session loads could not do at the same time.
-        // They share nothing: the tokenizer reads two JSON files into two maps, `OnnxModels` reads
-        // three graphs and builds three sessions, and neither looks at the other's output until both
-        // are done. `OnnxModels` already fans out across three threads (§3.12), so this adds a
-        // fourth rather than introducing concurrency to a serial load.
-        val pool = Executors.newSingleThreadExecutor { r ->
-            Thread(r, "bb-tokenizer-load").apply { isDaemon = true }
-        }
-        try {
-            val parsing = pool.submit(Callable {
-                val start = System.nanoTime()
-                val loaded = Tokenizer.load(context, direction)
-                loaded to (System.nanoTime() - start)
-            })
-            models = OnnxModels(context, direction, tune)
-            // Awaited unconditionally, and before anything can throw out of this block: a tokenizer
-            // still parsing on a daemon thread after a failed construction would touch a context the
-            // caller has already given up on.
-            val (parsed, elapsedNanos) = try {
-                parsing.get()
-            } catch (e: ExecutionException) {
-                models.release() // the sessions loaded; nothing else will ever close them
-                throw e.cause ?: e
-            }
-            tokenizer = parsed
-            // A Metrics run is thread-confined (R6.3), so the stage marks inside `Tokenizer.load`
-            // now land on a worker with no active run and are dropped. The elapsed time is replayed
-            // here, on the thread that owns the `engine_init` run, so the breakdown survives the move.
-            Metrics.counter("tokenizer_us", elapsedNanos / 1000)
-        } finally {
-            pool.shutdown()
-        }
+        // Serial, and that is a measured decision rather than the absence of one.
+        //
+        // Q3 moved this parse onto its own thread so it would overlap the three session loads. In a
+        // real cold app launch that made startup *worse* — engine_init 5,134 → 5,475 ms median —
+        // because the parse itself slowed from 2.9 s to 5.5 s. `OnnxModels` already fans out across
+        // three threads, each ORT session with `intra=2`, so the four big cores are saturated before
+        // this work starts. A fourth CPU-bound thread does not find idle capacity; it contends for
+        // the same cores and pays scheduling and migration cost on top. See OPTIMIZATION_SUMMARY
+        // §3.29 — the benchmark that said otherwise had loaded the tokenizer once beforehand, so it
+        // measured a warm, JIT-compiled parse hiding behind the sessions.
+        val start = System.nanoTime()
+        tokenizer = Tokenizer.load(context, direction)
+        // Kept from the reverted change: this counter is what exposed the regression, and it costs
+        // nothing in release (Metrics compiles out).
+        Metrics.counter("tokenizer_us", (System.nanoTime() - start) / 1000)
+        models = OnnxModels(context, direction, tune)
     }
 
     /** Translates [text]. Returns the target-language string. */

@@ -1011,7 +1011,7 @@ phone, which is the population that would benefit. Neither is available today, s
 and documented rather than being flipped on a hunch dressed up as six data points.
 
 
-### 3.29 Tokenizer parallel with session load (Q3) — KEEP; and Q4 re-scoped by measurement
+### 3.29 Tokenizer parallel with session load (Q3) — **REVERTED**; and Q4 re-scoped by measurement
 
 **Problem.** `MtEngine` built its `Tokenizer` and then its `OnnxModels`. The three graphs already
 load on three threads (§3.12), but the two dictionary parses ran **first, alone, on the calling
@@ -1068,6 +1068,49 @@ costs engine time while it exceeds the sessions' 2,148 ms, so a packed vocabular
 one for a new on-disk format with its own cache-invalidation and verification burden. Q4 stays open,
 re-scoped, with a cheaper thing to try first: confirm whether the generated Baseline Profile (§3.16)
 actually covers `parseFlatIntDict`, since half the cold cost is JIT warm-up on that one loop.
+
+
+**REVERTED 2026-08-06, the same day, on a measurement in the real app.** The benchmark above is
+wrong, and how it is wrong matters more than the change did.
+
+`EngineLoadTest.engineConstructionCost` timed `Tokenizer.load` **before** building the engine, to
+report the two halves separately. That first load warmed the dictionary pages *and* let the JIT
+compile the parser, so the engine's own parse ran in ~1.3 s instead of ~2.9 s and duly disappeared
+behind the session loads. The 32.7% "win" was the measurement warming its own subject.
+
+The real app, three cold launches per arm (force-stop, relaunch, `engine_init` from `Metrics`),
+device at 32.3 °C:
+
+| median | serial (before Q3) | parallel (Q3) |
+|---|---|---|
+| `engine_init` total | **5,134 ms** | 5,475 ms |
+| `sessions:parallel` | 2,153 ms | 2,651 ms |
+| tokenizer parse | 2,917 ms | **5,457 ms** |
+
+**Q3 made cold start 341 ms worse (+6.6%)**, because the parse slowed from 2.9 s to 5.5 s — nearly
+2×. The premise was that the parse ran while the machine was idle. It does not: `OnnxModels` already
+loads three graphs on three threads, each ORT session with `intra=2`, so the four big cores are
+saturated before the tokenizer starts. A fourth CPU-bound thread finds no spare capacity, contends
+for the same cores, and pays scheduling and migration on top — the same effect §3.8 measured when
+`intra_op=8` collapsed, reached from a different direction.
+
+Reverted to the serial load. The `tokenizer_us` counter added for Q3 is **kept**: it is what made the
+regression visible, and `Metrics` compiles out of release.
+
+**Two corrections beyond the revert itself:**
+
+1. **Engine construction is ~5.1 s, not the ~2.4 s claimed above** — that figure came from the same
+   warmed benchmark. The comparison against §3.12's ~10.5 s is therefore not like-for-like, and no
+   cumulative startup claim is made here.
+2. **Q4 re-opens *larger*, not smaller.** The serial parse is 2.9 s of a 5.1 s cold start — the single
+   biggest component of engine construction, against 2.15 s for all three ONNX sessions. The ~440 ms
+   ceiling computed above came from the warm numbers and is wrong.
+
+**The AOT arm of the same run measured nothing.** `cmd package compile -m speed -f` reported
+`status=verify` afterwards: ART declines to AOT-compile a `debuggable` build. Both arms therefore ran
+identically compiled, and the question — how much of the parse cost is JIT warm-up that a release
+build with the Baseline Profile (§3.16) would recover — stays **unanswered** until there is a release
+build, which is blocked on `AUDIT_2026-08-06.md` H4.
 
 ---
 
@@ -1228,7 +1271,9 @@ Three consequences worth stating once:
 | **Q1** | Slice the last position **inside** the exported `decoder_init` | The graph returns logits for every prefix position and the runtime discards all but the last; slicing upstream shrinks ORT's own allocation, not just our copy (§3.22). Those 490 KB/token allocations are also what makes the wide-vocab stdev in §3.22 | `model_pipeline` re-export → `verify_cache.py` 7/7 + `MtBenchmarkTest` on the M31 | Unknown; the largest remaining inference lever, and now the only one with real headroom |
 | ~~Q2a~~ | ~~Price the logits copy~~ | — | **CLOSED 2026-08-06** — `LogitsReadBenchmarkTest` on the M31: 545.8 µs/token saved at 122k vocab, 6.55 ms per 12-token translation, ~1.0% end-to-end (§3.22) | done |
 | **Q2b** | Does 4 intra-op threads ever win? | §3.21 tightened the clamp to `[1,2]` on one device's evidence. **Neither available device derives 4**, so the bound itself is untestable here — but the claim under it is not | `ProductionThreadSweepTest` on an S22 Ultra, which sets `intraThreads` explicitly: intra 1/2/4/6/8 on the production path, rotated rounds, parity-exact arms | Confirms or refutes a shipping default on a second topology |
-| ~~Q3~~ | ~~Overlap the tokenizer parse with session load~~ | — | **CLOSED 2026-08-06** — engine construction 3,535 → 2,380 ms median (−32.7%), output identical (§3.29) | done || **Q4** | Packed binary vocabulary | **Re-scoped by §3.29.** The parse is ~1,300 ms steady plus ~1,250 ms of interpreted-before-JIT, and it only costs engine time while it exceeds the sessions' 2,148 ms — so the ceiling is ~440 ms on a cold process and **zero** warm. `noCompress` on the JSON was tried and measured NO EFFECT | First, cheaper: check whether the generated Baseline Profile (§3.16) covers `parseFlatIntDict`, since half the cold cost is JIT warm-up. Only then a packed format, measured the same way (fresh process per load) | ~440 ms cold, 0 warm || **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting. **Blocked**: the contradicting pair was the S26U and CPH2603, neither of which is available | Explanation, not speed |
+| ~~Q3~~ | ~~Overlap the tokenizer parse with session load~~ | — | **CLOSED 2026-08-06 — REVERTED.** Cold start got 341 ms *worse* (5,134 → 5,475 ms): the big cores are already saturated by the three session loads, so the parse slowed 2.9 → 5.5 s. The benchmark showing a win had warmed the parser first (§3.29) | done |
+| **Q4** | Packed binary vocabulary | **Re-opened larger by the Q3 revert.** The parse is serial again and is now the biggest single piece of engine construction: **2.9 s of a 5.1 s cold start**, against 2.15 s for all three ONNX sessions. `noCompress` on the JSON measured NO EFFECT, so it is the parser, not the I/O | A packed vocabulary (sorted `String[]`+`int[]`, or one `.bin`), measured in the **real app** via `engine_init` over 3 cold launches — never by a test that loads the tokenizer beforehand | Up to ~2 s of a 5.1 s cold start |
+| **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting. **Blocked**: the contradicting pair was the S26U and CPH2603, neither of which is available | Explanation, not speed |
 | **Q6** | Greedy vs Beam on the real runtime | Beam is implemented, unit-tested, and has never been run against the model — its quality/latency trade is unknown | On-device A/B, quality judged on a fixed sentence set; note beam falls back to `decoder_init` every step today | Unknown; may be REVERT |
 | **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |
 | **Q8** | Speech pipeline | The Vosk path has never been optimized; ASR is 0.79× realtime on the M315F — slower than the speech it transcribes, on the only device now available | `SpeechPipelineBenchmarkTest` on the M31 | Unknown; the M31 number is the user-visible worst case |
