@@ -24,9 +24,23 @@ object AsrCorrector {
         Direction.HI_TO_EN -> correctHindi(text)
     }
 
-    // Literal substring matches, not regex — each entry carries enough surrounding context that an
-    // accidental match inside unrelated text is unlikely.
-    private val englishPhrases = linkedMapOf(
+    /**
+     * Phrase repairs, applied on **word boundaries**.
+     *
+     * These were literal `contains`/`replace` substring matches, on the reasoning that each entry
+     * carried enough context to be safe. Several do not: `"i is"` matches inside `"delhi is far"`,
+     * which the corrector turned into **`"delhi am far"`** before the translator ever saw it. Any
+     * entry whose first or last word is short enough to end another word is exposed the same way —
+     * `"he want"`, `"i are"`, `"we is"`.
+     *
+     * Some entries used to carry a trailing space (`"she go "`) as a hand-rolled boundary. `\b` does
+     * that properly and in both directions, so the spaces are gone: `\bshe go\b` will not fire on
+     * `"she going"`, because there is no boundary between `o` and `i`.
+     *
+     * Compiled once at class-init rather than per utterance — same cost as the old `contains` scan
+     * on a phrase this short, paid once instead of per recognition result.
+     */
+    private val englishPhrases: List<Pair<Regex, String>> = linkedMapOf(
         "what is you doing" to "what are you doing",
         "what is you" to "what are you",
         "where is you" to "where are you",
@@ -53,27 +67,27 @@ object AsrCorrector {
         "i am having hunger" to "i am hungry",
         "i am having thirst" to "i am thirsty",
         "i am having fever" to "i have fever",
-        "she go " to "she goes ",
-        "he go " to "he goes ",
-        "it go " to "it goes ",
-        "they goes " to "they go ",
-        "we goes " to "we go ",
-        "i goes " to "i go ",
-        "you goes " to "you go ",
+        "she go" to "she goes",
+        "he go" to "he goes",
+        "it go" to "it goes",
+        "they goes" to "they go",
+        "we goes" to "we go",
+        "i goes" to "i go",
+        "you goes" to "you go",
         "she don't" to "she doesn't",
         "he don't" to "he doesn't",
         "it don't" to "it doesn't",
-        "i are " to "i am ",
-        "you is " to "you are ",
-        "they is " to "they are ",
-        "we is " to "we are ",
+        "i are" to "i am",
+        "you is" to "you are",
+        "they is" to "they are",
+        "we is" to "we are",
         "did you went" to "did you go",
         "have you went" to "have you gone",
         "calm the police" to "call the police",
         "calm an ambulance" to "call an ambulance",
         "calm a doctor" to "call a doctor",
         "calm my" to "call my",
-    )
+    ).map { (wrong, fix) -> Regex("\\b" + Regex.escape(wrong) + "\\b") to fix }
 
     private val contractions = mapOf(
         "gonna" to "going to",
@@ -93,6 +107,10 @@ object AsrCorrector {
         "outta" to "out of",
     )
 
+    /** Compiled once, like [englishPhrases] — this table was already boundary-correct, only re-compiled per call. */
+    private val contractionPatterns: List<Pair<Regex, String>> =
+        contractions.map { (wrong, fix) -> Regex("\\b" + Regex.escape(wrong) + "\\b") to fix }
+
     /** Vosk's Hindi model drops indirect-object case markers; these are the observed cases. */
     private val hindiPhrases = linkedMapOf(
         "मैं जाना है" to "मुझे जाना है",
@@ -108,11 +126,13 @@ object AsrCorrector {
         var text = input.lowercase().trim().replace(fillers, "").replace(whitespace, " ").trim()
         if (text.isBlank()) return input
 
-        for ((wrong, fix) in englishPhrases) {
-            if (text.contains(wrong)) text = text.replace(wrong, fix)
+        // Literal replacements: the fixes contain no `$`, but going through Regex.replace's
+        // replacement syntax for a table someone will edit later is a trap worth not leaving.
+        for ((pattern, fix) in englishPhrases) {
+            text = pattern.replace(text) { fix }
         }
-        for ((wrong, fix) in contractions) {
-            text = text.replace(Regex("\\b${Regex.escape(wrong)}\\b"), fix)
+        for ((pattern, fix) in contractionPatterns) {
+            text = pattern.replace(text) { fix }
         }
         text = disambiguate(text.replace(whitespace, " ").trim())
         return text.trim().replaceFirstChar { it.uppercase() }
