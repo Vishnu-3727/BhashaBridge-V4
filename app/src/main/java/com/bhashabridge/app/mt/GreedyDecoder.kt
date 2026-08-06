@@ -1,5 +1,7 @@
 package com.bhashabridge.app.mt
 
+import com.bhashabridge.app.bench.Metrics
+
 /**
  * Purpose:  Greedy decoding — take the single highest-scoring token at every step. The strategy
  *           v3.4.1 actually shipped for both directions.
@@ -28,7 +30,15 @@ class GreedyDecoder(private val config: DecodeConfig = DecodeConfig()) : Decoder
 
             // Matches v3.4.1 exactly: EOS and the length cap both stop WITHOUT appending the token
             // being examined. The cap is checked against the current length, before the append.
-            if (next == config.eosToken || generated.size >= cap) break
+            if (next == config.eosToken) break
+            if (generated.size >= cap) {
+                // Stopping on the cap means the sentence was cut off, not finished. Counted so the
+                // rate is observable on a real corpus instead of inferred from the formula — the
+                // first version of this cap looked reasonable and truncated silently for months.
+                // Debug-gated like every other Metrics call, so release builds are unaffected.
+                Metrics.counter("hit_cap", 1)
+                break
+            }
             generated.add(next)
         }
         return generated.toLongArray()

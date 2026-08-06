@@ -50,6 +50,22 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // `android.util.Log` is not mocked in JVM unit tests and throws by default. `Metrics`
+            // logs a warning through it when a counter is recorded with no active run on the calling
+            // thread — which is exactly what a decoder unit test does, since there is no MtEngine
+            // around it to have called begin().
+            //
+            // Returning defaults instead of throwing keeps `DecoderTest` what it claims to be: the
+            // decode algorithms proven with no ONNX, no model and no Android. The alternative was to
+            // keep instrumentation out of the decode loop entirely, which would leave the cap-hit
+            // rate unmeasurable on a real corpus — and an unmeasurable cap is how the truncation
+            // defect survived twice.
+            isReturnDefaultValues = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

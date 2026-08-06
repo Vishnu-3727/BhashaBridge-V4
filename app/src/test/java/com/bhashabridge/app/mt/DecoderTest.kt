@@ -65,9 +65,13 @@ class DecoderTest {
         // Model never chooses eos: last token always prefers t1. Cap must halt it.
         val alwaysT1 = TableSource(mapOf(0L to r(1), 1L to r(1)), vocab = 6)
         val capped = cfg.copy(maxSteps = 100, minTargetLen = 3)
+        // Expected length comes from `targetCap` rather than a literal, so this test stays about
+        // "the cap halts a model that never emits EOS" and does not have to be re-derived every
+        // time the cap's growth term changes.
+        val cap = capped.targetCap(sourceLen = 3)
         val out = GreedyDecoder(capped).decode(alwaysT1, sourceLen = 3)
-        assertEquals(3, out.size)            // start + two generated, then size >= cap halts
-        assertEquals(3L, out.count { it != 5L }.toLong()) // no eos in the result
+        assertEquals(cap, out.size)                              // start + (cap-1) generated, then halt
+        assertEquals(cap.toLong(), out.count { it != 5L }.toLong()) // no eos in the result
     }
 
     /**
@@ -81,7 +85,24 @@ class DecoderTest {
         val alwaysT1 = TableSource(mapOf(0L to r(1), 1L to r(1)), vocab = 6)
         val defaults = DecodeConfig(startToken = 0, eosToken = 5, repetitionPenalty = 1.0f, noRepeatNgram = 0)
         val out = GreedyDecoder(defaults).decode(alwaysT1, sourceLen = 40)
-        assertEquals("start token + 39 generated", 40, out.size)
+        assertEquals("start token + 39 generated", 40 * 16 / 10 + 8, out.size)
+    }
+
+    /**
+     * The half of that fix which shipped incomplete: a target may be **longer than its source**.
+     *
+     * Raising `maxSteps` to 128 removed one ceiling and left `targetCap = max(14, sourceLen)`, which
+     * assumes a translation never needs more tokens than its input. Hindi expands; the sentence was
+     * still cut off mid-way with no EOS and no signal, just at a different threshold.
+     */
+    @Test
+    fun `the cap leaves room for a target longer than its source`() {
+        val cfg = DecodeConfig()
+        assertEquals("20-token source gets 40 tokens of room", 40, cfg.targetCap(20))
+        assertEquals("a 40-token source is not capped at 40", 72, cfg.targetCap(40))
+        // Short inputs lean on the +8 and the floor rather than on the ratio.
+        assertEquals(14, cfg.targetCap(1))
+        assertEquals(24, cfg.targetCap(10))
     }
 
     /** ...but not without a ceiling: `Tokenizer.encode` never truncates, so the cap must clamp. */

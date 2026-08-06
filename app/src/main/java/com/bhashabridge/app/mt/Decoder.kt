@@ -74,11 +74,23 @@ data class DecodeConfig(
     val noRepeatNgram: Int = 3,
 ) {
     /**
-     * The length cap for one translation: never shorter than [minTargetLen], grows with the input, and
-     * never past [maxSteps]. Clamping here rather than in the decoders keeps a single number bounding
-     * generation — the loop bound and the cap can no longer disagree, which is what hid the truncation.
+     * The length cap for one translation: never shorter than [minTargetLen], grows with the input,
+     * and never past [maxSteps].
+     *
+     * **The growth term is `sourceLen × 1.6 + 8`, not `sourceLen`, and that is the second half of a
+     * fix whose first half shipped incomplete.** Raising `maxSteps` from 18 to 128 removed one
+     * truncation ceiling and left another: a cap equal to the source token count silently assumes a
+     * translation is never longer than its input. It routinely is — Hindi expands, and every
+     * language pair has sentences where the target needs more tokens than the source. The failure is
+     * identical to the one that was fixed: the decoder stops mid-sentence, emits no EOS, and nothing
+     * tells the user.
+     *
+     * 1.6 is a headroom factor, not a measurement of the expansion ratio — the point is that the cap
+     * must not bind before [maxSteps] does for ordinary sentences. The `+ 8` covers short inputs,
+     * where a ratio alone is too tight. [maxSteps] remains the real ceiling and the runaway guard.
      */
-    fun targetCap(sourceLen: Int): Int = maxOf(minTargetLen, sourceLen).coerceAtMost(maxSteps)
+    fun targetCap(sourceLen: Int): Int =
+        maxOf(minTargetLen, (sourceLen * 16) / 10 + 8).coerceAtMost(maxSteps)
 }
 
 // --- Shared decode rules. Both decoders apply these to a logits row before selecting tokens. ---
