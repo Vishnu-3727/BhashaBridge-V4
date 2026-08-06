@@ -153,6 +153,16 @@ class BhashaBridgeApp : Application() {
             // Re-check: another thread may have built it while this one waited for the load lock.
             synchronized(engineLock) { engines[direction] }?.let { return it }
 
+            // Evicted BEFORE the new engine is built, not after, and the measurement is the reason.
+            // Releasing afterwards still peaked at both engines resident — and the peak is what the
+            // low-memory killer reacts to, not the steady state. Measured on the SM-M315F: a swap
+            // peaked at 1.57 GB PSS with the old engine still up, against ~1.19 GB for one.
+            //
+            // The risk accepted: if the new engine fails to build, the old one is already gone. That
+            // is the right way round — the user has asked to leave that direction, and a failed load
+            // already puts the screen in its "direction unavailable" state either way.
+            evictOtherDirections(keep = direction)
+
             logDebug(LogTag.APP) { "Loading MT engine: $direction" }
             // Phase 11A: one measured run around the whole construction. The stage marks inside
             // Tokenizer and OnnxModels attribute the time to tokenizer / verify / extract / session,
@@ -163,6 +173,8 @@ class BhashaBridgeApp : Application() {
             Metrics.end()
 
             synchronized(engineLock) { engines[direction] = engine }
+            // Again after publishing: the pre-build eviction is skipped when something is borrowed,
+            // and this covers the case where the borrow ended while this engine was loading.
             evictOtherDirections(keep = direction)
             return engine
         }
