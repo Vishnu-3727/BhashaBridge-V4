@@ -14,6 +14,7 @@ import com.bhashabridge.app.logDebug
 import com.bhashabridge.app.logWarn
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
@@ -290,14 +291,42 @@ class OnnxModels(
         return SessionLoad(label, session, verifyNs, readNs, System.nanoTime() - start, true, ort.length())
     }
 
-    /** Copies an asset to app-private storage in 1 MB chunks. ORT loads (and mmaps) from a file path. */
+    /**
+     * Copies an asset to app-private storage in 1 MB chunks. ORT loads (and mmaps) from a file path.
+     *
+     * Written to a `.part` file and renamed on completion, because every reader of these files tests
+     * `exists()` alone. A copy interrupted part-way — process killed, storage full, install stopped —
+     * would otherwise leave a truncated several-hundred-MB `.onnx` that looks complete forever after,
+     * and ORT fails to parse it on every launch from then on.
+     */
     private fun extractAsset(context: Context, name: String, dest: File) {
+        val part = File(dest.parentFile, "${dest.name}.part")
+        // Checked before a byte is written, because the failure this prevents is expensive and
+        // opaque: three graphs are extracted concurrently, each a few hundred MB, and running out
+        // of space part-way through surfaces as an IOException from a write — which the UI reports
+        // with the same "direction unavailable" message it uses for a direction that was never
+        // exported. The headroom is the asset itself plus the .ort the bake will write from it.
+        val needed = assetLength(context, name) * 2
+        val free = dest.parentFile?.usableSpace ?: Long.MAX_VALUE
+        if (free < needed) {
+            throw IOException(
+                "not enough storage to install $name: needs ${needed / (1 shl 20)} MB, " +
+                    "${free / (1 shl 20)} MB free"
+            )
+        }
         val buf = ByteArray(1 shl 20)
-        context.assets.open(name).use { input ->
-            FileOutputStream(dest).use { output ->
-                var n = input.read(buf)
-                while (n != -1) { output.write(buf, 0, n); n = input.read(buf) }
+        try {
+            context.assets.open(name).use { input ->
+                FileOutputStream(part).use { output ->
+                    var n = input.read(buf)
+                    while (n != -1) { output.write(buf, 0, n); n = input.read(buf) }
+                }
             }
+            dest.delete()
+            if (!part.renameTo(dest)) throw IOException("could not publish extracted asset $name")
+        } catch (e: Throwable) {
+            part.delete()
+            throw e
         }
     }
 
@@ -337,10 +366,16 @@ class OnnxModels(
         else -> "app / ONNX Runtime / model version changed"
     }
 
-    /** Deletes the Phase 2A cache and the filesDir source copy for [name]; each is now obsolete. */
+    /**
+     * Deletes the Phase 2A cache and the filesDir source copy for [name]; each is now obsolete.
+     *
+     * `$name.part` is on the list because a process killed mid-[extractAsset] leaves one behind, and
+     * nothing else knows the name: several hundred MB of dead file that would otherwise sit in
+     * filesDir until the app is uninstalled.
+     */
     private fun purgeLegacy(dir: File, name: String) {
         val base = name.removeSuffix(".onnx")
-        listOf(name, "$base.opt.onnx", "$base.opt.stamp").forEach { legacy ->
+        listOf(name, "$name.part", "$base.opt.onnx", "$base.opt.stamp").forEach { legacy ->
             val f = File(dir, legacy)
             if (f.exists() && f.delete()) logDebug(LogTag.MT) { "cache invalidated: removed obsolete ${f.name}" }
         }
