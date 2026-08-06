@@ -455,6 +455,25 @@ data class OrtTuning(
      */
     val disableKleidiAi: Boolean = false,
     /**
+     * Sets `session.disable_prepacking`. **Benchmark-only**, like [disableKleidiAi] — prepacking is a
+     * straight win for inference and nothing ships with it off.
+     *
+     * It existed to answer Q13 — whether MLAS pre-packing was what dropped the model's file mapping
+     * — and the answer is **no**. Measured on the SM-M315F (cooled, `MmapPrepackTest`):
+     *
+     * | | prepack on (ships) | prepack off |
+     * |---|---|---|
+     * | mapped during load | 451 MB | 451 MB |
+     * | mapped after load | 0 | 0 |
+     * | native heap allocated | 559 MB | **1,067 MB** |
+     * | translate median | 636 ms | **2,909 ms** |
+     *
+     * The mapping disappears either way, so prepacking is not the mechanism. And prepacking is not
+     * a memory/speed trade at all — it is **4.6× faster and uses half the heap**. Keep it on; this
+     * flag is a measurement instrument and a REVERT, never a tuning option.
+     */
+    val disablePrepacking: Boolean = false,
+    /**
      * P8 operator profiling. When non-null, ONNX Runtime's built-in profiler is enabled on every
      * session, writing one Chrome-trace JSON per graph under this directory (see
      * [OnnxModels.endProfiling]). `null` (default) = profiler off = **zero runtime overhead and no
@@ -483,6 +502,8 @@ data class OrtTuning(
         // confirmed by simpleperf. Turning it off is the only way to attribute the gain, since the
         // dispatch is otherwise invisible to ORT profiling. See bench/results/cross-device/.
         if (disableKleidiAi) o.addConfigEntry("mlas.disable_kleidiai", "1")
+        // Measurement knob only — see the field's KDoc. Never set in production.
+        if (disablePrepacking) o.addConfigEntry("session.disable_prepacking", "1")
         return o
     }
 

@@ -852,6 +852,48 @@ claim is true only during load, not in steady state. **Not proven** — queued a
 **Decision.** No code change. §3.24b's wording is corrected above and §3.14's mmap claim is now
 qualified. **Next:** Q13.
 
+### 3.26 Is prepacking what unmaps the model? (Q13) — REFUTED, and a large negative result
+
+**Problem.** §3.25 found the `.ort` weights heap-resident with no file mapping and named MLAS
+pre-packing as the likely cause: it copies int8 weights into kernel-friendly buffers, which would let
+the mapped originals go.
+
+**Investigation.** `MmapPrepackTest` on the SM-M315F, cooled (30.5 → 30.0 °C). Two things §3.25 could
+not do: a watcher thread polling `/proc/self/maps` every 50 ms **during** `createSession` — a
+post-load sample cannot tell "never mapped" from "mapped, then unmapped" — and an A/B on the newly
+plumbed `session.disable_prepacking`.
+
+| | prepack **on** (ships) | prepack **off** |
+|---|---|---|
+| peak mapped during load | **451 MB** | **451 MB** |
+| mapped after load | 0 | 0 |
+| session load | 4,919 ms | 3,773 ms |
+| native heap allocated | 559 MB | **1,067 MB** |
+| process PSS | 753 MB | 856 MB |
+| translate median | **636 ms** | **2,909 ms** |
+
+**Result 1 — the mmap is real, and §3.14 is rescued.** 451 MB of `.ort` **is** mapped while the
+sessions build, then unmapped once they are built. Phase 2B's "loaded via memory-mapped I/O" is true;
+what §3.25 caught was the steady state after the mapping is released, not its absence. The §3.25
+entry stands as written — no mapping *persists* — but the claim it appeared to contradict does too.
+
+**Result 2 — prepacking is refuted as the mechanism.** The mapping is dropped identically with
+prepacking off. The remaining candidate is initializer copying: ORT's `SaveInitializedTensors` copies
+constants into the session allocator during load, and the config that would avoid it
+(`session.use_ort_model_bytes_for_initializers`) applies to the **buffer** load path, not the
+path-based one this code uses. That is Q14.
+
+**Result 3 — the negative result is the valuable one.** Disabling prepacking is not a
+memory-for-speed trade: it is **4.6× slower (636 → 2,909 ms) and uses nearly twice the native heap
+(559 → 1,067 MB)**. Prepacking pays for itself twice over. `disablePrepacking` stays benchmark-only
+and is documented as a REVERT so nobody reaches for it as a memory lever.
+
+**Evidence grade:** MEASURED. **Decision.** REVERT `disable_prepacking`; keep the knob for
+measurement. **Next:** Q14 — the only remaining route to file-backed weights is loading the `.ort`
+through a file-mapped `ByteBuffer` with `use_ort_model_bytes_directly` +
+`use_ort_model_bytes_for_initializers`, which ORT's Java surface does expose
+(`createSession(ByteBuffer, …)`).
+
 ---
 
 ## 4. Optimization Decision Matrix
@@ -1019,8 +1061,8 @@ Three consequences worth stating once:
 | **Q8** | Speech pipeline | The Vosk path has never been optimized; ASR is 0.79× realtime on the M315F — slower than the speech it transcribes, on the only device now available | `SpeechPipelineBenchmarkTest` on the M31 | Unknown; the M31 number is the user-visible worst case |
 | ~~Q10~~ | ~~Price the single-engine eviction~~ | — | **CLOSED 2026-08-06** — swap peak −511.7 MB (−36.7%), post-swap −392.9 MB, reload 3.5 s not 10 s (§3.24b) | done |
 | ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |
-| **Q13** | Why are the `.ort` models not memory-mapped? | `/proc/self/maps` shows **zero** app-data mappings while ~551 MB of weights sit in the native heap, despite `session.use_memory_mapped_ort_model=1` being a real ORT 1.27.0 key and the session being built from a path. Hypothesis: MLAS pre-packs int8 weights at init, copying the mapped bytes and dropping the mapping | Sample `/proc/self/maps` *during* `createSession`, then A/B `session.disable_prepacking=1`: if mappings appear and heap drops, prepacking is the mechanism. Requires re-checking §3.14's memory claim either way | Explanation; possibly ~500 MB of resident heap that could be file-backed || **Q12** | KleidiAI on i8mm-only silicon | §3.20 priced KleidiAI at 4–9% where SME exists. The S22 Ultra has i8mm and SVE2 but **no SME**, so this separates “KleidiAI helps” from “SME helps” — which entry #9 could not | `mlas.disable_kleidiai` A/B via `OrtTuning.disableKleidiAi` on an S22 Ultra, cool and hot runs | Unknown; a null result is as useful as a positive one |
-| **Q9** | R8 enabled on release | R8 has never been on; it changes the inference path and must be benchmarked, not assumed | `BenchmarkSuiteTest` before/after with `optimization { enable = true }` | Neutral-to-positive; the point is to prove it is not negative |
+| ~~Q13~~ | ~~Is prepacking what unmaps the model?~~ | — | **CLOSED 2026-08-06** — refuted. 451 MB *is* mapped during load and unmapped after, with or without prepacking. Disabling prepacking is 4.6× slower and uses 2× the heap: a REVERT (§3.26) | done |
+| **Q14** | Can the weights stay file-backed? | The mapping is dropped because ORT copies initializers into the session allocator during a path-based load. `createSession(ByteBuffer, …)` plus `use_ort_model_bytes_directly` + `use_ort_model_bytes_for_initializers` should let initializers point into a `FileChannel.map` of the `.ort` instead | Map the `.ort` with `FileChannel.map`, load through the ByteBuffer overload, then check `/proc/self/maps` after load and compare heap alloc, PSS and translate median against the path-based arm | Up to ~450 MB moved from anonymous heap to evictable file pages || **Q9** | R8 enabled on release | R8 has never been on; it changes the inference path and must be benchmarked, not assumed | `BenchmarkSuiteTest` before/after with `optimization { enable = true }` | Neutral-to-positive; the point is to prove it is not negative |
 
 **Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
 NO EFFECT. Deleting a row because it turned out not to work is how a ledger starts lying.
