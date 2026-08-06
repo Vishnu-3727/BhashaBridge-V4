@@ -27,7 +27,57 @@ import com.bhashabridge.app.speech.VoskModels
  */
 class BhashaBridgeApp : Application() {
 
+    /**
+     * Two locks, and the split is the point.
+     *
+     * Every method here used to be `@Synchronized`, i.e. all of them on this object's single
+     * monitor — including [translator], which **builds an engine inside it**: two dictionary parses
+     * and three ONNX sessions, ~10 s on the SM-M315F. Any other thread touching this class blocked
+     * for that whole span, and one of those threads is the main thread: `startRecording` runs
+     * `withResources` on the main dispatcher, so tapping the microphone while the engine loaded
+     * parked the UI thread on a ten-second lock. That is an ANR, not a stall.
+     *
+     * So the borrow counter — read and written constantly, held for nanoseconds — gets its own
+     * monitor, and the engine map keeps the slow one.
+     *
+     * **Lock order is [borrowLock] then [engineLock], never the reverse.** [endUse] and
+     * [onTrimMemory] take the counter first and the map second; [translator] takes only the map (via
+     * [loadLocks]). Nothing acquires the counter while holding the map, so the cycle that would
+     * deadlock cannot form.
+     */
+    private val borrowLock = Any()
+
+    /** Guards [engines]. Held briefly — never across an engine construction (see [loadLocks]). */
+    private val engineLock = Any()
+
+    /**
+     * One lock per direction, held for the length of that direction's construction.
+     *
+     * This is what keeps "only one thread builds a given engine" true without holding [engineLock]
+     * for ten seconds. Two threads racing on the *same* direction serialise here and the loser sees
+     * the winner's engine on the second look-up; two threads on *different* directions build
+     * concurrently, which is harmless — they share nothing but the process-wide `OrtEnvironment`.
+     */
+    private val loadLocks: Map<Direction, Any> = Direction.entries.associateWith { Any() }
+
     private val engines = HashMap<Direction, MtEngine>()
+
+    /**
+     * How many callers are *inside* a borrowed native resource right now — a translation running in
+     * ONNX Runtime, or a recording session holding a `Recognizer` bound to a Vosk model.
+     *
+     * Ownership alone is not enough to release safely. [translator] and [onTrimMemory] are both
+     * synchronised, so *acquiring* an engine cannot race a release — but a call already inside
+     * `MtEngine.translate()` holds no lock, and `AudioCapture.stop()` only sets a flag, so its loop
+     * and final flush outlive the stop by however long the current read takes. Closing a session or
+     * a model in either window frees native memory a live caller is still using: a process crash,
+     * not an exception. This counter is the missing half — one owner, one trigger, and a defined
+     * window in which the trigger may fire.
+     */
+    private var borrowers = 0
+
+    /** True when a trim arrived while resources were borrowed; the last [endUse] does the release. */
+    private var releaseWhenIdle = false
 
     /**
      * The Vosk acoustic models, owned here for the same reason the MT engines are: large native
@@ -51,41 +101,120 @@ class BhashaBridgeApp : Application() {
      * The borrow point: returns the process-scoped engine for [direction], constructing it on first
      * use (session load blocks — call off the main thread). Callers use it; they never release it.
      */
-    @Synchronized
-    fun translator(direction: Direction): MtEngine =
-        engines.getOrPut(direction) {
+    fun translator(direction: Direction): MtEngine {
+        // Fast path: resident engine, one uncontended lock acquisition, no chance of waiting behind
+        // a construction. This is the path every translation after the first takes.
+        synchronized(engineLock) { engines[direction] }?.let { return it }
+
+        synchronized(loadLocks.getValue(direction)) {
+            // Re-check: another thread may have built it while this one waited for the load lock.
+            synchronized(engineLock) { engines[direction] }?.let { return it }
+
             logDebug(LogTag.APP) { "Loading MT engine: $direction" }
             // Phase 11A: one measured run around the whole construction. The stage marks inside
             // Tokenizer and OnnxModels attribute the time to tokenizer / verify / extract / session,
             // so the startup cost is broken down rather than reported as a single number.
             Metrics.begin("engine_init")
-            MtEngine(this, direction).also {
-                Metrics.counter("direction_en_hi", if (direction == Direction.EN_TO_HI) 1 else 0)
-                Metrics.end()
-            }
+            val engine = MtEngine(this, direction)
+            Metrics.counter("direction_en_hi", if (direction == Direction.EN_TO_HI) 1 else 0)
+            Metrics.end()
+
+            synchronized(engineLock) { engines[direction] = engine }
+            return engine
         }
+    }
+
+    /**
+     * Runs [block] with the native resources pinned: they cannot be released underneath it, and a
+     * trim that arrives while it runs is deferred to whichever borrower finishes last.
+     *
+     * Every path that *uses* (not merely fetches) an engine or a Vosk model goes through here.
+     */
+    // Inline so callers can suspend inside [block] — the recording session collects a Flow for the
+    // whole span it needs the model pinned for, which a non-inline lambda could not express.
+    inline fun <T> withResources(block: () -> T): T {
+        beginUse()
+        try {
+            return block()
+        } finally {
+            endUse()
+        }
+    }
+
+    @PublishedApi
+    internal fun beginUse() {
+        synchronized(borrowLock) { borrowers++ }
+    }
+
+    @PublishedApi
+    internal fun endUse() {
+        val release = synchronized(borrowLock) {
+            borrowers--
+            (borrowers == 0 && releaseWhenIdle).also { if (it) releaseWhenIdle = false }
+        }
+        if (release) {
+            logDebug(LogTag.APP) { "Last borrower finished — running the deferred release" }
+            releaseAll()
+        }
+    }
 
     /**
      * The one release trigger for every process-lifetime native resource — ONNX sessions and Vosk
      * models alike. R4.5: `release()` and its call site land in the same commit, which is the
      * structural guard against the v3.4.1 leak where teardown existed but was never called.
      *
-     * Safe because it only fires at TRIM_MEMORY_COMPLETE — the app is backgrounded and a kill
-     * candidate — and the UI stops any recording session in `onStop`, before that can happen.
+     * **The level is TRIM_MEMORY_BACKGROUND, and that is load-bearing.** This gate was
+     * TRIM_MEMORY_COMPLETE, which the platform stopped delivering to apps targeting API 34 and
+     * above ("Apps are not notified of this level since API level 34" — ComponentCallbacks2). With
+     * `targetSdk = 36` the branch below could never be taken, so on every Android 14+ device the
+     * ~600 MB of models was held until the process died and this method was decoration. That is the
+     * v3.4.1 L2 lesson in its third disguise: not a missing call site this time, but a live one the
+     * platform quietly stopped calling. Of the seven trim levels only BACKGROUND and UI_HIDDEN
+     * survive on 34+; BACKGROUND is the one that means what the old comment claimed — the process
+     * is on the background LRU list and a kill candidate. UI_HIDDEN would fire on every home-press
+     * and buy back a ~27 s reload for a user who is coming straight back.
+     *
+     * Releasing is safe here only because [borrowers] says nothing is mid-use; a trim during a
+     * translation or a recording session is deferred rather than skipped, so the memory is still
+     * returned, just at the moment it stops being dangerous.
      */
-    @Synchronized
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level < ComponentCallbacks2.TRIM_MEMORY_COMPLETE) return
-        if (engines.isNotEmpty()) {
-            logDebug(LogTag.APP) { "Trim level $level — releasing ${engines.size} engine(s)" }
-            engines.values.forEach { it.release() }
+        if (level < ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) return
+        val deferred = synchronized(borrowLock) {
+            if (borrowers > 0) {
+                releaseWhenIdle = true
+                true
+            } else false
+        }
+        if (deferred) {
+            logDebug(LogTag.APP) { "Trim level $level — borrower(s) active; deferring release" }
+            return
+        }
+        releaseAll()
+    }
+
+    /**
+     * Closes everything held. Callers must have checked [borrowers] under [borrowLock] first.
+     *
+     * The map is emptied under [engineLock] and the native `release()` calls happen *outside* it, so
+     * a teardown never holds the lock a `translator()` fast path needs. Nothing else can reach the
+     * engines by then — they are already out of the map.
+     */
+    private fun releaseAll() {
+        val doomed = synchronized(engineLock) {
+            val all = engines.values.toList()
             engines.clear()
+            all
+        }
+        if (doomed.isNotEmpty()) {
+            logDebug(LogTag.APP) { "Releasing ${doomed.size} engine(s)" }
+            doomed.forEach { it.release() }
         }
         // Guarded, not `speechModels.release()`: touching the property would *construct* the
         // models we are trying to avoid holding.
         if (speechModelsLazy.isInitialized()) {
-            logDebug(LogTag.APP) { "Trim level $level — releasing speech models" }
+            logDebug(LogTag.APP) { "Releasing speech models" }
             speechModelsLazy.value.release()
         }
     }
