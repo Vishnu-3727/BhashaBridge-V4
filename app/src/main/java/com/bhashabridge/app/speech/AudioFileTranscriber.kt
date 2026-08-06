@@ -101,7 +101,7 @@ object AudioFileTranscriber {
      * Capped at [MAX_DURATION_MS]: the whole file is decoded into memory before recognition
      * starts, and this is a phrase-translation app, not a transcription service.
      */
-    private fun decodeToPcm(context: Context, uri: Uri): ShortArray? = try {
+    private suspend fun decodeToPcm(context: Context, uri: Uri): ShortArray? = try {
         // The extractor is released in a `finally` covering its whole lifetime. Releasing it once per
         // success branch left it leaked whenever setDataSource, getTrackFormat or decodeTrack threw:
         // the outer catch logs and returns null, and nothing else holds a reference. It is backed by
@@ -143,8 +143,17 @@ object AudioFileTranscriber {
     private fun MediaFormat.durationMs(): Long =
         if (containsKey(MediaFormat.KEY_DURATION)) getLong(MediaFormat.KEY_DURATION) / 1000 else 0L
 
-    /** The standard MediaCodec queue loop: fill an input buffer, drain an output buffer, repeat. */
-    private fun decodeTrack(extractor: MediaExtractor, format: MediaFormat): ShortArray {
+    /**
+     * The standard MediaCodec queue loop: fill an input buffer, drain an output buffer, repeat.
+     *
+     * `suspend` for one reason: the loop below is the only unbounded wait in the speech pipeline.
+     * A decoder that never signals end-of-stream — a malformed container, a vendor codec bug —
+     * spins here forever, and until this checked for cancellation there was no way out: the
+     * coroutine was cancelled but the loop kept running on Dispatchers.IO for the life of the
+     * process. [MAX_SAMPLES] bounds a decoder that *produces* output; nothing bounded one that
+     * simply never finishes.
+     */
+    private suspend fun decodeTrack(extractor: MediaExtractor, format: MediaFormat): ShortArray {
         // configure/start moved inside the try: they were outside the block whose `finally` releases
         // the codec, so an unsupported profile or an exhausted decoder pool leaked it.
         val codec = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME)!!)
@@ -162,6 +171,9 @@ object AudioFileTranscriber {
             codec.configure(format, null, null, 0)
             codec.start()
             while (!outputDone) {
+                // Cancellation is checked here, not only in the recognition loop that follows:
+                // this is where a stuck decoder would otherwise pin an IO thread indefinitely.
+                currentCoroutineContext().ensureActive()
                 if (!inputDone) {
                     val index = codec.dequeueInputBuffer(TIMEOUT_US)
                     if (index >= 0) {

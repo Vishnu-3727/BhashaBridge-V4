@@ -223,7 +223,12 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
                 _state.update { it.copy(mic = MicState.Idle) }
             }
         }
-        micJob?.invokeOnCompletion { micJob = null }
+        // Cleared on the main dispatcher, not on whichever thread happened to complete the job.
+        // `invokeOnCompletion` runs on the completing thread, so a bare `micJob = null` there was a
+        // plain field written off-main and read on-main with no happens-before edge: a stale
+        // non-null read wedges the microphone until restart, a stale null read starts a second
+        // session while the first is still flushing — two Recognizers on one model.
+        micJob?.invokeOnCompletion { viewModelScope.launch { micJob = null } }
     }
 
     /**
@@ -254,7 +259,12 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
                 _state.update { it.copy(mic = MicState.Idle) }
             }
         }
-        micJob?.invokeOnCompletion { micJob = null }
+        // Cleared on the main dispatcher, not on whichever thread happened to complete the job.
+        // `invokeOnCompletion` runs on the completing thread, so a bare `micJob = null` there was a
+        // plain field written off-main and read on-main with no happens-before edge: a stale
+        // non-null read wedges the microphone until restart, a stale null read starts a second
+        // session while the first is still flushing — two Recognizers on one model.
+        micJob?.invokeOnCompletion { viewModelScope.launch { micJob = null } }
     }
 
     /** Ends the session cleanly: the flow still emits its final transcript before completing. */
