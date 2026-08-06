@@ -799,6 +799,59 @@ is a discarded run, not a data point.
 **Decision.** KEEP — all seven. **Next:** §9 Q10 prices §3.24b; the rest are correctness and cost
 nothing to hold.
 
+### 3.25 Where the memory goes after `release()` (Q11) — MEASURED, and it corrects §3.24b
+
+**Problem.** §3.24b measured PSS sitting at 1,441 MB after both engines were closed, against 51 MB
+idle, unmoved by a GC and unmoved thirteen seconds later, and concluded *"`release()` does not return
+memory to the OS"*. Three explanations fit that observation and they have very different
+consequences: ORT not freeing (a real leak, and the eviction is worthless), the allocator retaining
+freed spans (memory free to the process, eviction only enables reuse), or the mmapped `.ort` files
+staying resident.
+
+**Investigation.** `NativeMemoryReturnTest` on the SM-M315F (cooled, 31.4 °C). The three are
+separable without JNI: `Debug.getNativeHeapAllocatedSize` is what malloc owes the app,
+`getNativeHeapSize` is what the allocator holds from the OS, and `/proc/self/maps` says what is
+mapped.
+
+| stage | PSS | heap alloc | heap size | `.ort` mappings |
+|---|---|---|---|---|
+| idle | 32 MB | 6.8 MB | 7.8 MB | 0 |
+| engine built | 666 MB | 557.8 MB | 632.6 MB | 0 |
+| after translate | 667 MB | 558.1 MB | 640.3 MB | 0 |
+| **released, immediately** | 533 MB | **13.2 MB** | 497.1 MB | 0 |
+| released + GC + 2 s | 526 MB | 13.1 MB | 497.1 MB | 0 |
+| **released + 10 s** | **372 MB** | 13.2 MB | **333.2 MB** | 0 |
+| second engine built | 618 MB | 557.9 MB | 561.7 MB | 0 |
+
+**Result 1 — ORT frees correctly, and §3.24b's conclusion was wrong.** Allocated native memory drops
+from **557.8 MB to 13.2 MB the instant `release()` returns** — a 97.6% drop, so `close()` is doing its
+job and there is no leak. The allocator then hands pages back to the OS *asynchronously*: heap size
+falls 632.6 → 497.1 MB immediately and → 333.2 MB about ten seconds later, with PSS following
+666 → 533 → 372 MB. **Memory is returned; it is returned late.** §3.24b's thirteen-second observation
+was taken after *two* engines on a larger, more fragmented heap and had not come back within that
+window — a slower case of the same behaviour, not a different one. The correction stands as the
+entry: `release()` works, and the eviction returns real memory to the system, just not instantly.
+
+**Result 2 — an unasked-for finding: the `.ort` models are not memory-mapped.** `/proc/self/maps`
+shows **zero mappings under the app's data directories** at any point, while the native heap grows by
+~551 MB when the engine loads. The weights are heap-resident. §3.14 (Phase 2B) describes this path as
+"loaded via memory-mapped I/O", and `loadOptions()` does set
+`session.use_memory_mapped_ort_model=1` — which is a **real** key in ORT 1.27.0 (confirmed by
+`strings` on `libonnxruntime.so`, which also carries *"session.use_memory_mapped_ort_model is ignored
+when loading from a buffer"*). The session is created from a **path**, not a buffer, so that
+exclusion should not apply, and the Java binding does have a path-based JNI entry point
+(`createSession__JJLjava_lang_String_2J`).
+
+The most likely mechanism is that MLAS **pre-packs** int8 weights at session init: the mapped bytes
+are copied into freshly allocated, kernel-friendly buffers and the mapping is dropped. That would
+make §3.14's disk-space win real (only `.ort` is kept, the source is purged) while its memory-mapping
+claim is true only during load, not in steady state. **Not proven** — queued as Q13.
+
+**Evidence grade:** MEASURED for both results; the *mechanism* behind result 2 is a hypothesis.
+
+**Decision.** No code change. §3.24b's wording is corrected above and §3.14's mmap claim is now
+qualified. **Next:** Q13.
+
 ---
 
 ## 4. Optimization Decision Matrix
@@ -965,8 +1018,8 @@ Three consequences worth stating once:
 | **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |
 | **Q8** | Speech pipeline | The Vosk path has never been optimized; ASR is 0.79× realtime on the M315F — slower than the speech it transcribes, on the only device now available | `SpeechPipelineBenchmarkTest` on the M31 | Unknown; the M31 number is the user-visible worst case |
 | ~~Q10~~ | ~~Price the single-engine eviction~~ | — | **CLOSED 2026-08-06** — swap peak −511.7 MB (−36.7%), post-swap −392.9 MB, reload 3.5 s not 10 s (§3.24b) | done |
-| **Q11** | Why does `release()` not return memory to the OS? | Closing both engines leaves PSS at 1,441 MB against 51 MB idle — stable across a GC and 13 s. Either scudo retains freed spans or ORT holds allocations past `close()` | `dumpsys meminfo` + `malloc_info` before/after release; a trivial JNI `mallopt(M_PURGE)` shim to test whether the allocator returns them on demand | Up to ~800 MB the process holds but is not using |
-| **Q12** | KleidiAI on i8mm-only silicon | §3.20 priced KleidiAI at 4–9% where SME exists. The S22 Ultra has i8mm and SVE2 but **no SME**, so this separates “KleidiAI helps” from “SME helps” — which entry #9 could not | `mlas.disable_kleidiai` A/B via `OrtTuning.disableKleidiAi` on an S22 Ultra, cool and hot runs | Unknown; a null result is as useful as a positive one |
+| ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |
+| **Q13** | Why are the `.ort` models not memory-mapped? | `/proc/self/maps` shows **zero** app-data mappings while ~551 MB of weights sit in the native heap, despite `session.use_memory_mapped_ort_model=1` being a real ORT 1.27.0 key and the session being built from a path. Hypothesis: MLAS pre-packs int8 weights at init, copying the mapped bytes and dropping the mapping | Sample `/proc/self/maps` *during* `createSession`, then A/B `session.disable_prepacking=1`: if mappings appear and heap drops, prepacking is the mechanism. Requires re-checking §3.14's memory claim either way | Explanation; possibly ~500 MB of resident heap that could be file-backed || **Q12** | KleidiAI on i8mm-only silicon | §3.20 priced KleidiAI at 4–9% where SME exists. The S22 Ultra has i8mm and SVE2 but **no SME**, so this separates “KleidiAI helps” from “SME helps” — which entry #9 could not | `mlas.disable_kleidiai` A/B via `OrtTuning.disableKleidiAi` on an S22 Ultra, cool and hot runs | Unknown; a null result is as useful as a positive one |
 | **Q9** | R8 enabled on release | R8 has never been on; it changes the inference path and must be benchmarked, not assumed | `BenchmarkSuiteTest` before/after with `optimization { enable = true }` | Neutral-to-positive; the point is to prove it is not negative |
 
 **Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
