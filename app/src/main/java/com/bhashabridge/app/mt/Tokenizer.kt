@@ -4,6 +4,7 @@ import android.content.Context
 import com.bhashabridge.app.Direction
 import com.bhashabridge.app.bench.Metrics
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.Reader
@@ -108,7 +109,24 @@ class Tokenizer internal constructor(
         /** 64 KB. See [bufferedUtf8]. */
         private const val BUFFER_BYTES = 1 shl 16
 
-        /** Loads the pair of dictionaries for [direction] from assets. */
+        /**
+         * Resolves a dictionary as a file in `filesDir`, falling back to the packaged asset.
+         *
+         * The same rule [OnnxModels] already applies to the `.onnx` graphs, for the same reason: it
+         * lets a build that ships no assets — the `:benchapp` smoke test — run the real tokenizer
+         * against sideloaded vocabularies, instead of needing a second implementation of it.
+         *
+         * The app itself never stages a dictionary into `filesDir`, so it always takes the asset
+         * branch and its behaviour is unchanged; the cost is one `exists()` per vocabulary against a
+         * parse that takes on the order of a second.
+         */
+        private fun openDict(context: Context, name: String): InputStream {
+            val staged = File(context.filesDir, name)
+            return if (staged.exists() && staged.length() > 0L) staged.inputStream()
+            else context.assets.open(name)
+        }
+
+        /** Loads the pair of dictionaries for [direction]. See [openDict] for where they come from. */
         fun load(context: Context, direction: Direction): Tokenizer {
             val (srcDict, tgtDict) = when (direction) {
                 Direction.EN_TO_HI -> "dict.SRC.json" to "dict.TGT.json"
@@ -116,9 +134,9 @@ class Tokenizer internal constructor(
             }
             // Phase 11A: three marks, so the report can separate parsing the two vocabularies from
             // building the reverse index. Inline and debug-gated — release builds are unchanged.
-            val src = context.assets.open(srcDict).use { parseFlatIntDict(bufferedUtf8(it)) }
+            val src = openDict(context, srcDict).use { parseFlatIntDict(bufferedUtf8(it)) }
             Metrics.stage("tokenizer:src_dict")
-            val tgt = context.assets.open(tgtDict).use { parseFlatIntDict(bufferedUtf8(it)) }
+            val tgt = openDict(context, tgtDict).use { parseFlatIntDict(bufferedUtf8(it)) }
             Metrics.stage("tokenizer:tgt_dict")
             val (srcLang, tgtLang) = langIds(direction, src)
             return Tokenizer(src, tgt.entries.associate { (k, v) -> v to k }, srcLang, tgtLang)
@@ -134,8 +152,16 @@ class Tokenizer internal constructor(
         }
 
         /**
-         * Parses a flat `{"piece": int, …}` object one character at a time — no parse tree, so a
+         * Parses a flat `{"piece": int, …}` object character by character — no parse tree, so a
          * multi-MB dictionary never materialises as one. Understands only this exact shape.
+         *
+         * Characters are pulled a **block at a time** into [chunk] and then walked in the array.
+         * `Reader.read()` per character is one virtual call plus a `synchronized` block on
+         * `BufferedReader`'s lock for every one of the 3.4 M characters in the target vocabulary;
+         * the identical state machine over a filled `CharArray` pays that once per 64 K characters
+         * instead. Same charset, same character sequence, same branches, same map — only the
+         * fetch granularity changed. This is the second half of the Phase 11B finding (the first
+         * was [bufferedUtf8]); startup is dominated by these two parses.
          */
         internal fun parseFlatIntDict(reader: Reader): Map<String, Int> {
             val map = HashMap<String, Int>(1 shl 16)
@@ -149,21 +175,52 @@ class Tokenizer internal constructor(
                 if (key.isNotEmpty() && id != null) map[key] = id
                 key = ""; sb.clear(); readingKey = true
             }
-            var c = reader.read()
-            while (c != -1) {
-                val ch = c.toChar()
-                when {
-                    escape -> { sb.append(ch); escape = false }
-                    ch == '\\' && inString -> { sb.append(ch); escape = true }
-                    ch == '"' && !inString -> inString = true
-                    ch == '"' && inString -> { inString = false; if (readingKey) { key = sb.toString(); sb.clear() } }
-                    ch == ':' && !inString -> { readingKey = false; sb.clear() }
-                    ch == ',' && !inString -> commit()
-                    ch == '}' && !inString -> commit()
-                    inString -> sb.append(ch)
-                    ch.isDigit() || ch == '-' -> sb.append(ch)
+            // Escape state lives out here, not inside the per-chunk loop: a `\"` pair or a `\uXXXX`
+            // sequence can straddle the 64 K seam between two reads.
+            var unicodeRemaining = 0
+            var unicodeAcc = 0
+            val chunk = CharArray(BUFFER_BYTES)
+            var read = reader.read(chunk)
+            while (read != -1) {
+                for (i in 0 until read) {
+                    val ch = chunk[i]
+                    when {
+                        // \uXXXX — four hex digits, accumulated then emitted as one char.
+                        unicodeRemaining > 0 -> {
+                            unicodeAcc = unicodeAcc * 16 + Character.digit(ch, 16).coerceAtLeast(0)
+                            if (--unicodeRemaining == 0) sb.append(unicodeAcc.toChar())
+                        }
+                        // Emit what the escape MEANS. This used to append the escaped character
+                        // *after* the backslash had already been appended below, so `"▁\""` in the
+                        // JSON became the three-character key `▁\"` instead of the piece `▁"`.
+                        // Four of the 122,672 target pieces are affected, and both directions are
+                        // wrong in both directions: a typed quote missed its piece and fell through
+                        // to <unk>, and a quote token generated by the model reached the screen as
+                        // a literal backslash-quote.
+                        escape -> {
+                            escape = false
+                            when (ch) {
+                                'u' -> { unicodeRemaining = 4; unicodeAcc = 0 }
+                                'n' -> sb.append('\n')
+                                't' -> sb.append('\t')
+                                'r' -> sb.append('\r')
+                                'b' -> sb.append('\b')
+                                'f' -> sb.append('')
+                                else -> sb.append(ch)   // \" \\ \/ — the escapes these vocabularies use
+                            }
+                        }
+                        // The backslash itself is consumed, not appended. That was the defect.
+                        ch == '\\' && inString -> escape = true
+                        ch == '"' && !inString -> inString = true
+                        ch == '"' && inString -> { inString = false; if (readingKey) { key = sb.toString(); sb.clear() } }
+                        ch == ':' && !inString -> { readingKey = false; sb.clear() }
+                        ch == ',' && !inString -> commit()
+                        ch == '}' && !inString -> commit()
+                        inString -> sb.append(ch)
+                        ch.isDigit() || ch == '-' -> sb.append(ch)
+                    }
                 }
-                c = reader.read()
+                read = reader.read(chunk)
             }
             return map
         }

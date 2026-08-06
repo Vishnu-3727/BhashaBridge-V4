@@ -56,10 +56,72 @@ class TokenizerTest {
         assertEquals("hello world", tok.decode(longArrayOf(4, 100, 200, 2)))
     }
 
+    /**
+     * The JSON says `b"c`, so the parser must produce `b"c`.
+     *
+     * This test previously asserted `b\"c` — backslash included — and so pinned the defect in place
+     * instead of catching it: the parser appended the backslash *and* the character it escaped. The
+     * shipped vocabularies contain four such pieces (`▁"`, `"`, `▁\`, `\`), which meant a typed
+     * quote encoded as `<unk>` and a generated quote reached the screen as `\"`.
+     */
     @Test
-    fun `flat dict parser reads keys with escaped quotes`() {
-        val map = Tokenizer.parseFlatIntDict(StringReader("""{"a": 1, "b\"c": -2, "d": 3}"""))
-        assertEquals(mapOf("a" to 1, "b\\\"c" to -2, "d" to 3), map)
+    fun `flat dict parser decodes escaped quotes and backslashes`() {
+        val map = Tokenizer.parseFlatIntDict(StringReader("""{"a": 1, "b\"c": -2, "d\\e": 3}"""))
+        assertEquals(mapOf("a" to 1, "b\"c" to -2, "d\\e" to 3), map)
+    }
+
+    /**
+     * `\uXXXX` is absent from all four shipped dictionaries today — but only because the exporter
+     * writes `ensure_ascii=False`. If that ever flips, every non-ASCII piece arrives escaped, and a
+     * parser that did not understand `\u` would corrupt the entire target vocabulary silently.
+     */
+    @Test
+    fun `flat dict parser decodes unicode escapes`() {
+        // Not a raw string: the JSON has to contain the six characters \u2581, not the character ▁.
+        val map = Tokenizer.parseFlatIntDict(StringReader("{\"\\u2581the\": 7, \"\\u0041\": 8}"))
+        assertEquals(mapOf("▁the" to 7, "A" to 8), map)
+    }
+
+    /**
+     * The four escaped pieces in the real EN→HI vocabularies, which is where this bug lived.
+     *
+     * `dict.SRC.json` carries `▁"` (id 12) and `\` (3647); `dict.TGT.json` carries `▁"` (7), `▁\`
+     * (5839), `\` (18387) and `"` (100458). Before the fix the parser stored each of them under a
+     * key one character too long, so the piece could never be matched on encode and arrived on
+     * screen with a stray backslash on decode.
+     */
+    @Test
+    fun `real dictionaries parse their escaped pieces to the right keys`() {
+        val src = File("src/main/assets/dict.SRC.json")
+        val tgt = File("src/main/assets/dict.TGT.json")
+        assumeTrue("dictionaries not staged locally — skipping", src.exists() && tgt.exists())
+
+        val srcMap = src.reader(Charsets.UTF_8).use { Tokenizer.parseFlatIntDict(it) }
+        assertEquals("▁\" must be the two-character piece", 12, srcMap["▁\""])
+        assertEquals("\\ must be the one-character piece", 3647, srcMap["\\"])
+        assertTrue("the corrupted three-character key must be gone", !srcMap.containsKey("▁\\\""))
+
+        val tgtMap = tgt.reader(Charsets.UTF_8).use { Tokenizer.parseFlatIntDict(it) }
+        assertEquals(7, tgtMap["▁\""])
+        assertEquals(100458, tgtMap["\""])
+        assertEquals(5839, tgtMap["▁\\"])
+        assertEquals(18387, tgtMap["\\"])
+    }
+
+    /**
+     * The parser reads 64 K characters at a time, so every entry it can be interrupted mid-way
+     * through — a key, an escape pair, a number — has to survive the seam between two blocks. This
+     * dictionary is far longer than one block and its entries do not align to it, so the seam lands
+     * in a different place in each key.
+     */
+    @Test
+    fun `flat dict parser spans read-block boundaries`() {
+        val entries = (0 until 20_000).joinToString(",") { """"piece_${"x".repeat(it % 7)}$it": $it""" }
+        val map = Tokenizer.parseFlatIntDict(StringReader("{$entries}"))
+
+        assertEquals(20_000, map.size)
+        assertEquals(0, map["piece_0"])
+        assertEquals(19_999, map["piece_${"x".repeat(19_999 % 7)}19999"])
     }
 
     /** Grounds lang ids and the </s> terminator against the real EN→HI vocabulary. */
