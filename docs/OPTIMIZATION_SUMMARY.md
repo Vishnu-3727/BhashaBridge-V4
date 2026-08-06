@@ -9,6 +9,55 @@ Reverted and no-effect experiments are included; they are results too.
 
 ---
 
+## 0. Recording protocol — read before adding an entry
+
+This document is the **running ledger**, not a finished report. Every optimization gets an entry,
+including the ones that failed. An optimization that is not recorded here did not happen.
+
+**One experiment = one entry = one commit.** The commit message carries the detail; the entry
+carries the chain, so a reader can follow *problem → attempt → result → next attempt* without
+`git log`.
+
+**Entry template** (copy this):
+
+```
+### 3.N <Name>                                   [KEEP | REVERT | NO EFFECT | OPEN]
+
+**Problem.**       What was slow/wrong, and how it was noticed. Name the measurement that exposed it.
+**Investigation.** What was measured or read to find the cause. Rejected hypotheses go here.
+**Implementation.** What actually changed, in one paragraph. Files, not prose.
+**Verification.**  Parity check + test counts. Translation output must be identical, or the entry
+                   must say why the change is allowed to alter it.
+**Benchmark.**     Numbers, device, n, and the baseline they are against. If none: say NOT MEASURED.
+**Evidence grade.** MEASURED (device numbers, this change) | INFERRED (numbers from a related run)
+                   | NOT MEASURED (reasoned only).
+**Decision.**      KEEP / REVERT / NO EFFECT / OPEN, and the reason.
+**Next.**          What this makes possible or forces. For a REVERT or a partial fix, the follow-up
+                   experiment — that is what makes this a chain rather than a list.
+```
+
+**Status legend**
+
+| Status | Meaning |
+|---|---|
+| **KEEP** | Measured a win (or a required correctness change) and it shipped. |
+| **REVERT** | Tried, measured worse, removed. The number is the value — it bounds the design space. |
+| **NO EFFECT** | Within run-to-run drift. Kept only if it costs nothing and may pay on other hardware; otherwise removed. |
+| **OPEN** | Landed but unpriced, or queued and not started. Every OPEN entry must name what would close it. |
+
+**Three rules that the project has already been bitten by:**
+
+1. **Never claim a speedup that was not measured on a device.** `13007e3` (§3.21) is a provable
+   halving of copy work with **no** latency claim attached, because no device was connected. That is
+   the correct shape.
+2. **A benchmark that runs the non-production load path measures the non-production load path.** The
+   Phase 7 sweep's `cpuArena=false` "costs 12%" finding was refuted by the production-path A/B
+   (§3.20 C2). Sweeps that vary `optLevel` must disable `optCache`, and their results do not transfer.
+3. **Subtract thermal drift before reading anything.** Run `baseline` first and last, counterbalance
+   arms, and rotate rounds. §3.20 §2b's 7 configs × 3 rotated rounds is the pattern.
+
+---
+
 ## 1. Executive Summary
 
 **Goal.** An offline English↔Hindi neural machine translator for Android, built on ONNX Runtime
@@ -43,6 +92,20 @@ gate on every runtime change; no optimization that altered output was accepted.
 | 6D | KV-cache benchmark (int8 uncached vs int8 cached) | KEEP cached (Decision A) |
 | 7 | ONNX Runtime session tuning | KEEP `intra_op=2` + arena off; several REVERT/NO EFFECT |
 | 8 | Capability-aware Arm runtime policy | KEEP |
+| 11A | Startup instrumentation (`Metrics` stage marks, probes) | Enabling — no code path changed |
+| 11B | Tokenizer: buffered + block-wise dictionary parse | KEEP — tokenizer −67%, engine ready −32.8% |
+| 11C | Parallel ONNX session initialization | KEEP — engine ready −36.7% warm, +126 MB peak |
+| 2A | Bake ALL_OPT graph on first launch, load NO_OPT after | KEEP — session build −65% warm |
+| 2B | ORT-format cache + memory-mapped load | KEEP — parity on time, ~−50% steady-state filesDir |
+| 3 | Arm-aware intra-op thread affinity | NO EFFECT on the test device; kept as a no-op-when-degenerate |
+| 4 | Baseline Profile (hand-authored → generated) | KEEP — cold TTID −5.5% on the S26U |
+| 5 | Unified benchmark + validation framework | Enabling — the harness every later claim uses |
+| — | ONNX Runtime 1.17.1 → 1.27.0 | KEEP — gated on the full benchmark |
+| 12 | HI→EN cached INT8 pipeline | KEEP — bidirectional; closes the R-PROV provenance gap |
+| — | Cross-device campaign, entries #1–#9 | 2 classifier fixes KEEP; SME priced; 2 earlier findings retracted |
+| — | Intra-op clamp `[1,4]` → `[1,2]` | KEEP (INFERRED — needs re-measurement on the S26U) |
+| — | Halve per-token logits copying | OPEN (NOT MEASURED) |
+| — | Decode ceiling 18 → 128 steps | KEEP (correctness) — **incomplete, see §3.22** |
 
 ---
 
@@ -59,9 +122,15 @@ the full model load. Ownership and lifetimes were undefined.
 `release()` call site (documented as lesson L2 in `LESSONS_FROM_V3.md`).
 
 **Implementation.** Native resources are owned at process scope by `BhashaBridgeApp`: one engine per
-direction, created lazily, released on `onTrimMemory(TRIM_MEMORY_COMPLETE)`. Activities borrow, never
-own (rules R4.3–R4.5). The fix is structural, not vigilance — an Activity cannot orphan a session and
-a rotation cannot trigger a reload.
+direction, created lazily, released on `onTrimMemory(TRIM_MEMORY_BACKGROUND)` while no caller is
+using them. Activities borrow, never own (rules R4.3–R4.5). The fix is structural, not vigilance — an
+Activity cannot orphan a session and a rotation cannot trigger a reload.
+
+The level was `TRIM_MEMORY_COMPLETE` until an audit found that Android stopped delivering it to apps
+targeting API 34+, making the release path unreachable on every modern device even though its call
+site was present and correct (R4.6). Worth stating rather than quietly fixing: the same class of
+defect as the v3.4.1 leak this section is about, caught the same way — by checking that the trigger
+fires, not that the code exists.
 
 **Verification.** Compiles and installs on the device; the ownership rule is enforced by having the
 only `release()` call site land with the resource it frees. Later on-device runs (Phase 5+) confirmed
@@ -282,6 +351,381 @@ which the half-cluster rule corrects.
 **Decision.** KEEP — reproduces the measured optimum by detection rather than a constant, and scales
 thread count and int8 acceleration (via ORT/MLAS HWCAP dispatch) to newer cores with no code change.
 
+### 3.10 Startup instrumentation (Phase 11A) — enabling
+
+**Problem.** Phase 10 recorded "27 s to first translation" as a single number. Nothing said which
+part of it was the neural network, so any startup optimization would have been a guess.
+
+**Investigation.** `Metrics` stage marks along the whole startup path — process fork, per-dictionary
+tokenizer parse, reverse-index build, per-graph asset verify / extract / session create, cache
+contract, Vosk unpack and native load. Inline and `BuildConfig.DEBUG`-gated, so release is unchanged.
+`StartupProbeTest` isolates each cost against a floor (raw I/O, no decode, no parse).
+
+**Result that redirected the next three phases.** Of ~25 s, **49% was the tokenizer reading two JSON
+dictionaries** and **46% was ORT creating three sessions**. Asset extraction — the visibly expensive
+472 MB move — was 1.8 s, once, first run only. The models were not the problem.
+
+**Benchmark.** Not applicable — a measurement phase. **Evidence grade:** MEASURED (SM-M315F).
+
+**Decision.** Enabling. **Next:** §3.11 attacks the 49%, §3.12 the 46%.
+See `ENGINE_STARTUP_ANALYSIS.md`.
+
+### 3.11 Tokenizer startup (Phase 11B) — KEEP
+
+**Problem.** Half of engine startup was a JSON parser (§3.10).
+
+**Investigation.** `parseFlatIntDict` consumed **one character per `Reader.read()`**, each crossing
+into `StreamDecoder`, over 3.4 M characters in `dict.TGT.json`. The probe held the parser and the
+file constant and changed only the reader:
+
+| Path | ms |
+|---|---|
+| Raw byte read — no decode, no parse (I/O floor) | **18** |
+| `parseFlatIntDict(InputStreamReader(...))` — production | **9,951** |
+| `parseFlatIntDict(BufferedReader(…, 64 KB))` | **1,082** |
+
+I/O was 0.2% of the stage; parse logic ~11%; the remaining ~89% was per-call reader overhead —
+work producing no output at all.
+
+**Implementation.** Two changes in `Tokenizer`: a 64 KB `BufferedReader`, and a parser that pulls a
+`CharArray` block at a time and walks it in-array instead of calling `read()` per character. Same
+charset, same character sequence, same branches, same map — only fetch granularity changed.
+
+**Verification.** Byte-identical translation output; parser unit tests including a block-boundary
+case (entries deliberately not aligned to the 64 K seam).
+
+**Benchmark (SM-M315F).** Tokenizer load **12,675 → 4,188 ms (−67%)**; engine ready
+**24,662 → 16,584 ms (−32.8%)**. Runtime latency and memory unchanged.
+
+**Evidence grade:** MEASURED. **Decision.** KEEP. **Next:** sessions are now 74% of what remains
+→ §3.12. The parse is still ~1 s and is *still* serial with session load — see §9 Q3.
+See `TOKENIZER_STARTUP_OPTIMIZATION.md`.
+
+### 3.12 Parallel session initialization (Phase 11C) — KEEP
+
+**Problem.** After §3.11, ORT session creation was 74% of startup, and the three graphs were built
+one after another on a four-big-core CPU.
+
+**Investigation.** Phase 11A had already established every precondition: disk I/O is a rounding
+error inside `createSession` (79 ms read vs 2,619 ms create for the encoder), graph optimization
+passes dominate, the work is single-threaded (`intra=1` vs `intra=2` changes nothing), and the three
+loads are independent — probe: **serial 12,285 ms vs 6,258 ms on three threads (1.96×)**.
+
+**Implementation.** `OnnxModels` submits the three loads to a three-thread pool and blocks until all
+complete, so every consumer still sees a fully-built object. Failure handling is the reason it is a
+pool and not three bare threads: every future is awaited before anything throws, sessions that *did*
+load are closed before the exception escapes (otherwise a partially-loaded engine leaks hundreds of
+MB with no owner — L2 in a new disguise), and the pool is shut down in a `finally`.
+
+**Verification.** Byte-identical output; no leaked threads; `ParallelSessionLoadTest`.
+
+**Benchmark (SM-M315F).** Engine ready **16,584 → 10,502 ms warm (−36.7%)**, **17,627 → 11,287 ms
+cold (−36.0%)**. Cost: **+126 MB peak memory** during load, measured and accepted.
+
+**Evidence grade:** MEASURED. **Decision.** KEEP. **Next:** the remaining serial component is the
+tokenizer parse (§9 Q3). Cumulative: 24.7 s → 10.5 s across §3.11 + §3.12.
+See `PARALLEL_SESSION_INITIALIZATION.md`.
+
+### 3.13 Optimized-graph cache (Phase 2A) — KEEP
+
+**Problem.** ORT ran its full `ALL_OPT` optimizer pass on every launch, for graphs that never change
+between launches.
+
+**Implementation.** Cache hit → `createSession(opt, NO_OPT)`, optimization skipped. Cache miss →
+`createSession(src, ALL_OPT + setOptimizedModelFilePath)`, so the optimized graph is written as a
+side effect of the session that already serves this launch. Stamp = app version | ORT version |
+asset length, written only after a successful build.
+
+**Verification.** Output identical; `OptCacheTest` on device.
+
+**Benchmark (SM-M315F, EN→HI).** Session build **cold 9,945 ms → warm 3,494 ms (−65%, 6,451 ms
+saved)**.
+
+**Evidence grade:** MEASURED. **Decision.** KEEP. **Next:** the cached artifact was still `.onnx`
+and still read into heap → §3.14.
+
+### 3.14 ORT-format cache + memory-mapped load (Phase 2B) — KEEP
+
+**Problem.** §3.13's cache stored an optimized `.onnx` and loaded it into a heap buffer; three
+concurrent extractions OOM'd the 256 MB Dalvik heap, and the source copy stayed on disk forever.
+
+**Implementation.** Bake once to **ORT format** with `session.save_model_format=ORT`; load with
+`NO_OPT` + `session.load_model_format=ORT` + `use_memory_mapped_ort_model=1`. The source `.onnx` is
+extracted only for that one bake and purged on the next launch, so steady-state storage is the
+`.ort` files alone. Any failure (corrupt cache, failed mmap, no disk space) deletes and regenerates,
+degrading to an uncached session — the cache can never break startup.
+
+**Verification.** Output identical; corrupt-cache and missing-stamp paths exercised.
+
+**Benchmark (SM-M315F, EN→HI, cooled).** Warm build **3,738 ms** — parity with §3.13's 3,494 ms
+(encoder mmap load 1,149 vs 1,348 ms). Cold build 14,092 ms on the extract+bake launch. The win is
+**not** time: it is ~**−50% steady-state `filesDir`** and a load that no longer scales with heap.
+
+**Evidence grade:** MEASURED. **Decision.** KEEP — equal time, half the disk, no heap ceiling.
+**Next:** the mmap benefit turned out to vary by device in a way that is still unexplained
+(§3.20, MT6878 retraction).
+
+### 3.15 Intra-op thread affinity (Phase 3) — NO EFFECT
+
+**Problem.** Phase 7 attributed decode variance to workers migrating onto the little cluster.
+Pinning them should remove that jitter.
+
+**Implementation.** `session.intra_op_thread_affinities`, built from detected performance-core ids.
+Two encoding traps, both handled: ORT requires exactly `intraThreads − 1` groups (it never pins the
+calling thread), and ORT processor ids are **1-based** while `/sys` numbering is 0-based.
+
+**Benchmark (SM-M315F, EN→HI, cooled, 30 iters, OFF/ON counterbalanced).** All arms within ~2%,
+stdevs overlapping. Re-tested on the S26U (entry #9 §4): **degenerate — the ON and OFF arms were
+byte-identical** because `effIds` is empty on a uniform-IP CPU, so the test was measuring nothing and
+passing. Fixed to skip visibly (`2f349b2`).
+
+**Evidence grade:** MEASURED (twice, both null). **Decision.** NO EFFECT — kept because it costs
+nothing and correctly disables itself when there is no big/LITTLE split to pin to, but **no gain is
+claimed**. **Next:** a genuine big.LITTLE device under thermal load is the only test that could
+still move this.
+
+### 3.16 Baseline Profile (Phase 4 + `967455b`) — KEEP
+
+**Problem.** Startup ran interpreted until JIT caught up; no AOT profile shipped.
+
+**Investigation.** On-device generation needs API 33+; the Phase 4 device was an unrootable API 31
+SM-M315F, so Phase 4 shipped a hand-authored 27-rule profile and verified only that it *installed*
+(`dumpsys package dexopt → status=speed-profile`). Entry #9's API 36 device unblocked real generation.
+
+**Implementation.** Macrobenchmark journey: launch → wait for the engine (translate button enabled =
+tokenizer + three `.ort` sessions) → type → translate → idle. **4,510 generated rules** replaced the
+27 hand-written ones, including synthetic lambdas and Kotlin intrinsics no human would list.
+
+**Benchmark (SM-S948B).** Cold TTID **159.4 → 150.6 ms (−5.5%)**; warm unchanged.
+
+**Evidence grade:** MEASURED. **Decision.** KEEP. **Next:** TTID is not time-to-*translate*; the
+~10.5 s engine load dominates the user's actual wait and is untouched by this.
+
+### 3.17 Unified benchmark framework (Phase 5) — enabling
+
+**Problem.** Each experiment had grown its own timing code and its own percentile arithmetic; two
+reports could not be compared without checking whether they computed p95 the same way.
+
+**Implementation.** `Stats` (one home for n/min/max/mean/median/p95/p99/stdev, nearest-rank, matching
+the host-side parser), `SystemStats` (single-shot memory/CPU/thermal/battery, every field nullable —
+`null` means the device did not expose it, with reasons collected), `BenchmarkSuiteTest` (startup →
+cache sizes → first translation → 30 counterbalanced iterations → system snapshots → one JSON), and
+`bench_report.py` (JSON → CSV + Markdown, with a `--baseline` regression mode).
+
+**Gotcha worth keeping.** `connectedAndroidTest` uninstalls the app and wipes external storage, so
+the report file is gone after the run — reassemble from `REPORT_JSON` logcat chunks, or drive tests
+with `adb shell am instrument` after a manual install (entry #9's method, and the better one).
+
+**Decision.** Enabling — every cross-device claim from entry #1 onward uses this harness.
+
+### 3.18 ONNX Runtime 1.17.1 → 1.27.0 — KEEP
+
+**Problem.** The runtime was pinned to v3.4.1's 2024 build; ten releases of MLAS kernel work,
+including KleidiAI int8 microkernels, were unavailable.
+
+**Implementation.** Version bump in its own commit, gated on the full benchmark (R7.3). 1.27.1 is a
+GitHub tag with no published `onnxruntime-android` AAR, so 1.27.0 is the newest artifact that exists.
+
+**Verification.** Parity on all benchmark sentences; full suite re-run.
+
+**Evidence grade:** MEASURED. **Decision.** KEEP. **Next:** this is what made §3.20's SME
+investigation possible at all — `mlas.disable_kleidiai` does not exist in 1.17.
+See `ORT_UPGRADE_HANDOFF.md`.
+
+### 3.19 HI→EN cached pipeline (Phase 12) — KEEP
+
+**Problem.** Only EN→HI had cached INT8 graphs. v3.4.1's HI→EN graphs had no export script and no
+traceable checkpoint (the R-PROV provenance gap), so they could not be trusted or reproduced.
+
+**Implementation.** The same three-graph cached export, from the named
+`ai4bharat/indictrans2-indic-en-dist-200M` checkpoint, through the same verification pipeline.
+Identical config (18 layers, 8 heads, 512 hidden), so the 72-tensor cache contract and every runtime
+path are direction-agnostic — nothing in `OnnxModels` beyond the asset triple is direction-aware.
+
+**Benchmark.** Within 0.6% of the EN→HI graphs on size (121.2 vs 121.6 MB encoder, 111.1 vs 111.8 MB
+decoder). HI→EN latency measured for the first time in entry #9 (§4b).
+
+**Evidence grade:** MEASURED. **Decision.** KEEP — bidirectional, and R-PROV is closed.
+
+### 3.20 Cross-device campaign, entries #1–#9 — mixed
+
+Nine devices, Armv8.0 → ARMv9, four vendors. This is the entry that **retracts** things, which is why
+it is one entry and not nine.
+
+**KEEP — two CPU-classifier fixes.** (a) `dc3011e`: the old rule "only the top frequency tier is
+performance" put a Snapdragon 8 Gen 1's three A710 mid cores in with the A510 littles and ran
+inference single-threaded; the rule became "every tier above the lowest is performance". (b)
+`e581a45`: on an 8× Oryon SM-S948B *every* core is `CPU part 0x002`, DVFS-split 6 @3629 + 2 @4742 —
+the frequency rule then called six big cores "efficiency". The split is now gated on **core IP**.
+Frequency ratio provably cannot substitute: the Dimensity 930's genuine A55/A78 split is 2000/2200 =
+0.91, *higher* than that Oryon's 0.77.
+
+**ANSWERED — SME is live, and it is worth 4–9%, not 2×.** ORT operator profiling **cannot** detect
+SIMD dispatch (MLAS's kernel choice is invisible to it) — a negative result worth not re-deriving.
+`simpleperf` (83.2% of CPU in `libonnxruntime.so`) plus capstone disassembly of the hottest 40-byte
+loop found `smopa za0.s, p2/m, p2/m, z4.b, z8.b` — KleidiAI's SME int8 kernel. Priced by A/B via
+`mlas.disable_kleidiai`: **+4.9%/3.6% cool, +9.1%/9.0% hot**. So the S26U's 2× over the S22U is the
+core plus threads plus thermal headroom, **not the ISA**.
+
+**REFUTED — `cpuArena=false` "costs 12%".** That came from `MtTuningSweepTest`, which runs the
+**non-production** load path (`optCache` off, ALL_OPT, source `.onnx`). On the production path
+arena-on is 1.9% *slower*: the shipping default was right and the sweep was measuring something else.
+
+**NEGATIVE — prime-core pinning gains nothing** (99 ms pinned vs 99 ms not; idle 4742 MHz cores cost
+nothing). **RETRACTED — "the mmap win is MT6878-exclusive"**: this Qualcomm part also hits 74.5 MB
+native heap, and kernel recency is the best surviving fit but CPH2603 contradicts it. Mechanism
+unexplained; the way to resolve it is instrumenting ORT's mmap acceptance, **not** more devices.
+
+**Evidence grade:** MEASURED throughout. **Next:** §3.21's clamp change came out of §2b here.
+See `bench/results/cross-device/S26U_EXPERIMENTS.md` and `CROSS_DEVICE_REPORT.md`.
+
+### 3.21 Intra-op clamp `[1,4]` → `[1,2]` (`64e8934`) — KEEP, INFERRED
+
+**Problem.** `threads = (perfCores / 2).coerceIn(1, 4)`. The rule was nine-device-validated; the
+**clamp** was not — `[1,4]` was written before any 8-performance-core part existed, and only such a
+part could ever reach its upper bound.
+
+**Investigation.** Entry #9 is that part. `ProductionThreadSweepTest` on the real shipping load path
+(`optCache` on, NO_OPT, mmap `.ort`; 7 configs × 3 rotated rounds, n=45 each, every arm
+parity-exact): **intra2 99 ms vs intra4 104 ms long (−4.8%)**, **27 ms vs 31 ms short (−12.9%)**,
+intra6/intra8 degrading steeply. No entry in the database has ever measured 4 as optimal; Phase 7
+found 2 > 4 on the SM-M315F too. Eight of nine devices already derive 1 or 2 and are unaffected.
+
+**Verification.** `ExecutionPolicyTest` pins the derivation (1/2/3/4/6/8 perf cores → 1/1/1/2/2/2)
+and checks the affinity group count still tracks the thread count, so the bound cannot move silently.
+
+**Evidence grade:** **INFERRED** — the gain comes from entry #9's table, not from a run after this
+edit. No device was attached.
+
+**Decision.** KEEP. **Next:** re-run `ProductionThreadSweepTest` + `BenchmarkSuiteTest` on the S26U
+to convert this to MEASURED. Until then it is the ledger's one unconfirmed shipping default.
+
+### 3.22 Per-token logits copy (`13007e3`) — OPEN, NOT MEASURED
+
+**Problem.** `lastLogitsRow` read the next-token logits as
+`(tensor.value as Array<Array<FloatArray>>)[0].last().copyOf()` — **two** full-width copies per
+generated token (122,672 floats per decoder position for EN→HI). Invisible to ORT's operator
+profiler, which sees kernel time only; it sits in the 21% "outside kernels" bucket entry #9 measured
+and could not attribute.
+
+**Investigation, including the wrong assumption.** The plan was "switch to `getFloatBuffer()`, it is
+a zero-copy view". **It is not** — disassembling ORT 1.27.0's `OnnxTensor` shows
+`FloatBuffer.allocate(capacity)` then `put(nativeView)`, a full heap copy. Swapping `value` for it
+buys *nothing* on its own. What it does buy is the **second** copy: that heap buffer is array-backed,
+so when `dec_len == 1` (every `decoder_step`, i.e. all but the first token of every translation) the
+backing array **is** the row and `array()` returns it with nothing further copied.
+
+**Implementation.** Two full-width copies per token become one. `dec_len > 1` (`decoder_init`, once
+per translation) still slices. Extracted to an internal top-level function so the test calls the
+shipping code, not a reimplementation.
+
+**Verification.** `MtEngineInstrumentedTest` parity case at `dec_len` 1 **and** 3 — both branches,
+since a single-position check passes even with the offset arithmetic broken. 39 JVM tests pass.
+
+**Benchmark.** **NOT MEASURED — no device attached.** The copy reduction is exact and provable from
+the bytecode; its share of decode latency is not, and **no speedup is claimed**.
+
+**Decision.** OPEN. **Next:** run `MtBenchmarkTest` / `BenchmarkSuiteTest` on the S26U to price it;
+expect more for EN→HI (122k vocab) than HI→EN (32k). Then the upstream lever: `decoder_init` computes
+and returns logits for **every** prefix position and the runtime discards all but the last — slicing
+that inside the exported graph shrinks ORT's own allocation, not just this copy (§9 Q1).
+
+### 3.23 Decode ceiling 18 → 128 (`99d163b`) — KEEP (correctness), INCOMPLETE
+
+**Problem.** `DecodeConfig.targetCap` promised `max(minTargetLen, sourceLen)` tokens, but both
+decoders loop `0 until maxSteps` and `maxSteps` defaulted to **18**. Any input over 18 tokens was cut
+off mid-sentence with nothing shown to the user. v3.4.1 shipped the same mismatched pair.
+
+**Implementation.** `maxSteps` 18 → 128, redocumented as an absolute runaway ceiling rather than the
+working limit; `targetCap` now clamps into it, so one number bounds generation and the loop bound can
+no longer disagree with the cap — which is exactly what hid this. 128 rather than unbounded because
+`Tokenizer.encode` applies no source-length limit; it bounds the worst case at ~5.8 s on the slowest
+device in the database.
+
+**Verification.** Two new tests: a 40-token source yields 40 tokens (the regression that would have
+caught it), and a 5,000-token source clamps to `maxSteps`. Outputs at 2/6/12 tokens — every benchmark
+sentence and every parity golden — are unaffected.
+
+**Evidence grade:** MEASURED (JVM); on-device re-run of `MtEngineInstrumentedTest` / `HiEnEngineTest`
+still outstanding.
+
+**Decision.** KEEP. **Next — this fix is incomplete.** The 2026-08-06 audit (`AUDIT_2026-08-06.md`,
+H2) found the *working* limit is now `targetCap = max(14, sourceLen)`, i.e. a target may never exceed
+its **source token count**. Translation expands; the same silent mid-sentence truncation therefore
+still happens, just at a different threshold. Queued as §9 Q0 with the expansion-factor fix and a
+corpus measurement of how often it fires.
+
+### 3.24 Resource-lifecycle pass (2026-08-06) — KEEP
+
+One audit, seven commits, `e5d7587..fdb3ae4`. Grouped as one entry because they came from a single
+sweep with one question: *what is still allocated, running, or locked after it should not be?*
+Each has its own commit; the per-item detail is there.
+
+**§3.24a — A ten-second lock on the main thread (`e5d7587`).** Every method on `BhashaBridgeApp` was
+`@Synchronized`, so all shared one monitor — including `translator()`, which **builds an engine
+inside it**: ~10 s of dictionary parsing and session creation. `startRecording` runs `withResources`
+on the main dispatcher, so tapping the microphone during a load parked the UI thread on that lock.
+An **ANR**, not a stall. Split into `borrowLock` (counter, nanoseconds), `engineLock` (map, brief)
+and a per-direction `loadLocks` entry held across construction. Lock order `borrowLock → engineLock`,
+never reversed, so no cycle can form. **NOT MEASURED** — reasoned from the lock scope and Phase 11C's
+measured 10.5 s construction.
+
+**§3.24b — Two engines resident after a swap (`028af3c`).** `engines.getOrPut` kept every direction
+ever opened; the only eviction was `onTrimMemory`, which fires on backgrounding, **not** on a swap
+tap. One tap therefore left both engines live: six ONNX sessions against the ~605–620 MB PSS a single
+direction costs (§3.8, §3.9) — **~1.2 GB in the foreground**, a low-memory-killer candidate on the
+4 GB devices in the cross-device database. `translator()` now evicts the other directions, deferred
+exactly like a trim if anything is borrowed. Cost of being wrong: a ~10 s reload on a swap-back.
+**NOT MEASURED** — the 1.2 GB is two measured single-direction numbers added, not a measured
+two-engine run. Closing it: add a swap to the `BenchmarkSuiteTest` journey (§9 Q10).
+
+**§3.24c — Native use-after-free on the Vosk model (`ad7d0c0`).** Both speech paths fetched the model
+and *then* opened the borrow; a `TRIM_MEMORY_BACKGROUND` in that window freed it and `Recognizer`
+ran against a freed pointer. Replaced with `withSpeechModel(direction) { }`, which pins first and
+loads inside the pin (on `Dispatchers.IO`, so pin-first is not paid for with a main-thread model
+load); `speechModels` is now `@PublishedApi internal`, so the mistake is no longer expressible.
+
+**§3.24d — Three things that kept running after being stopped (`2c0d747`).** (i) `stop()` set a
+`@Volatile Boolean` that `record()` set back to `true` **inside the flow builder**, so a stop issued
+during the model load was overwritten and the microphone stayed live — sessions are now numbered and
+`stop()` claims `generation + 1`, which a boolean cannot express. (ii) A file transcription could not
+be stopped at all (`capture.stop()` reaches a different object), so `stopRecording()` now cancels the
+job. (iii) **TTS kept speaking after the screen stopped** — `onStop` silenced the microphone but not
+the speaker.
+
+**§3.24e — Two per-iteration allocations (`6f9e210`).** `pcm.copyOfRange` per 4096-sample chunk
+(~1,400 short-lived 8 KB arrays for a 60 s file) → one reused buffer. `prefix.toHashSet()` per
+generated token — boxing every token into a `java.lang.Long` on the path `CODING_STANDARDS 9.2`
+declares allocation-free → an O(n²) scan over a prefix bounded at 128, zero allocation. Behaviour
+identical in both; **NOT MEASURED**, and no latency claim.
+
+**§3.24f — An uncancellable decode loop, and a cross-thread `micJob` (`4516333`).** `decodeTrack`
+looped until the codec signalled end-of-stream with no cancellation check: a decoder that never
+signals pinned an IO thread for the life of the process. `micJob` was cleared from
+`invokeOnCompletion` (the completing thread) and read on main with no happens-before edge — stale
+non-null wedges the microphone, stale null starts a second session on the same model.
+
+**§3.24g — Extraction that cannot fit (`fdb3ae4`).** `extractAsset` wrote until the disk said no;
+the resulting `IOException` reached the user as `error_direction_unavailable`, the same message used
+for a direction that was never exported. Now checked against `usableSpace` (asset × 2, for the graph
+plus its bake) before the first byte, with a message naming what it needs and what is free.
+
+**Checked and found clean** — recorded so the next pass does not re-derive them: no Activity-context
+retention anywhere (`Tts` takes `applicationContext`, `AudioFileTranscriber` takes the Application,
+`AsrCorrector` is stateless); `AudioRecord`, its three effects, `Recognizer`, `MediaCodec` and
+`MediaExtractor` are all released in `finally` on every path including the throwing ones; the
+`Metrics` `ThreadLocal` is cleared by `end()` and is debug-only; `WaveformView` allocates nothing per
+frame.
+
+**Known ceiling, not fixable from Java (documented, not queued).** `lastLogitsRow` costs one
+122,672-float heap array — **~490 KB per generated token** — because ORT's Java `getFloatBuffer()`
+copies (§3.22). At ~12 tokens that is ~5.9 MB of large-object-space churn per translation. There is
+no output-binding API in ORT's Java surface to write into a reused buffer, so the only lever is
+making the tensor smaller: §9 Q1's graph-side slice.
+
+**Decision.** KEEP — all seven. **Next:** §9 Q10 prices §3.24b; the rest are correctness and cost
+nothing to hold.
+
 ---
 
 ## 4. Optimization Decision Matrix
@@ -303,6 +747,19 @@ thread count and int8 acceleration (via ORT/MLAS HWCAP dispatch) to newer cores 
 | GraphOpt EXTENDED / mem-pattern off | Tune | Sweep | NO EFFECT | within drift |
 | Adaptive policy | Portability | On-device detection + benchmark | KEEP | reproduces optimum, portable |
 | threads = all perf cores | Naive thread rule | On-device benchmark | REVERT | +8% latency, ×4 variance |
+| Buffered + block dict parse | Startup | Probe: 9,951 → 1,082 ms, same parser | KEEP | tokenizer −67%, engine −32.8% |
+| Parallel session load | Startup | Probe 12,285 → 6,258 ms (1.96×) | KEEP | engine ready −36.7%, +126 MB peak |
+| Bake ALL_OPT once (2A) | Skip graph opt per launch | On-device cold/warm | KEEP | session build −65% |
+| ORT format + mmap (2B) | Disk + heap | On-device, cooled | KEEP | time parity, ~−50% filesDir |
+| Thread affinity | Kill migration jitter | 2 devices, counterbalanced | NO EFFECT | within ~2%; degenerate on uniform IP |
+| Generated Baseline Profile | Cold start | Macrobenchmark, API 36 | KEEP | TTID −5.5% |
+| ORT 1.17.1 → 1.27.0 | Newer MLAS kernels | Full benchmark, parity | KEEP | enabled the SME investigation |
+| KleidiAI / SME | Price the ISA | `disable_kleidiai` A/B + simpleperf | KEEP (default on) | +4.9–9.1%, **not** 2× |
+| Prime-core pinning | Use the 4.7 GHz cores | On-device A/B | REVERT | 99 ms vs 99 ms — nothing |
+| `cpuArena=false` costs 12% | — | Production-path A/B | **RETRACTED** | arena-on is 1.9% slower; default was right |
+| mmap win is MT6878-only | — | Entry #9 | **RETRACTED** | mechanism unexplained |
+| Clamp `[1,4]` → `[1,2]` | Stop over-threading flagships | Entry #9 sweep, n=45 | KEEP (INFERRED) | intra2 −4.8% / −12.9% vs intra4 |
+| Halve logits copy | Remove per-token copy | Bytecode-provable; no device | OPEN | 2 copies → 1; **unpriced** |
 
 ---
 
@@ -393,34 +850,47 @@ process-owned, cached, INT8, capability-aware one — with translation output he
 
 ---
 
-## 9. Future Work
+## 9. Open experiment queue
 
-Genuinely remaining; nothing already completed is listed.
+The live queue, ordered. Each item states its **hypothesis**, **how it will be measured**, and what
+result would close it — so a run either produces a §3 entry or a recorded negative, never a shrug.
 
-- **HI→EN cached export.** Only EN→HI cached graphs exist and are verified. The Hindi→English direction
-  has an unresolved provenance gap (its v3 int8 graphs were never traced to a named checkpoint) and must
-  be re-exported and re-verified through the same pipeline; asset names are already reserved for it.
-- **Beam Search evaluation.** Beam is implemented and unit-tested but disabled and unbenchmarked on the
-  real runtime; a Greedy-vs-Beam quality/latency comparison on-device is outstanding.
-- **Execution provider selection.** The detector surfaces Dot Product / I8MM / SVE2 / SME2, but the
-  policy does not yet select a specialized execution provider or kernel when they are present.
-- **SME2 validation.** Requires Armv9 SME2 silicon that was not available; the architecture is ready but
-  the acceleration path is unmeasured.
-- **Zero-copy logits read.** The per-step `OnnxTensor.value` boxing in the cache path is a known
-  allocation ceiling; a `getFloatBuffer` rewrite is deferred.
-- **Speech pipeline optimization.** The Vosk speech path is out of scope for the MT optimization work to
-  date.
+**Closed since this list was last written** (they were listed here as "future work" while already
+done, which is the rot this section now exists to prevent): HI→EN cached export → §3.19 · SME2
+validation → §3.20 (answered: 4–9%, not 2×) · zero-copy logits read → §3.22 (and the "zero-copy"
+premise was wrong).
+
+| # | Experiment | Hypothesis | Measurement that closes it | Expected size |
+|---|---|---|---|---|
+| **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
+| **Q1** | Slice the last position **inside** the exported `decoder_init` | The graph returns logits for every prefix position and the runtime discards all but the last; slicing upstream shrinks ORT's own allocation, not just our copy (§3.22) | `model_pipeline` re-export → `verify_cache.py` 7/7 + `BenchmarkSuiteTest` on S26U and M315F | Unknown; the largest remaining inference lever |
+| **Q2** | **Price §3.22 and §3.21** on device | The copy halving and the `[1,2]` clamp are both unmeasured on hardware | `MtBenchmarkTest` + `ProductionThreadSweepTest` on the S26U | Converts two entries from INFERRED/NOT MEASURED |
+| **Q3** | Overlap the tokenizer parse with session load | `Tokenizer.load` (~1 s) runs serially *before* three sessions load on three threads; it is independent of all of them | `engine_init` stage marks, cold and warm, n=10 | ~0.5–1 s of a ~10.5 s cold start |
+| **Q4** | Packed binary vocabulary | Parsing 3.4 MB of JSON per launch is avoidable entirely: ship sorted `String[]`+`int[]` or a single `.bin` | Same stage marks as Q3; parity on encode/decode over the full vocabulary | Removes the parse (~1 s) outright |
+| **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting on a contradicting pair (S26U vs CPH2603) | Explanation, not speed |
+| **Q6** | Greedy vs Beam on the real runtime | Beam is implemented, unit-tested, and has never been run against the model — its quality/latency trade is unknown | On-device A/B, quality judged on a fixed sentence set; note beam falls back to `decoder_init` every step today | Unknown; may be REVERT |
+| **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |
+| **Q8** | Speech pipeline | The Vosk path has never been optimized; ASR is 0.79× realtime on the M315F and 5.25× on the S26U | `SpeechPipelineBenchmarkTest` on both ends of the device range | Unknown; the M315F number is the user-visible one |
+| **Q10** | Price the single-engine eviction (§3.24b) | Two resident engines cost ~1.2 GB; evicting halves the foreground footprint at the cost of a reload | `BenchmarkSuiteTest` with a direction swap in the journey: peak PSS with and without eviction, plus the swap-back reload cost | ~600 MB of foreground RSS |
+| **Q9** | R8 enabled on release | R8 has never been on; it changes the inference path and must be benchmarked, not assumed | `BenchmarkSuiteTest` before/after with `optimization { enable = true }` | Neutral-to-positive; the point is to prove it is not negative |
+
+**Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
+NO EFFECT. Deleting a row because it turned out not to work is how a ledger starts lying.
 
 ---
 
 ## Report metadata
 
-- **Word count:** ~3,650 words (`wc -w`, including tables).
-- **Optimization sections (§3):** 9 (clean reconstruction, benchmark infrastructure, decoder
-  abstraction, KV-cache export, cached runtime, INT8 cached models, KV-cache benchmark, ORT tuning,
-  adaptive Arm runtime).
-- **Tables:** 6 (timeline §2; KV-cache benchmark §3.7; ORT tuning §3.8; decision matrix §4; plus the
-  inline benchmark rows summarized in §5).
+- **Status:** living document. Last extended 2026-08-06 (§0 protocol, §3.10–§3.23 backfill, §9 queue).
+- **Optimization sections (§3):** 23. §3.1–§3.9 are the original phase-gated reconstruction;
+  §3.10–§3.23 backfill everything landed since (startup, caches, affinity, baseline profile, bench
+  framework, ORT upgrade, HI→EN, the nine-device campaign, and the three most recent changes).
+- **Open items:** 10 in §9, of which two (§3.21, §3.22) are landed-but-unpriced and one (§3.23) is a
+  fix the 2026-08-06 audit found incomplete.
+- **Tables:** timeline §2; KV-cache §3.7; ORT tuning §3.8; probe tables §3.11/§3.12; decision matrix
+  §4; open queue §9.
+- **Cross-reference:** `AUDIT_2026-08-06.md` — the correctness audit whose H2/P1/P2 findings feed
+  §9 Q0, Q1 and Q3.
 - **Internal cross-references:** `ENGINEERING_PLAN.md`, `LESSONS_FROM_V3.md`, `DECODING_ARCHITECTURE.md`,
   `MODEL_PIPELINE.md`, `INDICTRANS2_ARCHITECTURE.md`, `EXPORT_FEASIBILITY.md`, `EXPORT_WITH_CACHE.md`,
   `KV_CACHE_RUNTIME.md`, `CACHE_BENCHMARK.md`, `ORT_TUNING.md`, `ARM_PLATFORM_OPTIMIZATION.md` (11 documents).
