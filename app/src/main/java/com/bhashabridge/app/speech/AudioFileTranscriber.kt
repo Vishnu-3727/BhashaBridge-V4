@@ -35,6 +35,9 @@ object AudioFileTranscriber {
     private const val MAX_DURATION_MS = 60_000L
     private const val CHUNK = 4096
 
+    /** [MAX_DURATION_MS] expressed as decoded samples, at the highest rate/channel count worth allowing. */
+    private const val MAX_SAMPLES = (MAX_DURATION_MS / 1000).toInt() * 48_000 * 2
+
     /**
      * Decodes [uri] to 16 kHz mono PCM, then feeds it to Vosk in fixed-size chunks — the same
      * buffer-at-a-time shape the microphone loop uses, just from memory.
@@ -49,11 +52,17 @@ object AudioFileTranscriber {
         val transcript = StringBuilder()
         try {
             var offset = 0
+            // One buffer for the whole file, refilled per chunk. `copyOfRange` allocated a fresh
+            // 8 KB ShortArray per iteration — ~1,400 of them for a 60 s file, all short-lived, all
+            // for data Vosk copies into native memory immediately. Vosk's API reads from index 0
+            // and takes a length, so the copy has to exist; it does not have to be a new one.
+            val chunk = ShortArray(CHUNK)
             while (offset < pcm.size) {
                 currentCoroutineContext().ensureActive()
                 val end = minOf(offset + CHUNK, pcm.size)
-                val chunk = pcm.copyOfRange(offset, end)
-                if (recognizer.acceptWaveForm(chunk, chunk.size)) {
+                val length = end - offset
+                System.arraycopy(pcm, offset, chunk, 0, length)
+                if (recognizer.acceptWaveForm(chunk, length)) {
                     text(recognizer.result, "text")?.let { sentence ->
                         if (transcript.isNotEmpty()) transcript.append(' ')
                         transcript.append(sentence)
@@ -93,33 +102,38 @@ object AudioFileTranscriber {
      * starts, and this is a phrase-translation app, not a transcription service.
      */
     private fun decodeToPcm(context: Context, uri: Uri): ShortArray? = try {
+        // The extractor is released in a `finally` covering its whole lifetime. Releasing it once per
+        // success branch left it leaked whenever setDataSource, getTrackFormat or decodeTrack threw:
+        // the outer catch logs and returns null, and nothing else holds a reference. It is backed by
+        // mediaserver, so repeatedly importing one bad file accumulates them.
         val extractor = MediaExtractor()
-        extractor.setDataSource(context, uri, null)
+        try {
+            extractor.setDataSource(context, uri, null)
 
-        val trackIndex = (0 until extractor.trackCount).firstOrNull { i ->
-            extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
-        }
-        val format = trackIndex?.let { extractor.getTrackFormat(it) }
-        when {
-            format == null -> {
-                logError(LogTag.SPEECH, "No audio track in the selected file")
-                extractor.release()
-                null
+            val trackIndex = (0 until extractor.trackCount).firstOrNull { i ->
+                extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
             }
-            format.durationMs() > MAX_DURATION_MS -> {
-                logError(LogTag.SPEECH, "Audio too long: ${format.durationMs() / 1000}s")
-                extractor.release()
-                null
+            val format = trackIndex?.let { extractor.getTrackFormat(it) }
+            when {
+                format == null -> {
+                    logError(LogTag.SPEECH, "No audio track in the selected file")
+                    null
+                }
+                format.durationMs() > MAX_DURATION_MS -> {
+                    logError(LogTag.SPEECH, "Audio too long: ${format.durationMs() / 1000}s")
+                    null
+                }
+                else -> {
+                    extractor.selectTrack(trackIndex)
+                    val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                    val sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                    val samples = decodeTrack(extractor, format)
+                    resample(downmix(samples, channels), sampleRate, TARGET_SAMPLE_RATE)
+                        .also { logDebug(LogTag.SPEECH) { "Decoded ${it.size} samples at 16 kHz" } }
+                }
             }
-            else -> {
-                extractor.selectTrack(trackIndex)
-                val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                val sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-                val samples = decodeTrack(extractor, format)
-                extractor.release()
-                resample(downmix(samples, channels), sampleRate, TARGET_SAMPLE_RATE)
-                    .also { logDebug(LogTag.SPEECH) { "Decoded ${it.size} samples at 16 kHz" } }
-            }
+        } finally {
+            extractor.release()
         }
     } catch (e: Exception) {
         logError(LogTag.SPEECH, "Audio decode failed", e)
@@ -131,15 +145,22 @@ object AudioFileTranscriber {
 
     /** The standard MediaCodec queue loop: fill an input buffer, drain an output buffer, repeat. */
     private fun decodeTrack(extractor: MediaExtractor, format: MediaFormat): ShortArray {
+        // configure/start moved inside the try: they were outside the block whose `finally` releases
+        // the codec, so an unsupported profile or an exhausted decoder pool leaked it.
         val codec = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME)!!)
-        codec.configure(format, null, null, 0)
-        codec.start()
 
-        val out = ArrayList<Short>(1 shl 16)
+        // A growable ShortArray, not ArrayList<Short>: every sample in a boxed list is a heap object
+        // plus a reference, ~16× the 2 bytes it carries. A minute of 48 kHz stereo is 5.8 M samples —
+        // ~11 MB packed against ~90 MB boxed, on a device already holding ~600 MB of model. The copy
+        // at the end is the same one `ShortArray(out.size) { out[it] }` was already paying.
+        var out = ShortArray(1 shl 16)
+        var count = 0
         val info = MediaCodec.BufferInfo()
         var inputDone = false
         var outputDone = false
         try {
+            codec.configure(format, null, null, 0)
+            codec.start()
             while (!outputDone) {
                 if (!inputDone) {
                     val index = codec.dequeueInputBuffer(TIMEOUT_US)
@@ -159,16 +180,28 @@ object AudioFileTranscriber {
                 if (index >= 0) {
                     val buffer = codec.getOutputBuffer(index)!!.order(ByteOrder.LITTLE_ENDIAN)
                     val shorts = buffer.asShortBuffer()
-                    while (shorts.hasRemaining()) out.add(shorts.get())
+                    val n = shorts.remaining()
+                    if (count + n > out.size) out = out.copyOf(maxOf(out.size * 2, count + n))
+                    shorts.get(out, count, n)
+                    count += n
                     codec.releaseOutputBuffer(index, false)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
+                    // MAX_DURATION_MS is enforced from the container's duration, which some files do
+                    // not carry (it reads 0 and passes). This is the same ceiling in samples, so a
+                    // duration-less file cannot decode unbounded into memory.
+                    if (count >= MAX_SAMPLES) {
+                        logError(LogTag.SPEECH, "Audio exceeds ${MAX_DURATION_MS / 1000}s of samples; truncating")
+                        outputDone = true
+                    }
                 }
             }
         } finally {
-            codec.stop()
+            // `stop` on a codec that never started throws IllegalStateException, which would mask the
+            // real failure and skip `release`. The release is the part that must always happen.
+            runCatching { codec.stop() }
             codec.release()
         }
-        return ShortArray(out.size) { out[it] }
+        return out.copyOf(count)
     }
 
     /** Plain channel average. Not frequency-aware, which speech recognition tolerates. */

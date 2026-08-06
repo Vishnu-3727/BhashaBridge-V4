@@ -93,8 +93,18 @@ data class DecodeConfig(
  */
 internal fun applyRepetitionPenalty(logits: FloatArray, prefix: LongArray, penalty: Float) {
     if (penalty == 1.0f) return
-    for (tok in prefix.toHashSet()) {
-        val i = tok.toInt()
+    // `prefix.toHashSet()` boxed every token into a java.lang.Long and built a HashMap, once per
+    // generated token, on the decode critical path — the allocation CODING_STANDARDS 9.2 rules out
+    // there. The dedupe it bought is reproduced by skipping any token seen earlier in the prefix:
+    // O(n²) comparisons on a prefix bounded by DecodeConfig.maxSteps (128), against zero allocation.
+    for (pos in prefix.indices) {
+        val token = prefix[pos]
+        var seenEarlier = false
+        for (before in 0 until pos) {
+            if (prefix[before] == token) { seenEarlier = true; break }
+        }
+        if (seenEarlier) continue
+        val i = token.toInt()
         if (i in logits.indices) {
             logits[i] = if (logits[i] > 0f) logits[i] / penalty else logits[i] * penalty
         }
