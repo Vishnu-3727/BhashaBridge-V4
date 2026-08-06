@@ -949,6 +949,67 @@ moves the wrong way, and one device's single run does not flip a shipping defaul
 **Next:** Q15 — drive the app under real memory pressure on the M31 and compare survival and re-read
 cost between the arms. Until then the knob stays off and documented.
 
+
+### 3.28 Reclaim behaviour under real pressure (Q15) — half proven, and the half that matters is not
+
+**Problem.** §3.27 made the weights file-backed and left the shipping decision open on one claim:
+that clean, evictable pages make the process a worse OOM victim than anonymous ones. That was
+reasoning. This measures it.
+
+**A correction to the premise before the numbers.** The M31 has **6 GB of zram** (5.1 GB free), so
+anonymous pages here are *not* unswappable — they are compressed. The real contest is
+drop-and-re-read-from-flash against compress-and-decompress-in-zram, which is a far narrower gap than
+"reclaimable versus fatal".
+
+**Method, including two mechanisms that failed.** Pressure is applied in 128 MB steps up to 3 GB
+while the engine stays live, sampling `.ort` resident bytes from `/proc/self/smaps`, `MemAvailable`,
+swap use, and a real translation at each step. Getting genuine pressure took three attempts:
+
+- `ByteBuffer.allocateDirect` — **rejected**: Android accounts direct buffers against the VM limit,
+  so a 128 MB request threw `OutOfMemoryError` while the device still had 2 GB free. It measured the
+  allocator's policy, not the kernel's.
+- A **private mapping of `/dev/zero`** — **rejected**: `FileChannel.map` refuses it with `IOException`.
+- **`MemoryFile` (ashmem)** — works: real pinned pages, outside the Java heap.
+
+**Result 1 — reclaim works exactly as intended (reproducible, both runs).**
+
+| pressure | `.ort` resident | translate | still working |
+|---|---|---|---|
+| baseline | 322,644 kB | 641 ms | yes |
+| 2,048 MB | 322,644 kB | 664 ms | yes |
+| 2,560 MB | **3,172 kB** | 711 ms | yes |
+| 3,072 MB | 3,024 kB | 1,326 ms | yes |
+
+The kernel drops ~319 MB of model pages the moment it needs them back, and the app keeps translating.
+The second run reproduced it (322 MB → 1,092 kB, translate 1,183 ms). **The cost is a latency spike
+of roughly 2× while the pages are re-read from flash** — and it arrives exactly when the device is
+already under pressure, which is worth stating plainly.
+
+**Result 2 — the survival claim is NOT established.** Six paired trials per arm, alternating:
+
+| arm | survived | killed by lmkd |
+|---|---|---|
+| mapped initializers | 5 | **1** |
+| path load | 4 | **2** |
+
+Kills happened in **both** arms. 2-versus-1 out of six is noise, not an effect. The first trial —
+where the path arm was killed and the mapped arm walked through the same pressure — looked decisive
+and was not: the following trial had both arms survive, and the difference traced to how much memory
+the system happened to have free when each run started.
+
+**Evidence grade:** MEASURED for reclaim (reproduced, large, unambiguous). **NOT ESTABLISHED** for
+OOM survival, which was the entire justification for shipping it.
+
+**Decision.** `mappedInitializers` **stays OFF by default.** §3.27's memory result stands — 451 MB
+does become file-backed and anonymous heap does fall 151 MB — but the benefit that would justify
+changing a shipping default is unproven, and there is now a measured *cost* (the 2× latency spike on
+reclaim) that was not visible before this test.
+
+**Next:** a survival difference this small needs either many more trials from a controlled starting
+state (fresh boot, fixed `MemAvailable`) or a device where the app genuinely does not fit — a 3–4 GB
+phone, which is the population that would benefit. Neither is available today, so the knob stays off
+and documented rather than being flipped on a hunch dressed up as six data points.
+
 ---
 
 ## 4. Optimization Decision Matrix
@@ -1118,8 +1179,7 @@ Three consequences worth stating once:
 | ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |
 | ~~Q13~~ | ~~Is prepacking what unmaps the model?~~ | — | **CLOSED 2026-08-06** — refuted. 451 MB *is* mapped during load and unmapped after, with or without prepacking. Disabling prepacking is 4.6× slower and uses 2× the heap: a REVERT (§3.26) | done |
 | ~~Q14~~ | ~~Can the weights stay file-backed?~~ | — | **CLOSED 2026-08-06** — yes: 451 MB stays mapped, anonymous heap −151 MB, native PSS −230–300 MB, output identical. Total PSS rises 30–86 MB; the load and latency claims died to a page-cache confound (§3.27). Kept OFF by default | done |
-| **Q15** | Is file-backed actually a better OOM victim? | §3.27 trades anonymous pages for clean file-backed ones and total PSS goes *up*. The benefit is reclaim behaviour under pressure, which nothing measured so far touches | Drive competing allocations on the M31 until the kernel reclaims, with each arm resident: compare survival, what gets evicted, and the re-read cost when model pages come back | Decides whether `mappedInitializers` ships |
-**Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
+| ~~Q15~~ | ~~Is file-backed actually a better OOM victim?~~ | — | **CLOSED 2026-08-06** — reclaim proven (319 MB dropped under pressure, app keeps working, ~2× latency spike); survival **not** proven (kills 1/6 mapped vs 2/6 path, both arms killed). Default stays OFF (§3.28) | done |**Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
 NO EFFECT. Deleting a row because it turned out not to work is how a ledger starts lying.
 
 ---
