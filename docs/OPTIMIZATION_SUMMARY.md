@@ -622,13 +622,27 @@ shipping code, not a reimplementation.
 **Verification.** `MtEngineInstrumentedTest` parity case at `dec_len` 1 **and** 3 — both branches,
 since a single-position check passes even with the offset arithmetic broken. 39 JVM tests pass.
 
-**Benchmark.** **NOT MEASURED — no device attached.** The copy reduction is exact and provable from
-the bytecode; its share of decode latency is not, and **no speedup is claimed**.
+**Benchmark — MEASURED 2026-08-06 on the SM-M315F** (`LogitsReadBenchmarkTest`, n=200 interleaved,
+reader timed in isolation against a `[1, 1, vocab]` tensor). Interleaved rather than batched so a
+thermal ramp or a GC pause lands on both arms:
 
-**Decision.** OPEN. **Next:** run `MtBenchmarkTest` / `BenchmarkSuiteTest` on the S26U to price it;
-expect more for EN→HI (122k vocab) than HI→EN (32k). Then the upstream lever: `decoder_init` computes
-and returns logits for **every** prefix position and the runtime discards all but the last — slicing
-that inside the exported graph shrinks ORT's own allocation, not just this copy (§9 Q1).
+| vocab | boxed read (old) | buffer read (new) | saved/token | speedup |
+|---|---|---|---|---|
+| 122,672 (EN→HI) | 1274.4 µs | 728.6 µs | **545.8 µs** | 1.75× |
+| 32,296 (HI→EN) | 517.0 µs | 338.1 µs | 178.9 µs | 1.53× |
+
+At 12 generated tokens — the project's long benchmark sentence — that is **6.55 ms** saved per EN→HI
+translation and 2.15 ms per HI→EN. Against the 667 ms 12-token median on this device (§3.9) it is
+**~1.0% of end-to-end latency**, and the prediction in the commit message held: the wider vocabulary
+gains more. Medians, because the stdev on the wide-vocabulary arm (2.7 ms) is dominated by GC pauses
+on 490 KB allocations — which is itself the argument for §9 Q1.
+
+**Evidence grade:** **MEASURED** (isolated reader; not an end-to-end A/B, which at ~1% would sit
+inside this device's run-to-run drift).
+
+**Decision.** KEEP. **Next:** the upstream lever — `decoder_init` computes and returns logits for
+**every** prefix position and the runtime discards all but the last. Slicing that inside the exported
+graph shrinks ORT's own allocation, not just this copy (§9 Q1).
 
 ### 3.23 Decode ceiling 18 → 128 (`99d163b`) — KEEP (correctness), INCOMPLETE
 
@@ -673,11 +687,50 @@ measured 10.5 s construction.
 **§3.24b — Two engines resident after a swap (`028af3c`).** `engines.getOrPut` kept every direction
 ever opened; the only eviction was `onTrimMemory`, which fires on backgrounding, **not** on a swap
 tap. One tap therefore left both engines live: six ONNX sessions against the ~605–620 MB PSS a single
-direction costs (§3.8, §3.9) — **~1.2 GB in the foreground**, a low-memory-killer candidate on the
-4 GB devices in the cross-device database. `translator()` now evicts the other directions, deferred
-exactly like a trim if anything is borrowed. Cost of being wrong: a ~10 s reload on a swap-back.
-**NOT MEASURED** — the 1.2 GB is two measured single-direction numbers added, not a measured
-two-engine run. Closing it: add a swap to the `BenchmarkSuiteTest` journey (§9 Q10).
+direction costs (§3.8, §3.9). `translator()` now evicts the other directions, deferred exactly like a
+trim if anything is borrowed.
+
+**MEASURED 2026-08-06 on the SM-M315F** (`EngineFootprintTest`, one instrumentation invocation per
+run so each starts from a fresh process). The arithmetic estimate was low, and one of the three
+numbers below is a result nobody had asked for:
+
+*Two engines resident, built directly to reproduce the pre-fix state:*
+
+| state | PSS | native heap |
+|---|---|---|
+| idle | 51 MB | 3 MB |
+| one engine (EN→HI, after one translation) | 966 MB | 885 MB |
+| **two engines** (+ HI→EN) | **1,718 MB** | 1,622 MB |
+
+**1.72 GB, a 1.78× ratio** — not the 1.2 GB estimated. On a 4 GB device that is most of what the
+system will lend a foreground app.
+
+*Where the eviction fires (`9b21693`), n=3 per arm, medians:*
+
+| metric | evict **after** build | evict **before** build | delta |
+|---|---|---|---|
+| swap peak PSS | 1,394.8 MB | **883.1 MB** | −511.7 MB (−36.7%) |
+| post-swap PSS | 934.7 MB | **541.8 MB** | −392.9 MB (−42.0%) |
+| swap-back reload | 3,911 ms | 3,456 ms | −455 ms |
+| baseline, one engine | 629.6 MB | 627.4 MB | control — agrees to 0.4% |
+
+The first version of this fix evicted *after* publishing the new engine, so a swap still peaked with
+both resident. Moving the eviction before the build is where most of the win is, and the peak is
+what the low-memory killer reacts to.
+
+**The reload is 3.5 s, not the ~10 s claimed when this landed.** That figure was Phase 11C's cold
+engine construction; a swap-back hits the warm `.ort` mmap path. The trade is better than it was
+argued to be.
+
+**Unasked-for result: `release()` does not return memory to the OS.** After closing both engines,
+PSS went 1,491 MB → 1,441 MB after `System.gc()` + 3 s → 1,441 MB after 13 s. It plateaus just below
+the two-engine peak. So the eviction does **not** hand ~600 MB back to the system; it stops the
+*peak* from including a second engine, and lets the native allocator reuse those arenas for the next
+one — which the post-swap column shows it doing. That is a materially weaker claim than "frees
+600 MB", and it is the accurate one. Whether this is scudo retaining freed spans or ORT holding
+allocations past `close()` is unresolved (§9 Q11).
+
+**Evidence grade:** **MEASURED**.
 
 **§3.24c — Native use-after-free on the Vosk model (`ad7d0c0`).** Both speech paths fetched the model
 and *then* opened the borrow; a `TRIM_MEMORY_BACKGROUND` in that window freed it and `Recognizer`
@@ -860,18 +913,40 @@ done, which is the rot this section now exists to prevent): HI→EN cached expor
 validation → §3.20 (answered: 4–9%, not 2×) · zero-copy logits read → §3.22 (and the "zero-copy"
 premise was wrong).
 
+**Hardware available (2026-08-06).** The **SM-M315F is the only device on hand**; the SM-S948B that
+produced entry #9 is **no longer available**, and the most that can be obtained is an **S22 Ultra**
+(Snapdragon 8 Gen 1: Armv9, i8mm and SVE2, **no SME**). This closes some queue items and reopens
+others — the affected rows say so rather than silently assuming a device that is gone.
+
+Three consequences worth stating once:
+
+- **The SME question stays answered, and cannot be re-opened.** §3.20 priced KleidiAI's SME kernels
+  at 4–9% on the S26U and that evidence stands in `bench/results/cross-device/`. No device that can
+  be obtained has SME, so **no SME claim may be re-measured or extended** — only cited.
+- **The `[1,4]` → `[1,2]` clamp (§3.21) can no longer be closed by derivation.** It only changes
+  behaviour on an 8-performance-core part. The M31 derives 2 (4 perf cores) and the S22 Ultra derives
+  2 as well (1×X2 + 3×A710 = 4 perf cores after `dc3011e`), so neither device *reaches* the bound. It
+  can still be closed on the underlying claim — "4 threads is never optimal" — by an explicit sweep,
+  since `ProductionThreadSweepTest` sets `intraThreads` directly rather than deriving it (Q2b).
+- **KleidiAI on i8mm-only silicon is newly worth measuring.** The S22 Ultra has i8mm and SVE2 but no
+  SME, and the `mlas.disable_kleidiai` A/B did not exist when that device was last benchmarked. It
+  would separate "KleidiAI is worth something" from "SME is worth something" (Q12).
+
 | # | Experiment | Hypothesis | Measurement that closes it | Expected size |
 |---|---|---|---|---|
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
-| **Q1** | Slice the last position **inside** the exported `decoder_init` | The graph returns logits for every prefix position and the runtime discards all but the last; slicing upstream shrinks ORT's own allocation, not just our copy (§3.22) | `model_pipeline` re-export → `verify_cache.py` 7/7 + `BenchmarkSuiteTest` on S26U and M315F | Unknown; the largest remaining inference lever |
-| **Q2** | **Price §3.22 and §3.21** on device | The copy halving and the `[1,2]` clamp are both unmeasured on hardware | `MtBenchmarkTest` + `ProductionThreadSweepTest` on the S26U | Converts two entries from INFERRED/NOT MEASURED |
+| **Q1** | Slice the last position **inside** the exported `decoder_init` | The graph returns logits for every prefix position and the runtime discards all but the last; slicing upstream shrinks ORT's own allocation, not just our copy (§3.22). Those 490 KB/token allocations are also what makes the wide-vocab stdev in §3.22 | `model_pipeline` re-export → `verify_cache.py` 7/7 + `MtBenchmarkTest` on the M31 | Unknown; the largest remaining inference lever, and now the only one with real headroom |
+| ~~Q2a~~ | ~~Price the logits copy~~ | — | **CLOSED 2026-08-06** — `LogitsReadBenchmarkTest` on the M31: 545.8 µs/token saved at 122k vocab, 6.55 ms per 12-token translation, ~1.0% end-to-end (§3.22) | done |
+| **Q2b** | Does 4 intra-op threads ever win? | §3.21 tightened the clamp to `[1,2]` on one device's evidence. **Neither available device derives 4**, so the bound itself is untestable here — but the claim under it is not | `ProductionThreadSweepTest` on an S22 Ultra, which sets `intraThreads` explicitly: intra 1/2/4/6/8 on the production path, rotated rounds, parity-exact arms | Confirms or refutes a shipping default on a second topology |
 | **Q3** | Overlap the tokenizer parse with session load | `Tokenizer.load` (~1 s) runs serially *before* three sessions load on three threads; it is independent of all of them | `engine_init` stage marks, cold and warm, n=10 | ~0.5–1 s of a ~10.5 s cold start |
 | **Q4** | Packed binary vocabulary | Parsing 3.4 MB of JSON per launch is avoidable entirely: ship sorted `String[]`+`int[]` or a single `.bin` | Same stage marks as Q3; parity on encode/decode over the full vocabulary | Removes the parse (~1 s) outright |
-| **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting on a contradicting pair (S26U vs CPH2603) | Explanation, not speed |
+| **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting. **Blocked**: the contradicting pair was the S26U and CPH2603, neither of which is available | Explanation, not speed |
 | **Q6** | Greedy vs Beam on the real runtime | Beam is implemented, unit-tested, and has never been run against the model — its quality/latency trade is unknown | On-device A/B, quality judged on a fixed sentence set; note beam falls back to `decoder_init` every step today | Unknown; may be REVERT |
 | **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |
-| **Q8** | Speech pipeline | The Vosk path has never been optimized; ASR is 0.79× realtime on the M315F and 5.25× on the S26U | `SpeechPipelineBenchmarkTest` on both ends of the device range | Unknown; the M315F number is the user-visible one |
-| **Q10** | Price the single-engine eviction (§3.24b) | Two resident engines cost ~1.2 GB; evicting halves the foreground footprint at the cost of a reload | `BenchmarkSuiteTest` with a direction swap in the journey: peak PSS with and without eviction, plus the swap-back reload cost | ~600 MB of foreground RSS |
+| **Q8** | Speech pipeline | The Vosk path has never been optimized; ASR is 0.79× realtime on the M315F — slower than the speech it transcribes, on the only device now available | `SpeechPipelineBenchmarkTest` on the M31 | Unknown; the M31 number is the user-visible worst case |
+| ~~Q10~~ | ~~Price the single-engine eviction~~ | — | **CLOSED 2026-08-06** — swap peak −511.7 MB (−36.7%), post-swap −392.9 MB, reload 3.5 s not 10 s (§3.24b) | done |
+| **Q11** | Why does `release()` not return memory to the OS? | Closing both engines leaves PSS at 1,441 MB against 51 MB idle — stable across a GC and 13 s. Either scudo retains freed spans or ORT holds allocations past `close()` | `dumpsys meminfo` + `malloc_info` before/after release; a trivial JNI `mallopt(M_PURGE)` shim to test whether the allocator returns them on demand | Up to ~800 MB the process holds but is not using |
+| **Q12** | KleidiAI on i8mm-only silicon | §3.20 priced KleidiAI at 4–9% where SME exists. The S22 Ultra has i8mm and SVE2 but **no SME**, so this separates “KleidiAI helps” from “SME helps” — which entry #9 could not | `mlas.disable_kleidiai` A/B via `OrtTuning.disableKleidiAi` on an S22 Ultra, cool and hot runs | Unknown; a null result is as useful as a positive one |
 | **Q9** | R8 enabled on release | R8 has never been on; it changes the inference path and must be benchmarked, not assumed | `BenchmarkSuiteTest` before/after with `optimization { enable = true }` | Neutral-to-positive; the point is to prove it is not negative |
 
 **Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
