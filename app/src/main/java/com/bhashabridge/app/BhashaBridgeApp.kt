@@ -80,6 +80,12 @@ class BhashaBridgeApp : Application() {
     private var releaseWhenIdle = false
 
     /**
+     * Set when a direction swap happened while resources were borrowed: the direction to **keep**,
+     * so the last [endUse] evicts the others. Null when there is nothing deferred.
+     */
+    private var evictWhenIdle: Direction? = null
+
+    /**
      * The Vosk acoustic models, owned here for the same reason the MT engines are: large native
      * allocations that must survive a rotation and must have exactly one release trigger. Loading
      * is lazy inside [VoskModels] too, so a session that never uses the mic never pays for it.
@@ -120,8 +126,48 @@ class BhashaBridgeApp : Application() {
             Metrics.end()
 
             synchronized(engineLock) { engines[direction] = engine }
+            evictOtherDirections(keep = direction)
             return engine
         }
+    }
+
+    /**
+     * Keeps at most one MT engine resident, releasing the direction the user just left.
+     *
+     * `engines.getOrPut` held every direction ever opened, and the only eviction was
+     * [onTrimMemory] — which fires when the process goes to background, not when the user taps
+     * swap. So one tap on the swap button left **both** engines resident: six ONNX sessions and two
+     * KV-cache runtimes, against the ~605-620 MB PSS one direction costs on the SM-M315F
+     * (`ORT_TUNING.md`). ~1.2 GB in the foreground is a low-memory-killer candidate on the 4 GB
+     * devices in the cross-device database, and it buys nothing: the UI translates in one direction
+     * at a time, and `TranslateViewModel` cancels the outstanding translation before swapping.
+     *
+     * The cost of being wrong is a reload (~10 s) if the user swaps back and forth. That is the
+     * right trade against being killed, and it is the same trade [onTrimMemory] already makes.
+     *
+     * Deferred exactly like a trim when anything is borrowed: a speech session pinned on the other
+     * direction must not have its sessions closed underneath it. [endUse] runs whatever was
+     * deferred.
+     */
+    private fun evictOtherDirections(keep: Direction) {
+        val doomed = synchronized(borrowLock) {
+            if (borrowers > 0) {
+                evictWhenIdle = keep
+                emptyList()
+            } else {
+                synchronized(engineLock) { takeOtherDirections(keep) }
+            }
+        }
+        if (doomed.isEmpty()) return
+        logDebug(LogTag.APP) { "Evicting ${doomed.size} engine(s) — $keep is now the active direction" }
+        doomed.forEach { it.release() }
+    }
+
+    /** Removes and returns every engine except [keep]'s. Caller holds [engineLock]. */
+    private fun takeOtherDirections(keep: Direction): List<MtEngine> {
+        val victims = engines.filterKeys { it != keep }
+        victims.keys.forEach { engines.remove(it) }
+        return victims.values.toList()
     }
 
     /**
@@ -148,13 +194,30 @@ class BhashaBridgeApp : Application() {
 
     @PublishedApi
     internal fun endUse() {
-        val release = synchronized(borrowLock) {
+        // Both deferred actions are decided under the counter lock and performed outside it. A full
+        // release supersedes an eviction — it frees the kept engine too, so running both would just
+        // close an already-empty map.
+        var release = false
+        var doomed: List<MtEngine> = emptyList()
+        synchronized(borrowLock) {
             borrowers--
-            (borrowers == 0 && releaseWhenIdle).also { if (it) releaseWhenIdle = false }
+            if (borrowers > 0) return
+            if (releaseWhenIdle) {
+                releaseWhenIdle = false
+                evictWhenIdle = null
+                release = true
+            } else evictWhenIdle?.let { keep ->
+                evictWhenIdle = null
+                doomed = synchronized(engineLock) { takeOtherDirections(keep) }
+            }
         }
         if (release) {
             logDebug(LogTag.APP) { "Last borrower finished — running the deferred release" }
             releaseAll()
+        }
+        if (doomed.isNotEmpty()) {
+            logDebug(LogTag.APP) { "Last borrower finished — running the deferred eviction" }
+            doomed.forEach { it.release() }
         }
     }
 
