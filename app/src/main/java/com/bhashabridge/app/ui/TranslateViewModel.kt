@@ -79,6 +79,14 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
 
     private var translation: Job? = null
     private var micJob: Job? = null
+
+    /**
+     * True while [micJob] is a file transcription rather than a live recording. The two are stopped
+     * differently and must not be confused: a recording is asked to stop and then *finishes*,
+     * emitting its final transcript; a transcription has no such request channel and can only be
+     * cancelled. Main-thread only.
+     */
+    private var transcribingFile = false
     private val history = ArrayDeque<HistoryEntry>()
 
     // Streaming gate: partial results repeat and arrive far faster than the translator can serve.
@@ -240,6 +248,7 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
     fun transcribeFile(uri: Uri) {
         if (micJob != null) return
         val direction = _state.value.direction
+        transcribingFile = true
         micJob = viewModelScope.launch {
             _state.update { it.copy(mic = MicState.Loading, micStatus = R.string.mic_loading) }
             try {
@@ -264,17 +273,29 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
         // plain field written off-main and read on-main with no happens-before edge: a stale
         // non-null read wedges the microphone until restart, a stale null read starts a second
         // session while the first is still flushing — two Recognizers on one model.
-        micJob?.invokeOnCompletion { viewModelScope.launch { micJob = null } }
+        // Cleared with `micJob` and on the same dispatcher: the flag describes that job, so the two
+        // must never disagree about which kind of session is running.
+        micJob?.invokeOnCompletion {
+            viewModelScope.launch {
+                micJob = null
+                transcribingFile = false
+            }
+        }
     }
 
     /** Ends the session cleanly: the flow still emits its final transcript before completing. */
     fun stopRecording() {
         capture.stop()
-        // A file transcription ignores capture.stop() — it is a different object with its own
-        // Recognizer — so cancelling the job is the only way to end one. Without this there was no
-        // way to abort an import at all: `micJob` stayed non-null and the microphone stayed inert
-        // until the transcription finished on its own.
-        micJob?.cancel()
+        // Only a file transcription is cancelled. It ignores capture.stop() — a different object
+        // with its own Recognizer — so cancelling the job is the only way to abort an import;
+        // without it `micJob` stayed non-null and the microphone stayed inert until the
+        // transcription finished on its own.
+        //
+        // A live recording must NOT be cancelled here. capture.stop() asks the session to end, and
+        // the flush that follows is what emits SpeechEvent.Final — the only event that publishes a
+        // transcript. Cancelling took the collector down first, so tapping the mic to stop threw
+        // away the very text the user had just spoken.
+        if (transcribingFile) micJob?.cancel()
     }
 
     /**
