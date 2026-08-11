@@ -1419,6 +1419,48 @@ three conditions applied to the English model would say whether 0.55× clean sur
 
 ---
 
+### 3.35 Does the speech path leak when it is used repeatedly? — NO, and now it is proven
+
+**Problem.** §3.24's resource-lifecycle pass closed a Vosk use-after-free, a leaked `AudioRecord`, an
+uncancellable `MediaCodec` loop and a lost `stop()` — all by **reading**. Every speech test runs one
+session, and one session cannot tell a working release from a missing one: both look identical when
+the resource is acquired once and the process then exits. The audit could say the code was now
+correct; it could not say the process was clean.
+
+**Implementation.** No production change. `SpeechChurnLeakTest` repeats each speech path and measures
+drift after a warm-up: 20 file transcriptions, and 32 microphone sessions built through a **fresh
+`AudioCapture` per cycle** — harsher than production, which keeps one for the ViewModel's life,
+because a per-session leak hides inside a reused object's steady state. `RECORD_AUDIO` is granted
+through `uiAutomation`, so the microphone path runs headless on silence; the resources being counted
+are acquired and released identically whether or not anyone speaks.
+
+**File descriptors are the instrument, not memory.** `AudioRecord`, each of the three audio effects,
+`MediaCodec` and `MediaExtractor` all hold a kernel object with an fd apiece, so a missed release is a
+straight line in `/proc/self/fd` that no allocator, GC or page cache can blur. Native heap is reported
+but bounded loosely — §3.25 already measured jemalloc returning pages on its own schedule, and a tight
+bound there would fail honestly-clean runs.
+
+**Benchmark.** SM-M315F, probed in quarters:
+
+| Path | cycles | fds | threads | native heap | PSS |
+|---|---|---|---|---|---|
+| file transcription | 20 | 90 → 90 (**0**) | +2 | +133 KB | +198 KB |
+| microphone session | 32 | 92 → 86 (**−6**) | 0 | **−1074 KB** | −655 KB |
+
+Quartering is what settled it. A first 12-cycle run showed the microphone path gaining 2.3 MB of
+native heap and it was not obvious from two numbers whether that was hysteresis or a slope; over 32
+cycles the series reads 93054 → 94121 → 93118 → 94281 → 91980 KB — it oscillates by ~1 MB and finishes
+**below** where it started. Not a leak, an allocator.
+
+**Evidence grade:** MEASURED (SM-M315F).
+**Decision.** **NO LEAK.** Both paths hold flat. The test ships as a regression guard, which is the
+durable value here: the next change to `AudioCapture` or `AudioFileTranscriber` now has something that
+fails if it drops a release, instead of a reviewer who has to notice.
+**Next.** Untested by this: the direction-swap and trim paths, where the *models* are released rather
+than per-session objects. §3.24b and §3.25 measured those once each; neither has a churn test.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
