@@ -25,3 +25,5 @@ dependencyResolutionManagement {
 rootProject.name = "BhashaBridgeV4"
 include(":app")
 include(":baselineprofile")
+// Standalone Arm CPU smoke test. Shares :app's inference sources; ships no models. See benchapp/README.md.
+include(":benchapp")

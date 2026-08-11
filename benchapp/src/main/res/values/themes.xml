@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Permanently dark, same reasoning as :app: one surface, no values-night variant to keep in sync. -->
+<resources>
+    <style name="Theme.BenchApp" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="android:windowBackground">#0E1116</item>
+        <item name="android:colorBackground">#0E1116</item>
+        <item name="android:statusBarColor">#0E1116</item>
+        <item name="colorPrimary">#6EE7B7</item>
+        <item name="colorOnPrimary">#0E1116</item>
+        <item name="android:textColorPrimary">#C9D1D9</item>
+    </style>
+</resources>

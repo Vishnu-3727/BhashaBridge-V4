@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One dark surface, one accent. Named by role, not by hue, so a value can be retuned in one place. -->
+<resources>
+    <color name="bg">#0E1116</color>
+    <color name="surface">#161B22</color>
+    <color name="surface_raised">#1C232C</color>
+    <color name="divider">#242C36</color>
+
+    <color name="accent">#6EE7B7</color>
+    <color name="accent_dim">#3A4553</color>
+
+    <color name="text_primary">#E6EDF3</color>
+    <color name="text_secondary">#8B949E</color>
+    <color name="text_muted">#6B7684</color>
+    <color name="warn">#F0A868</color>
+</resources>

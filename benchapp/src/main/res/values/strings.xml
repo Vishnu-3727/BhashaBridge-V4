@@ -1,0 +1,37 @@
+<resources>
+    <!-- Developer/operator tool, English only by design: it is read by whoever is holding the test
+         device, and its output is machine-readable JSON. Marked so lint states that as intent. -->
+    <string name="app_name" translatable="false">Arm Smoke Test</string>
+    <string name="subtitle" translatable="false">CPU + INT8 inference · offline, no permissions</string>
+
+    <string name="preset_light" translatable="false">Light</string>
+    <string name="preset_standard" translatable="false">Standard</string>
+    <string name="preset_heavy" translatable="false">Heavy</string>
+    <string name="preset_torture" translatable="false">Torture</string>
+    <string name="opt_kleidi" translatable="false">KleidiAI A/B</string>
+
+    <!-- Shown when a preset is picked, so the wait is known before RUN rather than after. -->
+    <string name="preset_hint" translatable="false">%1$s · ~%2$d min · %3$d iters · %4$d s soak</string>
+
+    <string name="btn_run" translatable="false">RUN</string>
+    <string name="btn_share" translatable="false">Export</string>
+    <string name="btn_clear" translatable="false">Clear</string>
+
+    <string name="status_idle" translatable="false">Ready · unplug and close other apps for a clean run</string>
+    <string name="run_done" translatable="false">Complete · CPU + inference</string>
+    <string name="run_done_cpu_only" translatable="false">Complete · CPU only</string>
+    <string name="run_failed" translatable="false">Failed: %1$s</string>
+    <string name="saved_to" translatable="false">Saved · %1$s</string>
+    <string name="share_report" translatable="false">Export report</string>
+    <string name="cleared" translatable="false">Cleared %1$d MB</string>
+
+    <string name="section_cores" translatable="false">Core usage</string>
+    <string name="cores_caption" translatable="false">Share of this process\'s threads per core</string>
+
+    <!-- Four states, because "models" is now two independent things and one banner saying they are
+         missing would not say which. Either phase runs without the other. -->
+    <string name="models_ready" translatable="false">✓ Translation + speech staged · all phases will run</string>
+    <string name="models_ready_mt_only" translatable="false">✓ Translation staged · speech phase will be skipped.\nFor it too:\n%1$s</string>
+    <string name="models_ready_speech_only" translatable="false">✓ Speech staged · translation phase will be skipped.\nFor it too:\n%1$s</string>
+    <string name="models_missing" translatable="false">CPU phase only · %1$d model file(s) missing.\nPush them and reopen:\n%2$s\n%3$s</string>
+</resources>

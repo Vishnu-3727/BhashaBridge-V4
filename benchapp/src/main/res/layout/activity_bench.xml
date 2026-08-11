@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Controls pinned at the top, results scrolling underneath.
+
+  The previous layout put everything in one column and let the results block push down from wherever
+  the controls happened to end, which left the readable area squeezed into the middle third of the
+  screen with dead space below it. Here the results ScrollView takes every pixel the controls do not.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <!-- ── Header ─────────────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.02"
+            android:text="@string/app_name"
+            android:textColor="@color/text_primary"
+            android:textSize="19sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text="@string/subtitle"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp" />
+
+        <!-- Model state: one line normally, expanding only when something is missing. -->
+        <TextView
+            android:id="@+id/modelState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:lineSpacingExtra="2dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="9dp"
+            android:textColor="@color/text_secondary"
+            android:textIsSelectable="true"
+            android:textSize="11sp" />
+
+        <!-- Intensity. One dial rather than a checkbox per phase: the budgets only mean anything
+             moved together, and a named preset is what makes two reports comparable. -->
+        <RadioGroup
+            android:id="@+id/presetGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/presetLight"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:paddingStart="2dp"
+                android:text="@string/preset_light"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/presetStandard"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:checked="true"
+                android:paddingStart="2dp"
+                android:text="@string/preset_standard"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/presetHeavy"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:paddingStart="2dp"
+                android:text="@string/preset_heavy"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <RadioButton
+                android:id="@+id/presetTorture"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:paddingStart="2dp"
+                android:text="@string/preset_torture"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </RadioGroup>
+
+        <CheckBox
+            android:id="@+id/kleidiBox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:buttonTint="@color/accent"
+            android:checked="true"
+            android:text="@string/opt_kleidi"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/runButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_weight="2.2"
+                android:background="@drawable/bg_button_primary"
+                android:letterSpacing="0.03"
+                android:stateListAnimator="@null"
+                android:text="@string/btn_run"
+                android:textColor="@color/bg"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/shareButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_secondary"
+                android:enabled="false"
+                android:stateListAnimator="@null"
+                android:text="@string/btn_share"
+                android:textColor="@color/text_button_secondary"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/clearButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_secondary"
+                android:stateListAnimator="@null"
+                android:text="@string/btn_clear"
+                android:textColor="@color/text_button_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="10dp"
+            android:indeterminate="true"
+            android:indeterminateTint="@color/accent"
+            android:visibility="invisible" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/status_idle"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Marks where the fixed header ends. Without it a card scrolling under the header is clipped
+         mid-row against nothing, which reads as a rendering fault rather than as scrolled content. -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <!-- ── Results ────────────────────────────────────────────────────────── -->
+    <ScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="24dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/results"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+</LinearLayout>

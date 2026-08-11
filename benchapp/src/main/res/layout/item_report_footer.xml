@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The saved file. Filename only — the full path was three wrapped lines of noise, and Export is
+     the button that actually moves the file anywhere. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="4dp"
+    android:paddingTop="4dp">
+
+    <TextView
+        android:id="@+id/reportName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:textColor="@color/text_muted"
+        android:textIsSelectable="true"
+        android:textSize="10sp" />
+</LinearLayout>
