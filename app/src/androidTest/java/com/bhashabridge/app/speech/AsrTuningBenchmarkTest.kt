@@ -28,7 +28,12 @@ import kotlin.math.sin
  * translator cannot tell you whether a knob moved the recogniser or the weather. This test isolates
  * Vosk, repeats it, and reports a realtime factor per arm.
  *
- * **Arms.** Each is one `Recognizer` configuration fed the same utterance:
+ * Two sweeps, answering different questions. [sweepsRecogniserConfigurations] varies how the audio
+ * is *fed* to the English model — sample rate and buffer size — and found nothing (§3.33).
+ * [sweepsHindiDecodeConfiguration] varies how hard the Hindi model *searches*, under noise, and
+ * found the one real defect (§3.34).
+ *
+ * **Feed arms.** Each is one `Recognizer` configuration fed the same utterance:
  *  - `16k` — production today: capture at 16 kHz, `Recognizer(model, 16000f)`.
  *  - `8k`  — the same audio downsampled to 8 kHz with `Recognizer(model, 8000f)`.
  *  - `chunk_*` — the production rate at other buffer sizes.
@@ -44,9 +49,12 @@ import kotlin.math.sin
  * running anyway, because the hardware captures at 48 kHz regardless — would deliver it. So the
  * timed region is the honest one: what the app would actually still be paying for.
  *
- * Accuracy is guarded, not measured. The fixture is synthesised speech, so a word-error rate over it
- * would describe one synthetic voice; what matters for a tuning decision is that an arm did not
- * *change* what was heard, which is what [assertSameTranscript] checks.
+ * Accuracy is guarded, not measured. The fixtures are synthesised speech, so a word-error rate over
+ * them would describe one synthetic voice; what matters for a tuning decision is whether an arm
+ * *changed* what was heard. The feed sweep asserts it did not ([assertSameTranscript]) because a
+ * different sample rate has no business altering the answer; the decode sweep only reports it,
+ * because a narrower beam is allowed to — that trade is a product decision, not one a benchmark
+ * fails a build over.
  */
 @RunWith(AndroidJUnit4::class)
 class AsrTuningBenchmarkTest {
@@ -110,10 +118,13 @@ class AsrTuningBenchmarkTest {
     /**
      * Q8a: what the Hindi model's decode width costs, and whether narrowing it changes what is heard.
      *
-     * The two shipped models disagree about how wide to search. English carries the small-model fast
-     * configuration; Hindi carries the wide one, over a graph 2.4× larger (55.9 MB of FST against
-     * 34.4 MB). Hindi is therefore the arm that can plausibly fail to keep up on a slower phone than
-     * this one, and until now it had never been timed at all.
+     * Hindi used to ship the wide configuration (`--max-active=7000 --beam=13.0 --lattice-beam=4.0`)
+     * over an FST graph 2.4× larger than English's (55.9 MB against 34.4 MB), and had never been
+     * timed. This sweep is what found that it ran **1.91× realtime at 10 dB SNR** — losing to live
+     * speech — and §3.34 narrowed it to English's values on the strength of these numbers.
+     *
+     * It stays as the regression guard, so run it on any new device. The interesting output now is
+     * that `hi_wide_7000` is still slow and still heard the same thing.
      *
      * `max-active`, `beam` and `lattice-beam` are read out of `conf/model.conf` when the `Model` is
      * constructed, and [VoskModels] unpacks that file to `filesDir`. So the sweep rewrites the
@@ -145,7 +156,7 @@ class AsrTuningBenchmarkTest {
         val original = conf.readText()
         // condition -> (config -> transcript), so accuracy is compared between configs *within* a
         // condition. Comparing across conditions would only rediscover that noise hurts.
-        val heard = LinkedHashMap<String, LinkedHashMap<String, String>>()
+        val heard = LinkedHashMap<String, LinkedHashMap<String, Set<String>>>()
         try {
             for ((name, text) in hindiArms(original)) {
                 conf.writeText(text)
@@ -157,11 +168,17 @@ class AsrTuningBenchmarkTest {
                         val arm = Arm(name, audio, FIXTURE_RATE, DEFAULT_CHUNK)
                         run(model, arm)
                         val samples = ArrayList<Long>(ITERATIONS)
-                        var transcript = ""
+                        // Every iteration's transcript, not just the last one. Keeping only the last
+                        // hid a real property of this measurement: at 10 dB the recogniser is not
+                        // deterministic across repeats of the *same* configuration — the trailing
+                        // word comes and goes. Two arms then appear to disagree about the config
+                        // when they are disagreeing with themselves, which is how a run-to-run flip
+                        // gets written down as an accuracy finding.
+                        val transcripts = LinkedHashSet<String>()
                         repeat(ITERATIONS) {
                             val (ms, text2) = run(model, arm)
                             samples += ms
-                            transcript = text2
+                            transcripts += text2
                         }
                         val stats = Stats.of(samples)
                         val perAudioSecond = stats.median / audioSeconds
@@ -170,10 +187,16 @@ class AsrTuningBenchmarkTest {
                             "HI_ARM $name/$condition load=${loadMs}ms median=${round2(stats.median)}ms " +
                                 "p95=${round2(stats.p95)}ms stdev=${round2(stats.stdev)} " +
                                 "realtime=${round2(perAudioSecond / 1000.0)}x " +
-                                "ms_per_audio_s=${round2(perAudioSecond)} transcript=\"$transcript\"",
+                                "ms_per_audio_s=${round2(perAudioSecond)} " +
+                                "distinct=${transcripts.size} transcript=\"${transcripts.first()}\"",
                         )
+                        if (transcripts.size > 1) {
+                            transcripts.forEachIndexed { i, t ->
+                                Log.i(TAG, "HI_UNSTABLE $name/$condition [$i] \"$t\"")
+                            }
+                        }
                         Log.i(TAG, "HI_ARM_JSON $name/$condition ${stats.toJson()}")
-                        heard.getOrPut(condition) { LinkedHashMap() }[name] = transcript
+                        heard.getOrPut(condition) { LinkedHashMap() }[name] = transcripts
                     }
                 } finally {
                     model.close()
@@ -185,21 +208,50 @@ class AsrTuningBenchmarkTest {
 
         // Reported, never asserted. A narrower beam is *allowed* to change the hypothesis — that is
         // the trade being priced, and a benchmark does not get to fail a run over a product
-        // decision. What it must do is make the difference impossible to miss.
+        // decision. What it must do is make the difference impossible to miss, and not overstate it.
+        //
+        // **A verdict is only meaningful where the control pair agrees.** [SHIPPED] and
+        // [SHIPPED_RECHECK] are the same configuration run twice, so anything they disagree about is
+        // the recogniser disagreeing with itself, and no arm in that condition can be held
+        // responsible for a difference.
+        //
+        // The obvious cheaper test — "did this arm return more than one transcript over its own
+        // repeats" — does not work, and the measurement that proves it is in the log: at 5 dB both
+        // control arms were internally stable across all 15 repeats (`distinct=1`) and still
+        // produced different text from each other. The nondeterminism lives in the `Model` instance,
+        // not the utterance; 15 repeats through one model are identical, and a fresh load of the
+        // same configuration can settle somewhere else. Set size cannot see that. The control pair
+        // can, which is the second job the counterbalance arm was already doing for latency.
         heard.forEach { (condition, byConfig) ->
-            val baseline = byConfig[STOCK] ?: return@forEach
-            byConfig.forEach { (config, transcript) ->
-                if (config != STOCK) {
-                    val verdict = if (transcript == baseline) "SAME" else "CHANGED"
-                    Log.i(TAG, "HI_ACCURACY $condition $config $verdict")
-                    if (transcript != baseline) {
-                        Log.i(TAG, "HI_ACCURACY   $STOCK: \"$baseline\"")
-                        Log.i(TAG, "HI_ACCURACY   $config: \"$transcript\"")
-                    }
+            val baseline = byConfig[SHIPPED] ?: return@forEach
+            val control = byConfig[SHIPPED_RECHECK]
+            val controlHolds = control == null || control == baseline
+            byConfig.forEach { (config, transcripts) ->
+                if (config == SHIPPED) return@forEach
+                val verdict = when {
+                    transcripts == baseline -> "SAME"
+                    !controlHolds -> "NOISY"
+                    baseline.size > 1 || transcripts.size > 1 -> "NOISY"
+                    else -> "CHANGED"
+                }
+                Log.i(TAG, "HI_ACCURACY $condition $config $verdict")
+                if (verdict != "SAME") {
+                    Log.i(TAG, "HI_ACCURACY   $SHIPPED: ${baseline.joinToString(" | ") { "\"$it\"" }}")
+                    Log.i(TAG, "HI_ACCURACY   $config: ${transcripts.joinToString(" | ") { "\"$it\"" }}")
                 }
             }
+            if (!controlHolds) {
+                Log.i(
+                    TAG,
+                    "HI_ACCURACY $condition CONTROL_DISAGREES — the same configuration heard two " +
+                        "different things, so every verdict in this condition is unattributable",
+                )
+            }
         }
-        assertTrue("the stock Hindi arm heard nothing", heard["clean"]?.get(STOCK).isNullOrBlank().not())
+        assertTrue(
+            "the shipped Hindi arm heard nothing",
+            heard["clean"]?.get(SHIPPED)?.any { it.isNotBlank() } == true,
+        )
     }
 
     /**
@@ -220,17 +272,25 @@ class AsrTuningBenchmarkTest {
     }
 
     /**
-     * The stock text with the three decode-width knobs rewritten; every other line — the endpointer
+     * The shipped text with the three decode-width knobs rewritten; every other line — the endpointer
      * rules, the acoustic scale, the subsampling factor — is carried through untouched, so an arm
      * differs from the baseline in exactly the three values under test.
+     *
+     * **The comparison arms carry literal values, not a relationship to the baseline**, and that
+     * matters now that §3.34 has shipped. The original sweep ran `stock` (whatever the asset said)
+     * against "English's configuration"; once Hindi *became* English's configuration those two names
+     * described the same numbers, and the wide configuration this test exists to keep out would have
+     * quietly dropped out of the comparison. `wide_7000` is the pre-§3.34 setting, pinned here so the
+     * regression it guards against stays measurable rather than becoming unnameable.
      */
     private fun hindiArms(original: String): List<Pair<String, String>> = listOf(
-        STOCK to original,
-        "hi_english_config" to retune(original, maxActive = 3000, beam = 10.0, latticeBeam = 2.0),
-        "hi_mid" to retune(original, maxActive = 5000, beam = 11.5, latticeBeam = 3.0),
-        // Counterbalance: the stock arm again, last and hottest. If it reads like the first stock
-        // arm the device did not drift and the middle arms can be believed.
-        "hi_stock_recheck" to original,
+        SHIPPED to original,
+        "hi_wide_7000" to retune(original, maxActive = 7000, beam = 13.0, latticeBeam = 4.0),
+        "hi_mid_5000" to retune(original, maxActive = 5000, beam = 11.5, latticeBeam = 3.0),
+        // Counterbalance, and the control for both axes: the shipped arm again, last and hottest.
+        // If its latency matches the first arm the device did not drift; if its transcript matches,
+        // the accuracy verdicts in that condition mean something.
+        SHIPPED_RECHECK to original,
     )
 
     private fun retune(original: String, maxActive: Int, beam: Double, latticeBeam: Double): String =
@@ -394,7 +454,11 @@ class AsrTuningBenchmarkTest {
          */
         const val HINDI_FIXTURE = "speech_hi_paani.wav"
         const val HINDI_MODEL_FOLDER = "model-hi"
-        const val STOCK = "hi_stock"
+        /** The baseline arm: whatever `conf/model.conf` ships today, untouched. */
+        const val SHIPPED = "hi_shipped"
+
+        /** The same configuration, run last. The control for drift and for transcript stability. */
+        const val SHIPPED_RECHECK = "hi_shipped_recheck"
 
         /** Fixed, so the noise is a constant of the experiment rather than a variable in it. */
         const val NOISE_SEED = 20260811L

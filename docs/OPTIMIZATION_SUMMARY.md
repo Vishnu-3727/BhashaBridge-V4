@@ -1384,12 +1384,15 @@ mismatch. Keyed on `conf/` and not the whole folder because hashing 56–81 MB p
 unaffordable and `openFd` throws on these assets (`noCompress` covers `onnx`/`bin`/`pb`, not
 `.mdl`/`.fst`).
 
-**Verification.** **Transcripts are identical between every configuration within every condition** —
-including both degraded ones, where all arms are wrong in exactly the same way. The narrowed beam
-reaches the same hypothesis, it just stops paying for 4000 it was going to discard. New
-`SpeechAssetFreshnessTest` 2/2 proves both halves on a device that started from a **stale unpacked
-model**: `filesDir` held `max-active=7000` before the install and 3000 after the first load, and the
-Hindi model still transcribes `पानी`. 27 JVM unit tests green.
+**Verification.** In the deciding run, transcripts were identical between every configuration within
+every condition — including both degraded ones, where all arms were wrong in exactly the same way.
+**§3.36 corrects how much that is worth:** a re-run showed the recogniser is not deterministic at
+10 dB across repeats of the *same* configuration, so some of that identity was luck. The speed
+result is untouched and reproduced exactly; the accuracy conclusion is now "no change attributable
+to the beam", not "identical output". New `SpeechAssetFreshnessTest` 2/2 proves both halves on a
+device that started from a **stale unpacked model**: `filesDir` held `max-active=7000` before the
+install and 3000 after the first load, and the Hindi model still transcribes `पानी`. Full speech
+suite 8/8 instrumented, 27 JVM unit tests green.
 
 **Benchmark.** SM-M315F, 15 iterations per cell, 3.09 s of audio, arms in fixed order with the stock
 configuration repeated last as the drift control:
@@ -1458,6 +1461,75 @@ durable value here: the next change to `AudioCapture` or `AudioFileTranscriber` 
 fails if it drops a release, instead of a reviewer who has to notice.
 **Next.** Untested by this: the direction-swap and trim paths, where the *models* are released rather
 than per-session objects. §3.24b and §3.25 measured those once each; neither has a churn test.
+
+---
+
+### 3.36 The recogniser is nondeterministic per model load — §3.34's accuracy claim was too strong
+
+**Problem.** §3.34 shipped the Hindi retune partly on "transcripts are identical between every
+configuration within every condition". Re-running the sweep after the change broke that claim in the
+most direct way available: **`hi_shipped` and `hi_shipped_recheck` — the same configuration, run
+twice in the same test — heard different things.** At 10 dB in one run the first arm dropped a
+trailing word; at 5 dB in the next, the two produced `"जैसे काली स्याही में लगे"` against
+`"जैसे काली स्याही फेंकने लगे"`. If the control pair can disagree, a difference between two *real*
+arms cannot be attributed to the arm, and §3.34 was reading some luck as evidence.
+
+**Investigation.** The instability is **per `Model` instance, not per utterance**, which is the part
+that makes it easy to miss. Every arm in the re-run reported `distinct=1`: 15 repeated recognitions
+through one loaded model are byte-identical every time. Load the model again with the same
+`conf/model.conf` and the search can settle somewhere else. So the original harness — which kept only
+the last iteration's transcript — was not even wrong about stability *within* an arm; it simply had
+no way to see across arms, and neither does the obvious fix of counting distinct transcripts per arm,
+because each set has exactly one member.
+
+The counterbalance arm was already there for latency drift. It turns out to be the right control for
+this too, and it costs nothing extra.
+
+**Implementation.** Test-only, three changes to `AsrTuningBenchmarkTest`. Arms now collect the **set**
+of transcripts over their repeats and log `distinct=N`, with every variant printed when N > 1. The
+verdict is computed against the control pair: `SAME`, `CHANGED`, or **`NOISY`** when
+`hi_shipped_recheck` disagrees with `hi_shipped` in that condition, plus an explicit
+`CONTROL_DISAGREES` line. And the comparison arms carry **literal** values — `hi_wide_7000` pins
+7000/13.0/4.0 rather than "English's configuration", because once Hindi *became* that configuration
+the old arm names described the same numbers and the wide setting silently dropped out of the
+comparison the test exists to guard.
+
+**Benchmark.** SM-M315F, control agreeing to within 1.2% at every condition, so this is the run to
+quote. It reproduces §3.34's headline from the other direction — the pre-retune configuration is
+still slow, and still heard exactly the same thing:
+
+| Condition | shipped 3000/10/2 | wide 7000/13/4 | mid 5000/11.5/3 | shipped re-run |
+|---|---|---|---|---|
+| clean | 1641 ms · 0.53× | 1993 ms · 0.64× | 1732 ms · 0.56× | 1660 ms · 0.54× |
+| 10 dB SNR | 2383 ms · 0.77× | **5970 ms · 1.93×** | 3968 ms · 1.28× | 2356 ms · 0.76× |
+| 5 dB SNR | 3084 ms · 1.00× | **8048 ms · 2.60×** | 5255 ms · 1.70× | 3077 ms · 1.00× |
+
+1.93× and 2.60× against §3.34's 1.91× and 2.59×, now measured three times — the wide configuration's
+cost is the most reproducible number in this section, and the regression guard fires.
+
+**One intervening run is not quotable, and the control is how you know.** An earlier attempt had
+`hi_shipped` come out 7–10% *slower* than `hi_shipped_recheck` at every condition, stdev 238/212
+against 14/13, because the first arm ran while dex verification was still settling after an APK
+install. Its ratios were right (1.93×, 2.60×); its absolute baseline was not. Read the control pair
+before reading the numbers.
+
+**How often the instability actually appears:** twice in four sweeps, each time one condition in one
+arm, never twice in the same place. So the `NOISY` branch is correct-by-construction rather than
+correct-by-observation — it has not fired since it was written, because every run since has had an
+agreeing control. Recorded so that whoever first sees `CONTROL_DISAGREES` reads it as the expected
+behaviour of this recogniser rather than a broken test.
+
+**Evidence grade:** MEASURED. **Decision.** **KEEP the retune; correct the claim.** The decision
+§3.34 made is unaffected — a 2.5× latency difference is far outside anything this nondeterminism
+moves, and no arm has ever been observed to hear *worse* than the wide one. What changes is the
+strength of the accuracy statement: it is **"no change attributable to the beam"**, not "identical
+output".
+
+**Next.** The 5 dB result deserves naming: at 0.93–1.01× even the narrowed configuration sits on the
+realtime line on this device, so the retune bought headroom at 10 dB rather than immunity at 5 dB. A
+phone slower than the M31 will be over 1.0 there. That is the case Q8c's English arm should also be
+measured against, and it is an argument for an endpointing or partial-flush strategy rather than
+another beam change — the decode width has now been swept and there is nothing left in it.
 
 ---
 
