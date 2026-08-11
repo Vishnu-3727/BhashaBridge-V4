@@ -18,11 +18,26 @@ local.properties
 # ~636 MB of ONNX graphs, SentencePiece models and vocab dictionaries. Committing these once
 # puts them in history permanently; removing them later requires rewriting every downstream clone.
 *.onnx
+# `*.onnx` alone stopped being enough once weights moved out of the graph: dedup_weights.py
+# writes the shared blob as a plain `.bin`, so a 276 MB file sat untracked and one `git add -A`
+# from history. The rule is about model bytes, not about a file extension.
+*.bin
+*.weights
 model.SRC*
 model.TGT*
 dict.*.json
-/app/src/main/assets/model/
-/app/src/main/assets/model-hi/
+# The acoustic models are 137 MB of binaries and stay out — but their `conf/` directories do not.
+# `model.conf` is 289 bytes of decode configuration: a tuning decision, not model bytes. §3.34
+# narrowed Hindi's beam there, and under the old rule that change would have lived on one laptop —
+# invisible to review, absent from a fresh clone, and silently undone by whoever next staged the
+# models. Excluded as contents (`/**`) rather than as a directory, because git will not re-include
+# anything beneath an excluded *directory* however many `!` rules follow it.
+/app/src/main/assets/model/**
+!/app/src/main/assets/model/conf/
+!/app/src/main/assets/model/conf/**
+/app/src/main/assets/model-hi/**
+!/app/src/main/assets/model-hi/conf/
+!/app/src/main/assets/model-hi/conf/**
 
 # Python virtualenvs for the ONNX export pipeline. V3.4.1 committed one, numpy headers and all.
 /model_pipeline/**/venv/

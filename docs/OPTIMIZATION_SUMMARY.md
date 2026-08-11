@@ -1352,6 +1352,73 @@ actually pay.
 
 ---
 
+### 3.34 Hindi decodes too wide, and it only shows in noise (Q8a) — KEEP
+
+**Problem.** §3.33 closed Q8 by showing the recogniser keeps up: 0.55× realtime in English. That was
+measured on clean synthesised speech, which is the one condition a recogniser is never used in. The
+two shipped models also disagree about how hard to search — English carries the small-model fast
+configuration, Hindi the wide one — over a Hindi graph 2.4× larger (55.9 MB of FST against 34.4 MB).
+
+**Investigation.** `AsrTuningBenchmarkTest` grew a Hindi arm and, more importantly, three *conditions*:
+clean, and the same utterance at 10 dB and 5 dB SNR with fixed-seed white noise. The noise is what
+found this. On clean audio the stock Hindi configuration looks fine (0.65×) and the retune looks like
+a 19% nicety. Under noise the stock configuration **collapses past realtime — 1.91× at 10 dB, 2.59×
+at 5 dB** — because a decoder that cannot find a confident path keeps `max-active=7000` hypotheses
+alive and pays for all of them. That is the failure mode the app is built for: a traveller in a
+market, a station, a hospital corridor. At 1.91× a ten-second Hindi sentence takes nineteen seconds,
+and the backlog grows for as long as the speaker keeps talking.
+
+There is no Hindi fixture in the repo, and that gap is why this was never measured. One was made:
+synthesised on the device through Google TTS's Hindi voice, resampled 24 kHz → 16 kHz and
+silence-trimmed on the host, committed as `androidTest/assets/speech_hi_paani.wav` (3.09 s,
+`"मुझे पानी चाहिए। कृपया मेरी मदद कीजिए।"`).
+
+**Implementation.** Two files, and the second is what makes the first reach anybody.
+`assets/model-hi/conf/model.conf`: `--max-active` 7000 → 3000, `--beam` 13.0 → 10.0, `--lattice-beam`
+4.0 → 2.0 — the values English already ships; every other line untouched. Then `AssetFolder.unpack`,
+which returned early whenever the destination directory existed and was non-empty. `filesDir` survives
+app updates, so that early return meant **a retuned asset would reach new installs only** — every
+existing user would keep decoding at 7000 forever, silently. It now writes a `<folder>.stamp` beside
+the published directory holding `VERSION_CODE` plus a hash of the `conf/` files, and re-unpacks on a
+mismatch. Keyed on `conf/` and not the whole folder because hashing 56–81 MB per launch is
+unaffordable and `openFd` throws on these assets (`noCompress` covers `onnx`/`bin`/`pb`, not
+`.mdl`/`.fst`).
+
+**Verification.** **Transcripts are identical between every configuration within every condition** —
+including both degraded ones, where all arms are wrong in exactly the same way. The narrowed beam
+reaches the same hypothesis, it just stops paying for 4000 it was going to discard. New
+`SpeechAssetFreshnessTest` 2/2 proves both halves on a device that started from a **stale unpacked
+model**: `filesDir` held `max-active=7000` before the install and 3000 after the first load, and the
+Hindi model still transcribes `पानी`. 27 JVM unit tests green.
+
+**Benchmark.** SM-M315F, 15 iterations per cell, 3.09 s of audio, arms in fixed order with the stock
+configuration repeated last as the drift control:
+
+| Condition | stock 7000/13.0/4.0 | **shipped 3000/10.0/2.0** | mid 5000/11.5/3.0 | stock re-run |
+|---|---|---|---|---|
+| clean | 2003 ms · 0.65× | **1626 ms · 0.53×** | 1722 ms · 0.56× | 1997 ms · 0.65× |
+| 10 dB SNR | 5918 ms · **1.91×** | **2354 ms · 0.76×** | 3952 ms · 1.28× | 5924 ms · 1.92× |
+| 5 dB SNR | 8000 ms · **2.59×** | **3057 ms · 0.99×** | 5265 ms · 1.70× | 7995 ms · 2.59× |
+
+−19% clean, **−60% at 10 dB, −62% at 5 dB**. The drift control reproduces the stock arm to within
+0.3% at every condition while the battery rose 34.2 → 34.9 °C, so none of this is thermal. The `mid`
+arm is recorded because it settles the shape of the trade: halfway is still 1.28× at 10 dB, i.e. still
+losing to live speech, so there was no cautious middle worth taking.
+
+**Evidence grade:** MEASURED (SM-M315F, n=15 per cell, counterbalanced) for latency. For accuracy:
+**MEASURED but narrow** — one utterance, one synthetic voice, white noise rather than babble. It
+establishes that the narrower beam does not change this recogniser's answer; it is not a WER corpus
+and no claim beyond that is supported.
+**Decision.** **KEEP.** A configuration that exceeds realtime in the conditions the product exists to
+serve is a defect, not a tuning preference, and the fix costs nothing measurable in accuracy.
+**Next.** The accuracy evidence is the thin part and the honest way to thicken it is a small recorded
+Hindi corpus with a reference transcription — the same thing Q6 needs for beam-vs-greedy. Until that
+exists, treat "transcript unchanged" as the bound, not "WER unchanged". English was already at the
+narrow configuration and is untouched, but it has never been measured under noise either; the same
+three conditions applied to the English model would say whether 0.55× clean survives a market.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -1527,7 +1594,8 @@ Three consequences worth stating once:
 | **Q6** | Greedy vs Beam on the real runtime | Beam is implemented, unit-tested, and has never been run against the model — its quality/latency trade is unknown | On-device A/B, quality judged on a fixed sentence set; note beam falls back to `decoder_init` every step today | Unknown; may be REVERT |
 | **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |
 | ~~Q8~~ | ~~Speech pipeline: ASR is 0.79× realtime~~ | — | **CLOSED 2026-08-11 — the premise was wrong (§3.33).** Vosk alone is **0.55× realtime** on the M31 (1448 ms of 2.65 s audio, n=15); the missing 640 ms was the file-import path, not the recogniser. Sample rate and buffer size both measured NO EFFECT | done |
-| **Q8a** | Hindi decode configuration | English ships the fast small-model decode config (`--max-active=3000 --beam=10.0 --lattice-beam=2.0`); Hindi still ships the wide one (7000/13.0/4.0) and its graph is 2.4× larger. Hindi is the arm that can plausibly exceed realtime on a low-end device, and it has never been timed | `AsrTuningBenchmarkTest` extended with a Hindi arm. **Blocked on a fixture** — there is no Hindi audio in `androidTest/assets`, and a speed win cannot ship without an accuracy check | Unknown; the Hindi user is the one at risk |
+| ~~Q8a~~ | ~~Hindi decode configuration~~ | — | **CLOSED 2026-08-11 — KEEP (§3.34).** The fixture was made (device TTS) and the answer was bigger than expected: stock Hindi runs **1.91× realtime at 10 dB SNR and 2.59× at 5 dB**, i.e. it loses to live speech in exactly the noisy conditions the product targets. Narrowed to English's 3000/10.0/2.0: −60% at 10 dB, transcripts identical in all three conditions | done |
+| **Q8c** | English under noise | §3.34 measured Hindi across clean/10 dB/5 dB and found the failure only noise exposes. English was measured **clean only** (0.55×) and is already at the narrow configuration, so there is no retune left to try — but "keeps up" is still an untested claim outside a quiet room | The same three conditions in `AsrTuningBenchmarkTest`, English arm. Cheap: the harness and the noise generator already exist | Diagnostic; may open a real problem on low-end hardware |
 | **Q8b** | The 640 ms import path | `AudioFileTranscriber` costs ~44% on top of recognition: MediaCodec decode, a channel-average downmix, a linear-interpolation resampler with no anti-alias filter, and full flow collection. The resampler is also an accuracy bug, not only a cost | Split the stages inside `AsrTuningBenchmarkTest`; only then decide whether it is decode or resample | Up to ~640 ms per imported file; import only, never the microphone |
 | ~~Q10~~ | ~~Price the single-engine eviction~~ | — | **CLOSED 2026-08-06** — swap peak −511.7 MB (−36.7%), post-swap −392.9 MB, reload 3.5 s not 10 s (§3.24b) | done |
 | ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |

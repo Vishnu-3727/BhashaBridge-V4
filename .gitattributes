@@ -1,0 +1,6 @@
+# Kaldi parses these line by line and keeps whatever the line contains after `=`. With
+# core.autocrlf=true — the default on the Windows machine this project is built on — a fresh clone
+# would write `--max-active=3000\r`, and the carriage return travels into the value. Checked out
+# with LF regardless of platform, so the decode configuration a device reads is the bytes that were
+# committed.
+app/src/main/assets/**/conf/*.conf text eol=lf

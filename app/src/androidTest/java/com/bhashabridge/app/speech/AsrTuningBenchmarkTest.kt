@@ -107,6 +107,142 @@ class AsrTuningBenchmarkTest {
         }
     }
 
+    /**
+     * Q8a: what the Hindi model's decode width costs, and whether narrowing it changes what is heard.
+     *
+     * The two shipped models disagree about how wide to search. English carries the small-model fast
+     * configuration; Hindi carries the wide one, over a graph 2.4× larger (55.9 MB of FST against
+     * 34.4 MB). Hindi is therefore the arm that can plausibly fail to keep up on a slower phone than
+     * this one, and until now it had never been timed at all.
+     *
+     * `max-active`, `beam` and `lattice-beam` are read out of `conf/model.conf` when the `Model` is
+     * constructed, and [VoskModels] unpacks that file to `filesDir`. So the sweep rewrites the
+     * unpacked copy and rebuilds the model per arm — the only way to vary these without shipping a
+     * second copy of a 56 MB graph. **The original text is restored in a `finally`**: this file
+     * belongs to the installed app, and leaving an arm's configuration behind would silently retune
+     * the real thing.
+     */
+    @Test
+    fun sweepsHindiDecodeConfiguration() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val pcm = readWavMono16(copyFixture(context, HINDI_FIXTURE))
+        val audioSeconds = pcm.size.toDouble() / FIXTURE_RATE
+        Log.i(TAG, "HINDI_FIXTURE samples=${pcm.size} seconds=${round2(audioSeconds)}")
+
+        // Clean synthesised speech is the one condition a narrowed beam is guaranteed to survive:
+        // the correct path stays inside any beam when nothing competes with it. Two noise levels are
+        // included so the accuracy question is asked where it can actually be answered — at 10 dB the
+        // recogniser is working, at 5 dB it is struggling, and a beam too narrow to hold the right
+        // hypothesis will drop it there long before it does on the clean take.
+        val conditions = listOf(
+            "clean" to pcm,
+            "noise10db" to withNoise(pcm, snrDb = 10.0),
+            "noise5db" to withNoise(pcm, snrDb = 5.0),
+        )
+
+        val modelDir = AssetFolder.unpack(context, HINDI_MODEL_FOLDER)
+        val conf = File(modelDir, "conf/model.conf")
+        val original = conf.readText()
+        // condition -> (config -> transcript), so accuracy is compared between configs *within* a
+        // condition. Comparing across conditions would only rediscover that noise hurts.
+        val heard = LinkedHashMap<String, LinkedHashMap<String, String>>()
+        try {
+            for ((name, text) in hindiArms(original)) {
+                conf.writeText(text)
+                val loadStart = System.nanoTime()
+                val model = Model(modelDir)
+                val loadMs = (System.nanoTime() - loadStart) / 1_000_000
+                try {
+                    for ((condition, audio) in conditions) {
+                        val arm = Arm(name, audio, FIXTURE_RATE, DEFAULT_CHUNK)
+                        run(model, arm)
+                        val samples = ArrayList<Long>(ITERATIONS)
+                        var transcript = ""
+                        repeat(ITERATIONS) {
+                            val (ms, text2) = run(model, arm)
+                            samples += ms
+                            transcript = text2
+                        }
+                        val stats = Stats.of(samples)
+                        val perAudioSecond = stats.median / audioSeconds
+                        Log.i(
+                            TAG,
+                            "HI_ARM $name/$condition load=${loadMs}ms median=${round2(stats.median)}ms " +
+                                "p95=${round2(stats.p95)}ms stdev=${round2(stats.stdev)} " +
+                                "realtime=${round2(perAudioSecond / 1000.0)}x " +
+                                "ms_per_audio_s=${round2(perAudioSecond)} transcript=\"$transcript\"",
+                        )
+                        Log.i(TAG, "HI_ARM_JSON $name/$condition ${stats.toJson()}")
+                        heard.getOrPut(condition) { LinkedHashMap() }[name] = transcript
+                    }
+                } finally {
+                    model.close()
+                }
+            }
+        } finally {
+            conf.writeText(original)
+        }
+
+        // Reported, never asserted. A narrower beam is *allowed* to change the hypothesis — that is
+        // the trade being priced, and a benchmark does not get to fail a run over a product
+        // decision. What it must do is make the difference impossible to miss.
+        heard.forEach { (condition, byConfig) ->
+            val baseline = byConfig[STOCK] ?: return@forEach
+            byConfig.forEach { (config, transcript) ->
+                if (config != STOCK) {
+                    val verdict = if (transcript == baseline) "SAME" else "CHANGED"
+                    Log.i(TAG, "HI_ACCURACY $condition $config $verdict")
+                    if (transcript != baseline) {
+                        Log.i(TAG, "HI_ACCURACY   $STOCK: \"$baseline\"")
+                        Log.i(TAG, "HI_ACCURACY   $config: \"$transcript\"")
+                    }
+                }
+            }
+        }
+        assertTrue("the stock Hindi arm heard nothing", heard["clean"]?.get(STOCK).isNullOrBlank().not())
+    }
+
+    /**
+     * Adds white Gaussian noise at a given SNR, with a fixed seed so every arm and every re-run gets
+     * the *same* noise — otherwise a transcript difference between configs could be the noise, and
+     * the comparison would prove nothing. Untimed, like the resampling in the other test.
+     */
+    private fun withNoise(input: ShortArray, snrDb: Double): ShortArray {
+        var power = 0.0
+        for (s in input) power += s.toDouble() * s
+        val signalRms = kotlin.math.sqrt(power / input.size)
+        val noiseRms = signalRms / Math.pow(10.0, snrDb / 20.0)
+        val random = java.util.Random(NOISE_SEED)
+        return ShortArray(input.size) { i ->
+            (input[i] + random.nextGaussian() * noiseRms)
+                .coerceIn(-32768.0, 32767.0).toInt().toShort()
+        }
+    }
+
+    /**
+     * The stock text with the three decode-width knobs rewritten; every other line — the endpointer
+     * rules, the acoustic scale, the subsampling factor — is carried through untouched, so an arm
+     * differs from the baseline in exactly the three values under test.
+     */
+    private fun hindiArms(original: String): List<Pair<String, String>> = listOf(
+        STOCK to original,
+        "hi_english_config" to retune(original, maxActive = 3000, beam = 10.0, latticeBeam = 2.0),
+        "hi_mid" to retune(original, maxActive = 5000, beam = 11.5, latticeBeam = 3.0),
+        // Counterbalance: the stock arm again, last and hottest. If it reads like the first stock
+        // arm the device did not drift and the middle arms can be believed.
+        "hi_stock_recheck" to original,
+    )
+
+    private fun retune(original: String, maxActive: Int, beam: Double, latticeBeam: Double): String =
+        original.lineSequence().joinToString("\n") { line ->
+            when {
+                line.startsWith("--max-active=") -> "--max-active=$maxActive"
+                line.startsWith("--beam=") -> "--beam=$beam"
+                line.startsWith("--lattice-beam=") -> "--lattice-beam=$latticeBeam"
+                else -> line
+            }
+        }
+
     private class Arm(val name: String, val pcm: ShortArray, val rate: Int, val chunk: Int)
 
     /**
@@ -237,9 +373,9 @@ class AsrTuningBenchmarkTest {
         }
     }
 
-    private fun copyFixture(context: Context): File {
-        val target = File(context.cacheDir, FIXTURE)
-        InstrumentationRegistry.getInstrumentation().context.assets.open(FIXTURE).use { input ->
+    private fun copyFixture(context: Context, name: String = FIXTURE): File {
+        val target = File(context.cacheDir, name)
+        InstrumentationRegistry.getInstrumentation().context.assets.open(name).use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
         }
         return target
@@ -249,6 +385,19 @@ class AsrTuningBenchmarkTest {
 
     private companion object {
         const val FIXTURE = "speech_i_need_water.wav"
+
+        /**
+         * `"मुझे पानी चाहिए। कृपया मेरी मदद कीजिए।"`, synthesised by the device's Google TTS Hindi
+         * voice, resampled to 16 kHz mono and silence-trimmed on the host. Synthetic for the same
+         * reason the English fixture is: it makes the comparison repeatable. It is not a WER corpus
+         * and no entry may quote one from it.
+         */
+        const val HINDI_FIXTURE = "speech_hi_paani.wav"
+        const val HINDI_MODEL_FOLDER = "model-hi"
+        const val STOCK = "hi_stock"
+
+        /** Fixed, so the noise is a constant of the experiment rather than a variable in it. */
+        const val NOISE_SEED = 20260811L
         const val TAG = "BB_ASR_TUNE"
         const val FIXTURE_RATE = 16_000
         const val HALF_RATE = 8_000
