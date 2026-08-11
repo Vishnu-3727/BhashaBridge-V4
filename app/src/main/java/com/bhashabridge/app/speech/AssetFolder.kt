@@ -34,8 +34,25 @@ internal object AssetFolder {
     fun unpack(context: Context, assetFolder: String): String {
         val dest = File(context.filesDir, assetFolder)
         val stampFile = File(context.filesDir, "$assetFolder.stamp")
-        val expected = stamp(context, assetFolder)
         val published = dest.exists() && dest.listFiles()?.isNotEmpty() == true
+
+        // Nothing to unpack *from* is a legitimate state, not a failure: `:benchapp` ships no
+        // acoustic model and sideloads one straight into `filesDir` so that this loader runs against
+        // it unmodified. Without this check the freshness rule below turns that arrangement into a
+        // crash — the stamp can never match a folder that is not in the APK, so every launch would
+        // re-unpack, and `copy` reads an absent folder as a leaf *file* (`AssetManager.list` returns
+        // an empty array for both) and fails with `FileNotFoundException: model`.
+        val shipped = runCatching {
+            context.assets.list(assetFolder)?.isNotEmpty() == true
+        }.getOrDefault(false)
+        if (!shipped) {
+            if (published) return dest.absolutePath
+            throw IOException(
+                "no '$assetFolder' in this APK's assets and nothing unpacked at ${dest.absolutePath}"
+            )
+        }
+
+        val expected = stamp(context, assetFolder)
         if (published && runCatching { stampFile.readText() }.getOrNull() == expected) {
             return dest.absolutePath
         }
