@@ -106,6 +106,9 @@ gate on every runtime change; no optimization that altered output was accepted.
 | — | Intra-op clamp `[1,4]` → `[1,2]` | KEEP (INFERRED — needs re-measurement on the S26U) |
 | — | Halve per-token logits copying | OPEN (NOT MEASURED) |
 | — | Decode ceiling 18 → 128 steps | KEEP (correctness) — **incomplete, see §3.22** |
+| 13 | One shared weight blob per direction | KEEP — APK −276.7 MB (−31%), latency unchanged |
+| — | Slice the last position in `decoder_init` (Q1) | NO GAIN on greedy — held for beam (Q6) |
+| — | Per-channel INT8 weight scales | REVERT — −16.7% logit error, +4–8% latency |
 
 ---
 
@@ -1112,6 +1115,241 @@ identically compiled, and the question — how much of the parse cost is JIT war
 build with the Baseline Profile (§3.16) would recover — stays **unanswered** until there is a release
 build, which is blocked on `AUDIT_2026-08-06.md` H4.
 
+### 3.30 One shared weight blob per direction (Phase 13) — KEEP
+
+**Problem.** The APK carried 909 MB of assets, and V4's own comparison against v3.4.1
+(`V3_VS_V4_COMPARISON.md` §6) recorded that as the project's single measurable regression: +283 MB
+against the version it replaced, written off as the price of the KV-cache. It was not the cache.
+
+**Investigation.** Hashing the raw tensor bytes of every initializer in the exported INT8 graphs:
+
+```
+EN->HI  decoder_init 201.8 MB   decoder_step 192.3 MB
+        byte-identical in both: 402 tensors, 192.3 MB
+        genuinely unique to decoder_step: 0.0 MB
+HI->EN  decoder_init 109.3 MB   decoder_step  99.8 MB
+        byte-identical in both: 402 tensors,  99.8 MB
+        genuinely unique to decoder_step: 0.0 MB
+```
+
+**`decoder_step` contains no unique tensor data at all.** `torch.onnx.export` materialises a full
+copy of the decoder's weights into each graph, so 292.1 MB of the payload is a second copy of bytes
+already shipped — almost exactly the +283 MB regression. A name-based comparison finds only 65.5 MB
+of it, because `torch.onnx.export` mints fresh `onnx::MatMul_NNNN` names per export and the same
+matrix appears under different names; content is the only usable key.
+
+A second redundancy is visible and **not** addressed here: the tied embedding is materialised twice
+*inside* each decoder as `decoder.embed_tokens.weight_quantized` (122672, 512) UINT8 and
+`onnx::MatMul_6364_quantized` (512, 122672) INT8 — the same matrix, transposed, under two different
+quantization schemes, so content-addressing cannot catch it. Four copies of one 62.8 MB matrix
+across the EN→HI decoder pair. Queued as Q16.
+
+**Implementation.** `model_pipeline/dedup_weights.py` rewrites a direction's three graphs so their
+initializers point at one content-addressed external blob. Two deliberate limits: tensors below
+`--min-bytes` (1 KB) stay inline, because constant-folded shape tensors must be readable during
+shape inference and externalising them fails the load with `Cannot parse data from external
+tensors` — measured, after an earlier version moved everything and broke exactly that way; and the
+blob name is per direction (`weights.bin` / `hi_en_weights.bin`) because both extract into the same
+`filesDir`.
+
+App side, `OnnxModels`: `sharedWeights` declared above `init` (declaration order — the same trap as
+Q14's `mappedModels`), `ensureSharedWeights` double-checked around a lock because the three loads
+race for one blob, and `purgeSharedWeights` called once from `init` **before** any load rather than
+per-graph — a cached graph's purge would otherwise delete the blob out from under a graph mid-bake.
+Both asset layouts are supported: a build with no blob sets `sharedWeightsLength = 0` and behaves
+exactly as before, so a bad export is a rebuild rather than a bricked launch.
+
+**Two correctness traps found while wiring it, worth more than the size win:**
+
+1. **The `.ort` cache would have gone stale silently.** `cacheStamp` keyed on the graph's asset
+   length. Deduped, the graph is ~2 MB and every weight is in the blob, so a re-quantized export
+   would ship hundreds of MB of new weights under a graph whose length barely moved, and the app
+   would reuse the `.ort` built from the old ones — wrong translations, no error, clearing only on
+   reinstall. The blob's length is now part of the key.
+2. **The storage check under-reserved by ~50×.** `assetLength(graph) * 2` reserved 4 MB for a bake
+   that writes 200 MB.
+
+**Verification.** `dedup_weights.py --verify` on all six graphs: **bit-identical**, `max_abs_diff 0`.
+On device: `MtEngineInstrumentedTest` 3/3 and `HiEnEngineTest` 3/3, both directions, cold bake from
+a cleared app.
+
+**Benchmark (SM-M315F, `MtBenchmarkTest`, 30 runs/sentence, 33.3–34.1 °C).**
+
+| | 2 tok | 6 tok | 12 tok | APK |
+|---|---|---|---|---|
+| baseline, self-contained graphs | 159.4 ms | 350.3 ms | 626.5 ms | 893.97 MB |
+| **shared blob** | **159.0** | **347.0** | **622.4** | **617.23 MB** |
+| control (blob arm re-run last, hotter) | 160.3 | 349.5 | 625.8 | — |
+
+**−276.7 MB of APK (−31%) at no latency cost** — the three arms agree within 0.8%, and the control
+ran at 33.8–33.9 °C against the measured arm's 33.5–33.6, so the agreement is not thermal luck.
+
+**What this does *not* do, measured rather than assumed.** ORT's ORT-format writer inlines every
+initializer and ignores `session.optimized_model_external_initializers_*` (the baked pair is
+397.9 MB with those keys set and 397.9 MB without). On device the three `.ort` files come out at
+203.7 / 194.2 / 75.0 MB — **byte-identical in size to the baseline build's**. So steady-state device
+storage is unchanged; the win is the APK and the download.
+
+**Evidence grade:** MEASURED (host parity, device parity, device latency, sizes).
+**Decision.** KEEP.
+**Next.** Q17 — a route to carry the saving onto the device exists and is measured: baking ALL_OPT
+to optimized **ONNX** with external initializers yields a 0.74 MB graph plus a separate weights file,
+which content-addresses to **204.3 MB against the 397.9 MB baked pair**, with NO_OPT load times
+overlapping (894→953 ms, 998→900 ms) and identical output. It requires baking on the host, which
+raises a portability question ORT does not answer for us.
+
+**One incidental finding that would have poisoned any of this.** `./gradlew assembleDebug` reported
+BUILD SUCCESSFUL in 20 s and produced a byte-identical 894 MB APK **after the assets were replaced**;
+only `--rerun-tasks` picked the change up. Anyone re-exporting a model can benchmark the previous one
+and never know. Every arm above was built with `--rerun-tasks`.
+
+### 3.31 Slice the last position inside `decoder_init` (Q1) — NO GAIN, and the premise was wrong
+
+**Problem.** §9 Q1, carried as "the largest remaining inference lever": `decoder_init` runs the
+output projection over *every* prefix position and returns `[1, dec_len, vocab]`, of which the
+runtime reads one row and discards the rest.
+
+**Implementation.** `DecoderInitWrapper.forward` slices before the projection —
+`self.lm_head(out.last_hidden_state[:, -1:, :])`, rank kept at 3 — and `logits` drops from
+`{0: "batch", 1: "dec_len"}` to `{0: "batch"}`. Only the logits are sliced; `past_key_values` still
+covers every position or the self-attention cache would be short its earlier keys. `cached_export.py`
+gained `--graphs` so one graph can be re-exported without rewriting the two that did not change.
+
+**Verification.** `verify_cache.py` full gate **7/7 PASS, max_abs_diff 4.48e-01** — identical to the
+shipping build. Output is `(1, 1, 122672)` at every prefix length.
+
+**Benchmark.** Host, interleaved arms, `intra_op=2`, n=60: dec_len 1 **+0.3%**, 2 −3.0%, 8 −12.3%,
+32 **−26.5%**. On the SM-M315F, against the §3.30 control:
+
+| | 2 tok | 6 tok | 12 tok | `decoder_init` |
+|---|---|---|---|---|
+| control | 160.3 ms | 349.5 ms | 625.8 ms | **49.0 ms** |
+| Q1 sliced | 163.5 | 352.6 | 632.7 | **49.6 ms** |
+
+**`decoder_init` does not move**, and it is the only stage the change touches.
+
+**Why the premise was wrong.** `GreedyDecoder` seeds `generated = [startToken]` and calls
+`nextLogits` with a **one-element prefix**; `CachedLogitsSource` routes that to `runInit`, and every
+later call extends by exactly one token and takes `runStep`. So `decoder_init` runs **once per
+translation, always at `dec_len = 1`** — the case where the slice removes exactly zero work. The
+queue entry describes something true of the graph and never exercised by the workload. For the same
+reason this does **not** touch §3.24's 490 KB/token churn either: that is `lastLogitsRow` on
+`decoder_step`, which already returned `[1, 1, vocab]`.
+
+**A test pins the old contract.** `MtEngineInstrumentedTest:113` asserts `shape[1] == prefix.size` —
+"one logits row per prefix position" — and fails against the sliced graph, while both translation
+tests pass. It was **not** edited to green: that is the H1 mistake (`AUDIT_2026-08-06.md`) of a test
+asserting the old behaviour as correct, and which contract is right is a decision, not a patch.
+
+**Evidence grade:** MEASURED (host and device).
+**Decision.** **NO GAIN on the shipping path.** Not shipped on latency grounds; it is parity-exact
+and costs nothing, so it is held for the one case that does exercise it.
+**Next.** Q6. Beam search falls back to `decoder_init` every step with a full prefix — precisely the
+12–26% case — so this is a prerequisite for beam being viable, not a greedy optimization. Ship it
+with Q6 or not at all, and settle the test contract at the same time.
+
+### 3.32 Per-channel INT8 weight scales — REVERT
+
+**Problem.** `quantize_cached.py` calls `quantize_dynamic(weight_type=QInt8)` with every other
+argument at its default: per-tensor scales, no `reduce_range`. Per-channel scales are one keyword
+argument and target *model quality*, the challenge category this project has nothing else in.
+
+**Investigation, including a probe that was simply wrong.** The first measurement compared arms
+against the fp32 graph on **random gaussian inputs** and reported per-channel 142% *worse*. That test
+fed standard-normal tensors into `encoder_hidden_states`, far out of distribution for the decoder; it
+measured the activation quantizer's behaviour on noise. Discarded. The project has now made this
+class of error three times (§3.20's non-production sweep, §3.29's self-warmed benchmark) and the
+pattern is identical each time: a cheap proxy that does not run the real thing.
+
+The real gate, run offline against both cached checkpoints:
+
+| arm | 3 graphs | `max_abs_diff` vs fp32 | gate |
+|---|---|---|---|
+| per-tensor (ships) | 472.5 MB | **0.448** | 7/7 PASS |
+| `per_channel` | 475.2 MB (+0.57%) | **0.373 (−16.7%)** | 7/7 PASS |
+| `per_channel` + `reduce_range` | 475.2 MB | 0.457 (+2.0%) | 7/7 PASS |
+
+**Benchmark (SM-M315F, against the §3.30 control).**
+
+| | 2 tok | 6 tok | 12 tok |
+|---|---|---|---|
+| control | 160.3 ms | 349.5 ms | 625.8 ms |
+| per-channel | 169.8 | 377.1 | 650.3 |
+| | **+6.0%** | **+7.9%** | **+3.9%** |
+
+The control was re-run last and hotter, so the device did not drift: the slowdown is the change.
+Per-channel scales evidently take a slower MLAS path on this Armv8.0 part.
+
+**Verification.** `MtEngineInstrumentedTest` 3/3 — translation is correct, just slower.
+
+**Evidence grade:** MEASURED (host quality, device latency).
+**Decision.** **REVERT.** A 16.7% reduction in logit error is not worth 4–8% of end-to-end latency,
+and the quality side is not even corpus-validated — the gate's reference token sequence is degenerate
+(`3973` × 24), so check 7 does not discriminate between these arms. `reduce_range` is a REVERT on
+both axes and should not be revisited.
+**Next.** If model quality is pursued it needs a corpus and BLEU/chrF, not a logit norm, and a lever
+that does not cost latency. Recorded so nobody reaches for `per_channel` again expecting a free win.
+
+---
+
+### 3.33 What the recogniser actually costs (Q8, part 1) — NO EFFECT, and Q8's premise was wrong
+
+**Problem.** Q8 has stood open since Phase 10 on one number: "ASR is 0.79× realtime on the M315F —
+slower than the speech it transcribes." That number came from `SpeechPipelineBenchmarkTest`, which
+times `AudioFileTranscriber.transcribe(...).toList()`: one sample, of MediaCodec plus downmix plus
+resample plus flow collection plus Vosk, attributed entirely to Vosk. Nothing could be tuned against
+it, because it could not say which part was slow.
+
+**Investigation.** Read the model configuration before touching code, and found what looked like a
+free win: `assets/model/conf/mfcc.conf` is `--sample-frequency=8000 --high-freq=3700 --num-mel-bins=20`.
+The English model is a **telephone-band model**. The app records at 16 kHz and builds
+`Recognizer(model, 16000f)`, so every sample above 3.7 kHz is captured, copied, RMS'd and handed to
+Kaldi — which resamples it away, because vosk forces `allow_downsample = true` after reading that
+file. The hypothesis was that the wasted band plus the per-buffer resample was a real fraction of
+the cost. It is not. (The Hindi model is unaffected either way: its `mfcc.conf` sets no
+`--sample-frequency`, so it is a genuine 16 kHz model.)
+
+**Implementation.** No production change. New `AsrTuningBenchmarkTest`: parses the fixture WAV by
+walking the RIFF chunk list, then runs 15 timed passes per arm through a fresh `Recognizer`, polling
+`partialResult` per buffer exactly as production does. Four arms — production 16 kHz; 8 kHz; and
+16 kHz at 1024- and 8192-sample buffers. The 8 kHz audio is prepared **outside** the timed region by
+a 65-tap Blackman-windowed sinc decimation, because that is the honest comparison: on the microphone
+path the platform resampler produces 8 kHz for free from the 48 kHz the hardware captures anyway, so
+the only question is what *Vosk* then costs.
+
+**Verification.** All four arms returned a byte-identical transcript, `"i need water please help me"`;
+the test fails the run if any arm changes what was heard.
+
+**Benchmark.** SM-M315F, 33.5 °C → 33.4 °C, 15 iterations/arm, 2.65 s of audio:
+
+| Arm | median | p95 | stdev | ms per audio-second |
+|---|---|---|---|---|
+| 16 kHz, 4096 (production) | 1448 ms | 1483 | 42.9 | 547 |
+| 8 kHz, 2048 | 1428 ms | 1468 | 28.1 | 540 |
+| 16 kHz, 1024 | 1435 ms | 1477 | 31.2 | 543 |
+| 16 kHz, 8192 | 1480 ms | 1526 | 62.5 | 560 |
+
+The whole spread between arms (1428–1480) is narrower than the sample range *within* the baseline arm
+(1398–1573). Nothing here is a signal.
+
+**Evidence grade:** MEASURED (SM-M315F, n=15 per arm).
+**Decision.** **NO EFFECT** — the sample-rate mismatch is real but costs nothing worth having, and
+the production buffer size is already at the optimum. No change ships. The 8 kHz idea is recorded as
+closed so nobody re-derives it from `mfcc.conf` and expects a win.
+
+**The headline result is the correction, not the arms.** Vosk alone runs the fixture in 1448 ms of
+2.65 s of audio: **0.55× realtime, i.e. 1.8× faster than the speech it transcribes**, not 0.79×. The
+recogniser keeps up with live dictation on this device with 45% headroom. The missing ~640 ms in the
+old figure (2087 ms, 31% of it) is the **file-import path** — MediaCodec, downmix, the naive
+resampler and flow collection — which the microphone never pays. Q8 was aimed at the wrong stage.
+
+**Next.** Two follow-ups, neither of them the one Q8 named. (a) The 45% headroom is the *English*
+model's on a mid-range device; `model-hi/conf/model.conf` still ships the wide decode configuration
+(`--max-active=7000 --beam=13.0 --lattice-beam=4.0`) where English ships the fast one (3000/10.0/2.0),
+so Hindi is the arm that can plausibly exceed realtime — and it cannot be scored, because there is no
+Hindi audio fixture. (b) If the import path is worth 640 ms, that is where an ASR optimization would
+actually pay.
+
 ---
 
 ## 4. Optimization Decision Matrix
@@ -1146,6 +1384,10 @@ build, which is blocked on `AUDIT_2026-08-06.md` H4.
 | mmap win is MT6878-only | — | Entry #9 | **RETRACTED** | mechanism unexplained |
 | Clamp `[1,4]` → `[1,2]` | Stop over-threading flagships | Entry #9 sweep, n=45 | KEEP (INFERRED) | intra2 −4.8% / −12.9% vs intra4 |
 | Halve logits copy | Remove per-token copy | Bytecode-provable; no device | OPEN | 2 copies → 1; **unpriced** |
+| Shared weight blob | Stop shipping the decoder twice | Byte hashing + device A/B with closing control | KEEP | APK −276.7 MB, latency unchanged |
+| Slice `decoder_init` logits (Q1) | Skip discarded positions | Device: `decoder_init` 49.0 → 49.6 ms | NO GAIN | greedy never runs it at `dec_len` > 1 |
+| Per-channel INT8 | Better quality, same size | Gate 0.448 → 0.373; device +4–8% | REVERT | quality gain costs latency |
+| `reduce_range` | Avoid INT8 saturation | Gate 0.448 → 0.457 | REVERT | worse on both axes |
 
 ---
 
@@ -1244,7 +1486,13 @@ result would close it — so a run either produces a §3 entry or a recorded neg
 **Closed since this list was last written** (they were listed here as "future work" while already
 done, which is the rot this section now exists to prevent): HI→EN cached export → §3.19 · SME2
 validation → §3.20 (answered: 4–9%, not 2×) · zero-copy logits read → §3.22 (and the "zero-copy"
-premise was wrong).
+premise was wrong) · Q1's `decoder_init` slice → §3.31 (done, and the premise was wrong again — the
+graph wastes the work, the workload never asks it to).
+
+**Two of this queue's entries have now been closed by discovering their premise did not hold** (Q1
+here, the `getFloatBuffer` "zero-copy view" in §3.22). Both were written from the shape of the code
+rather than from a measurement of the path actually taken. An entry that names a cost should also
+name the workload that pays it.
 
 **Hardware available (2026-08-06).** The **SM-M315F is the only device on hand**; the SM-S948B that
 produced entry #9 is **no longer available**, and the most that can be obtained is an **S22 Ultra**
@@ -1268,7 +1516,9 @@ Three consequences worth stating once:
 | # | Experiment | Hypothesis | Measurement that closes it | Expected size |
 |---|---|---|---|---|
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
-| **Q1** | Slice the last position **inside** the exported `decoder_init` | The graph returns logits for every prefix position and the runtime discards all but the last; slicing upstream shrinks ORT's own allocation, not just our copy (§3.22). Those 490 KB/token allocations are also what makes the wide-vocab stdev in §3.22 | `model_pipeline` re-export → `verify_cache.py` 7/7 + `MtBenchmarkTest` on the M31 | Unknown; the largest remaining inference lever, and now the only one with real headroom |
+| ~~Q1~~ | ~~Slice the last position inside `decoder_init`~~ | — | **CLOSED — NO GAIN (§3.31).** Done, gate 7/7, and worth nothing: greedy seeds a one-token prefix, so `decoder_init` only ever runs at `dec_len = 1` and `decoder_init` measured 49.6 ms against a 49.0 ms control. The "largest remaining inference lever" was true of the graph and never exercised by the workload. Held for Q6 | done |
+| **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes — 62.8 MB each in EN→HI, so four copies across the decoder pair. Content-addressing cannot catch it (§3.30); it needs an export-side change so one copy serves both the gather and the projection | Re-export → `verify_cache.py` 7/7 → APK size → `MtBenchmarkTest` on the M31, since a runtime transpose would trade size for latency | Up to ~125 MB EN→HI, ~33 MB HI→EN |
+| **Q17** | Carry the §3.30 saving onto the device | The `.ort` bake re-inlines the shared blob, so device storage is unchanged. Baking ALL_OPT to optimized **ONNX** with external initializers instead measured 204.3 MB against the 397.9 MB baked pair, NO_OPT load times overlapping and output identical — but the bake would move to the host, and ORT does not promise its optimized output is portable across platforms | Host-bake on x86, load the result on the M31: parity first, then `BenchmarkSuiteTest`. A parity failure closes this permanently and is the cheap outcome to look for | ~190 MB of device storage per direction |
 | ~~Q2a~~ | ~~Price the logits copy~~ | — | **CLOSED 2026-08-06** — `LogitsReadBenchmarkTest` on the M31: 545.8 µs/token saved at 122k vocab, 6.55 ms per 12-token translation, ~1.0% end-to-end (§3.22) | done |
 | **Q2b** | Does 4 intra-op threads ever win? | §3.21 tightened the clamp to `[1,2]` on one device's evidence. **Neither available device derives 4**, so the bound itself is untestable here — but the claim under it is not | `ProductionThreadSweepTest` on an S22 Ultra, which sets `intraThreads` explicitly: intra 1/2/4/6/8 on the production path, rotated rounds, parity-exact arms | Confirms or refutes a shipping default on a second topology |
 | ~~Q3~~ | ~~Overlap the tokenizer parse with session load~~ | — | **CLOSED 2026-08-06 — REVERTED.** Cold start got 341 ms *worse* (5,134 → 5,475 ms): the big cores are already saturated by the three session loads, so the parse slowed 2.9 → 5.5 s. The benchmark showing a win had warmed the parser first (§3.29) | done |
@@ -1276,7 +1526,9 @@ Three consequences worth stating once:
 | **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting. **Blocked**: the contradicting pair was the S26U and CPH2603, neither of which is available | Explanation, not speed |
 | **Q6** | Greedy vs Beam on the real runtime | Beam is implemented, unit-tested, and has never been run against the model — its quality/latency trade is unknown | On-device A/B, quality judged on a fixed sentence set; note beam falls back to `decoder_init` every step today | Unknown; may be REVERT |
 | **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |
-| **Q8** | Speech pipeline | The Vosk path has never been optimized; ASR is 0.79× realtime on the M315F — slower than the speech it transcribes, on the only device now available | `SpeechPipelineBenchmarkTest` on the M31 | Unknown; the M31 number is the user-visible worst case |
+| ~~Q8~~ | ~~Speech pipeline: ASR is 0.79× realtime~~ | — | **CLOSED 2026-08-11 — the premise was wrong (§3.33).** Vosk alone is **0.55× realtime** on the M31 (1448 ms of 2.65 s audio, n=15); the missing 640 ms was the file-import path, not the recogniser. Sample rate and buffer size both measured NO EFFECT | done |
+| **Q8a** | Hindi decode configuration | English ships the fast small-model decode config (`--max-active=3000 --beam=10.0 --lattice-beam=2.0`); Hindi still ships the wide one (7000/13.0/4.0) and its graph is 2.4× larger. Hindi is the arm that can plausibly exceed realtime on a low-end device, and it has never been timed | `AsrTuningBenchmarkTest` extended with a Hindi arm. **Blocked on a fixture** — there is no Hindi audio in `androidTest/assets`, and a speed win cannot ship without an accuracy check | Unknown; the Hindi user is the one at risk |
+| **Q8b** | The 640 ms import path | `AudioFileTranscriber` costs ~44% on top of recognition: MediaCodec decode, a channel-average downmix, a linear-interpolation resampler with no anti-alias filter, and full flow collection. The resampler is also an accuracy bug, not only a cost | Split the stages inside `AsrTuningBenchmarkTest`; only then decide whether it is decode or resample | Up to ~640 ms per imported file; import only, never the microphone |
 | ~~Q10~~ | ~~Price the single-engine eviction~~ | — | **CLOSED 2026-08-06** — swap peak −511.7 MB (−36.7%), post-swap −392.9 MB, reload 3.5 s not 10 s (§3.24b) | done |
 | ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |
 | ~~Q13~~ | ~~Is prepacking what unmaps the model?~~ | — | **CLOSED 2026-08-06** — refuted. 451 MB *is* mapped during load and unmapped after, with or without prepacking. Disabling prepacking is 4.6× slower and uses 2× the heap: a REVERT (§3.26) | done |
@@ -1288,12 +1540,19 @@ NO EFFECT. Deleting a row because it turned out not to work is how a ledger star
 
 ## Report metadata
 
-- **Status:** living document. Last extended 2026-08-06 (§0 protocol, §3.10–§3.23 backfill, §9 queue).
-- **Optimization sections (§3):** 23. §3.1–§3.9 are the original phase-gated reconstruction;
+- **Status:** living document. Last extended 2026-08-10 (§3.30–§3.32: the shared weight blob, Q1's
+  null result, and per-channel quantization as a REVERT; Q1 closed, Q16/Q17 opened).
+- **Optimization sections (§3):** 32. §3.1–§3.9 are the original phase-gated reconstruction;
   §3.10–§3.23 backfill everything landed since (startup, caches, affinity, baseline profile, bench
-  framework, ORT upgrade, HI→EN, the nine-device campaign, and the three most recent changes).
-- **Open items:** 10 in §9, of which two (§3.21, §3.22) are landed-but-unpriced and one (§3.23) is a
-  fix the 2026-08-06 audit found incomplete.
+  framework, ORT upgrade, HI→EN, the nine-device campaign); §3.24–§3.29 are the 2026-08-06 lifecycle
+  and memory pass; §3.30–§3.32 are the 2026-08-10 export-side work.
+- **Open items:** 11 in §9, of which one (§3.21) is a landed-but-unconfirmed shipping default and one
+  (§3.23) is a fix the 2026-08-06 audit found incomplete. Q1 closed as NO GAIN; Q16 and Q17 opened
+  out of §3.30.
+- **Decisions by kind:** the ledger now carries 3 REVERTs with device numbers (`intra_op=8`, NO_OPT,
+  PARALLEL+inter=2), 3 more from later passes (prime-core pinning, `disable_prepacking`, per-channel
+  INT8), 2 retractions (§3.20's arena claim, §3.25's `release()` claim), and 2 entries closed by
+  finding their own premise false (§3.22's zero-copy assumption, §3.31's Q1).
 - **Tables:** timeline §2; KV-cache §3.7; ORT tuning §3.8; probe tables §3.11/§3.12; decision matrix
   §4; open queue §9.
 - **Cross-reference:** `AUDIT_2026-08-06.md` — the correctness audit whose H2/P1/P2 findings feed
