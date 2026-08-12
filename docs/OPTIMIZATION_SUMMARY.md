@@ -2569,6 +2569,81 @@ from either this one or §3.50 alone.
 
 ---
 
+### 3.52 Can a detected capability select a kernel? (Q7) — NO, and the reason is the export, not the CPU
+
+**Problem.** `CpuCapabilities` detects `dotprod` / `i8mm` / `sve2` / `sme`; `ExecutionPolicy` then uses
+them for thread count, logging and one KleidiAI predicate. Nothing picks a different GEMM. The
+scorecard recorded this as a limitation without measuring whether it was a *fixable* one.
+
+**Implementation.** Two mechanisms are reachable from Java, and both were plumbed rather than argued
+about: `OrtTuning.backend` ([ExecutionBackend]: CPU / NNAPI / XNNPACK), and
+`OrtTuning.gemmFastMathBf16` (`mlas.enable_gemm_fastmath_arm64_bfloat16` — the one MLAS switch in this
+build that is genuinely capability-gated, since it can only select a different kernel where bf16
+exists). The bake is deliberately **not** routed through the provider: an EP partitions the graph and
+the artifact would encode that partitioning, so provider arms run `optCache = false`.
+
+**Benchmark (SM-M315F — ARMv8.0, no dotprod, no i8mm, no SME — 33.4 → 33.6 °C, 5 arms × 3 rotated
+rounds, n=10, real translations).** `OrtEnvironment.getAvailableProviders()` reports
+**`[CPU, NNAPI, XNNPACK, WEBGPU]`**, so this is not a question of what was compiled in.
+
+| arm | round medians | verdict |
+|---|---|---|
+| `cpu_mlas` (ships) | 656, 633, 644 | baseline |
+| **`nnapi`** | **1449, 1450, 1451** | **+125%** |
+| `xnnpack` | 657, 648, 640 | indistinguishable |
+| `mlas_bf16_fastmath` | 650, 643, 639 | indistinguishable |
+| `kleidiai_off` | 647, 635, 639 | indistinguishable |
+
+Every arm was parity-exact. **The rotation mattered**: an unrotated first pass had the arms running in
+order and getting monotonically faster (662 → 642 ms), which would have been read as `kleidiai_off`
+winning 3%. Rotated, all four CPU-side arms collapse into 639–648 ms and nothing separates them.
+
+**Why — from ORT's own profiler, which is the part that makes this conclusive.** Counting executed
+nodes by provider in the traces:
+
+| arm | encoder | decoder_init | decoder_step |
+|---|---|---|---|
+| CPU | 902 CPU | 1,519 CPU | 17,616 CPU |
+| NNAPI | 1,262 CPU + **72 NNAPI** | 2,134 CPU + **109 NNAPI** | 23,700 CPU + **1,308 NNAPI** |
+| XNNPACK | 902 CPU + **0** | 1,519 CPU + **0** | 17,616 CPU + **0** |
+
+1. **XNNPACK claims nothing at all** — zero nodes, and node counts byte-identical to the CPU arm. Its
+   "tie" was never a tie: MLAS ran the entire graph in both arms, so the identical timings are the
+   *same execution measured twice*. The word `xnnpack` does not appear anywhere in its own traces.
+2. **The reason is the export, not the silicon.** The hot GEMMs in these graphs are
+   `DynamicQuantizeMatMul` (1,092 executions per decoder_step) and `MatMulIntegerToFloat` (648) —
+   **`com.microsoft` contrib ops**, produced by ORT's optimizer fusing the dynamic-quantization
+   pattern. XNNPACK's EP claims standard ONNX ops and QDQ-format quantization; it cannot claim contrib
+   ops. **No device changes this**, so the untested dotprod hardware would not have changed the answer.
+3. **NNAPI claims ~5% of nodes and pays for it heavily.** Partitioning inflates CPU node executions by
+   35–40% (17,616 → 23,700 on decoder_step) — boundary and copy nodes — for 1,308 nodes offloaded. The
+   result is a remarkably stable 2.25× slowdown (1449/1450/1451 across rounds).
+4. **The bf16 switch behaves exactly as a capability gate should**: no effect on a CPU without bf16.
+   That is the null it must produce; it says nothing about a part that has bf16.
+
+**Evidence grade:** MEASURED for the timings on one device; the XNNPACK finding is **structural** —
+node placement, not a benchmark — and therefore generalises across devices.
+
+**Decision.** **Nothing shipped. `ExecutionPolicy` stays on CPU/MLAS, and the limitation is now
+measured rather than assumed.** Selecting an EP on a capability here would be exactly the fake switch
+the brief warns against: the only alternatives either cannot execute these ops (XNNPACK) or execute
+them badly (NNAPI), on any CPU. The plumbing stays as a benchmark instrument, in the same category as
+`disableKleidiAi` and `disablePrepacking`.
+
+`verboseSessionLog` was added and then **removed**: ORT's `Node(s) placed on […]` line is gated by the
+*environment* severity, and the environment is a process-wide singleton already constructed by the time
+a test runs. The profiler answered the question instead, which is why it exists (P8).
+
+**Next, and it is an export change rather than a runtime one.** The one thing that would make
+capability-based EP selection possible is **re-exporting to QDQ format** (`QuantizeLinear` /
+`DequantizeLinear` around standard MatMuls) instead of the dynamic-quantization pattern that fuses to
+contrib ops. XNNPACK could then claim the GEMMs, and `if (caps.dotprod) XNNPACK else CPU` would be a
+real capability rule with a real fallback. That is a `model_pipeline` change with its own parity gate,
+and it should be measured against MLAS before it is believed — MLAS is not obviously worse, and
+§3.20/§3.39 are a standing warning about assuming a hand-written Arm kernel wins.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -2746,7 +2821,7 @@ Three consequences worth stating once:
 | ~~Q4~~ | ~~Packed binary vocabulary~~ | — | **CLOSED 2026-08-12 — KEEP (§3.48 + §3.49).** Both halves shipped: the target vocabulary is parsed straight into an id-indexed array (the 516 ms inversion is gone), and both vocabularies are cached in a packed binary. **Tokenizer 3086 → 514 ms, cold start 4812 → 2264 ms (−53%).** The queue's ~440 ms ceiling was computed from warm numbers and was wrong by an order of magnitude — the cost was JIT warm-up on a 4-million-character loop | done |
 | **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting. **Blocked**: the contradicting pair was the S26U and CPH2603, neither of which is available | Explanation, not speed |
 | **Q6** | Greedy vs Beam on the real runtime | Beam is implemented, unit-tested, and has never been run against the model — its quality/latency trade is unknown | On-device A/B, quality judged on a fixed sentence set; note beam falls back to `decoder_init` every step today | Unknown; may be REVERT |
-| **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |
+| ~~Q7~~ | ~~Execution-provider / kernel selection~~ | — | **CLOSED 2026-08-12 — NO (§3.52).** All of CPU/NNAPI/XNNPACK are compiled into the AAR, so this was not a build limitation. **XNNPACK claims zero nodes** — the hot GEMMs fuse to `com.microsoft` contrib ops (`DynamicQuantizeMatMul`, `MatMulIntegerToFloat`) that its EP cannot take, which is a property of the export and not of the CPU. NNAPI takes ~5% of nodes, inflates CPU node executions 35-40% through partitioning, and is **2.25x slower**. bf16 fastmath is correctly inert without bf16. Nothing to select; a QDQ re-export is what would change it | done |
 | ~~Q8~~ | ~~Speech pipeline: ASR is 0.79× realtime~~ | — | **CLOSED 2026-08-11 — the premise was wrong (§3.33).** Vosk alone is **0.55× realtime** on the M31 (1448 ms of 2.65 s audio, n=15); the missing 640 ms was the file-import path, not the recogniser. Sample rate and buffer size both measured NO EFFECT | done |
 | ~~Q8a~~ | ~~Hindi decode configuration~~ | — | **CLOSED 2026-08-11 — KEEP (§3.34).** The fixture was made (device TTS) and the answer was bigger than expected: stock Hindi runs **1.91× realtime at 10 dB SNR and 2.59× at 5 dB**, i.e. it loses to live speech in exactly the noisy conditions the product targets. Narrowed to English's 3000/10.0/2.0: −60% at 10 dB, transcripts identical in all three conditions | done |
 | **Q8c** | English under noise | §3.34 measured Hindi across clean/10 dB/5 dB and found the failure only noise exposes. English was measured **clean only** (0.55×) and is already at the narrow configuration, so there is no retune left to try — but "keeps up" is still an untested claim outside a quiet room | The same three conditions in `AsrTuningBenchmarkTest`, English arm. Cheap: the harness and the noise generator already exist | Diagnostic; may open a real problem on low-end hardware |

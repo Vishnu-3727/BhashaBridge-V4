@@ -558,6 +558,17 @@ class OnnxModels(
 }
 
 /**
+ * The execution provider a session is built with (Q7).
+ *
+ * Only [CPU] has ever shipped. The other two are here to be **measured**, because the question they
+ * answer — can a detected CPU capability select a different kernel implementation, not just a
+ * different thread count — cannot be answered by reading documentation. Availability is a property of
+ * how the `onnxruntime-android` AAR was built, so each one may simply throw at registration; that is a
+ * result, not an error, and the probe records it as such.
+ */
+enum class ExecutionBackend { CPU, NNAPI, XNNPACK }
+
+/**
  * ONNX Runtime `SessionOptions` for the three sessions, one knob per field (Phase 7). A `null` field
  * means "leave ORT's own default", so the no-arg [OrtTuning] reproduces pre-Phase-7 behaviour exactly.
  * Each knob is varied independently by the tuning benchmark; the winning combination is baked as the
@@ -634,6 +645,29 @@ data class OrtTuning(
      * untouched, which is why this is a field and not a branch in [ExecutionPolicy].
      */
     val graphDir: String? = null,
+    /**
+     * Which execution provider builds the sessions (Q7). `CPU` is MLAS — the only path that has ever
+     * shipped, and the default here so nothing changes unless a caller asks.
+     *
+     * This exists because "the capability detector does not select anything" was a real gap: the
+     * policy read `dotprod`/`i8mm`/`sve2`/`sme` and then configured threads with them and nothing
+     * else. An EP is the one lever through which a detected capability could pick a genuinely
+     * different kernel implementation rather than a different amount of the same one.
+     *
+     * **The bake must stay on CPU.** An EP partitions the graph and the optimized artifact it writes
+     * is then specific to that partitioning, so [OnnxModels.bakeOptions] is not routed through this.
+     * A benchmark that varies the provider therefore runs with `optCache = false`.
+     */
+    val backend: ExecutionBackend = ExecutionBackend.CPU,
+    /**
+     * `mlas.enable_gemm_fastmath_arm64_bfloat16` (Q7): lets MLAS run fp32 GEMMs through bf16 kernels.
+     *
+     * The one MLAS switch in this build that is **genuinely capability-gated** — it can only select a
+     * different kernel on a CPU that has bf16, which makes it the honest test of whether a detected
+     * capability can reach the kernel layer at all. Off by default, and it trades precision for speed,
+     * so it may not ship even where it works.
+     */
+    val gemmFastMathBf16: Boolean = false,
 ) {
     /** Build a fresh SessionOptions with only the non-null knobs applied. */
     fun toOptions(): OrtSession.SessionOptions {
@@ -655,6 +689,14 @@ data class OrtTuning(
         if (disableKleidiAi) o.addConfigEntry("mlas.disable_kleidiai", "1")
         // Measurement knob only — see the field's KDoc. Never set in production.
         if (disablePrepacking) o.addConfigEntry("session.disable_prepacking", "1")
+        if (gemmFastMathBf16) o.addConfigEntry("mlas.enable_gemm_fastmath_arm64_bfloat16", "1")
+        // Q7. Registered last, because ORT assigns nodes to providers in registration order and the
+        // CPU provider is always the implicit fallback for whatever an EP declines to take.
+        when (backend) {
+            ExecutionBackend.CPU -> Unit
+            ExecutionBackend.NNAPI -> o.addNnapi()
+            ExecutionBackend.XNNPACK -> o.addXnnpack(mapOf("intra_op_num_threads" to (intraThreads ?: 1).toString()))
+        }
         return o
     }
 

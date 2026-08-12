@@ -46,10 +46,16 @@ object ExecutionPolicy {
      *   first inference and steady-state latency all tie, and this layout is **−193 MB of storage and
      *   −333 MB of PSS** because three ~1 MB graphs share one blob instead of re-inlining the decoder
      *   weights twice. Nothing here is device-dependent, so it is not conditioned on [caps].
-     * - **Int8 acceleration is automatic.** ORT's MLAS kernels dispatch on HWCAP at runtime, so the
-     *   same int8 graphs use plain NEON on an Armv8.0 core and SDOT/i8mm/SME on capable cores with no
-     *   config here. The policy therefore does not (and cannot, from Java SessionOptions) toggle ISA
-     *   kernels; [caps] informs threads, logging, and future execution-provider selection.
+     * - **Int8 acceleration is automatic, and Q7 (§3.52) established that it has to be.** ORT's MLAS
+     *   kernels dispatch on HWCAP at runtime, so the same int8 graphs use plain NEON on an Armv8.0 core
+     *   and SDOT/i8mm/SME on capable cores with no config here. The policy therefore does not toggle
+     *   ISA kernels — and the reason is not that the AAR lacks alternatives. It ships CPU, NNAPI and
+     *   XNNPACK, and both were measured on the real graphs: **XNNPACK claims zero nodes**, because the
+     *   hot GEMMs fuse to `com.microsoft` contrib ops (`DynamicQuantizeMatMul`, `MatMulIntegerToFloat`)
+     *   that its EP cannot take — a property of the export, not of the CPU — and **NNAPI is 2.25×
+     *   slower**, taking ~5% of nodes while partitioning inflates CPU node executions by 35–40%. So
+     *   [caps] informs threads and logging because there is presently nothing else for it to select;
+     *   a QDQ re-export is what would change that.
      * - **KleidiAI is disabled on SME parts, which is the one place it is reachable.** Its NEON
      *   `dotprod`/`i8mm` kernels are `qsi4c32p` — 4-bit, and therefore inert for this project's 8-bit
      *   weights — so only its 8-bit `qsi8cxp` SME kernels ever run. Measured on the SM-S948B, three
