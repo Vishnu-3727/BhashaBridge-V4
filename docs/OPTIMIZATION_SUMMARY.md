@@ -601,10 +601,11 @@ and checks the affinity group count still tracks the thread count, so the bound 
 edit. No device was attached.
 
 **Decision.** KEEP. **Next:** ~~re-run `ProductionThreadSweepTest` + `BenchmarkSuiteTest` on the S26U
-to convert this to MEASURED~~ — the S26U is gone, so this was closed the other way. **§3.37 measured
-the claim underneath the clamp on the SM-M315F production path (2026-08-12): 4 threads loses in both
-its pinned and unpinned forms, and the shipping arm is the fastest measured.** The *bound* itself is
-still INFERRED, because no obtainable device has 8 performance cores and therefore none derives 4.
+to convert this to MEASURED~~ — **done, and this entry is now MEASURED on both counts.** §3.37 measured
+the claim underneath the clamp on the SM-M315F (2026-08-12); the SM-S948B became available the same
+day and **§3.38 measured the bound itself on the only topology that derives 4**: `intra4` is +7.4%
+long and +19.2% short there against the clamped `intra2`, at 2.1× the CPU. The old `[1,4]` bound would
+have shipped exactly that configuration to that part.
 
 ### 3.22 Per-token logits copy (`13007e3`) — OPEN, NOT MEASURED
 
@@ -1646,6 +1647,89 @@ numbers are single-threaded and do not represent shipping policy. Re-measure it 
 
 ---
 
+### 3.38 The clamp's bound, closed on the device that reaches it — and KleidiAI does not reproduce
+
+**Problem.** §3.37 closed the *claim* under the `[1,2]` clamp and left its *bound* INFERRED, because
+no obtainable device derived 4 threads. The SM-S948B became available again on 2026-08-12. It is the
+only topology in the database that derives 4 — 8 uniform Oryon cores (`CPU part 0x002` ×8), so the
+uniform-IP rule counts all eight as performance and `8 / 2 = 4` is exactly what `coerceIn(1, 2)`
+truncates. The bound is testable on this part and nowhere else.
+
+**Investigation.** Same harness, same protocol as §3.37 (n=30 per arm per sentence, three rotated
+rounds, parity on output and token count), plus a third suite: `sweepKleidiAi`, an A/B of
+`mlas.disable_kleidiai` at two thread counts, which is only meaningful on silicon with something to
+dispatch to.
+
+Affinity is unavailable on a uniform-IP part — `efficiencyCoreIds` is empty, so `affinityString`
+returns null and the arms fall back to no-pin. That turned out to be a gift: it produces **two
+duplicate pairs**, arms whose configurations are byte-identical, which measure the run's
+repeatability directly. `SHIPPING` ≡ `intra2_noAff` came out **3.2%** apart and
+`intra4_aff` ≡ `intra4_noAff` **0.0%** apart, so the floor for this run is ~3%.
+
+**Benchmark.** Full tables in `bench/results/cross-device/s26ultra_thread_sweep_2026-08-12.md`.
+
+| arm | long | Δ | short | Δ | stdev | CPU-ms/tx | migrations |
+|---|---|---|---|---|---|---|---|
+| **SHIPPING** (intra2) | **95** | — | **26** | — | 3.73 | 158 | 131 |
+| `intra1` | 89 | −6.3% | 24 | −7.7% | 5.07 | **64** | 30 |
+| `intra2_noAff` (≡ SHIPPING) | 92 | −3.2% | 25 | −3.8% | 3.47 | 154 | 139 |
+| `intra3` | 93 | −2.1% | 26 | 0.0% | 3.23 | 243 | 420 |
+| `intra4_aff` | 102 | **+7.4%** | 31 | **+19.2%** | 4.76 | 329 | 714 |
+| `intra4_noAff` | 102 | **+7.4%** | 30 | +15.4% | 5.17 | 330 | 693 |
+
+**4 threads loses on the one device that would ever derive it** — +7.4% long, +15–19% short, higher in
+every round, at 2.1× the CPU. The old `[1,4]` clamp would have shipped precisely this configuration
+here.
+
+**One arm is not settled and is recorded as open.** `intra1` is −6.3% / −7.7% against `SHIPPING` and
+lower in all three rounds at **40% of the CPU** — but against its own duplicate control it is only
+−3.3% / −4.0%, at the repeatability floor, with a *worse* stdev. It does not clear the >5%-on-both
+bar, so it is not actioned.
+
+**The thermal rule earned its keep.** The execution-mode suite entered at 36.3 °C with drift 1.17 and
+its `SHIPPING` control read **118 ms against the ladder's 95 ms — 24% apart, same code, same session**.
+Its arms reproduce the M31's shape (PARALLEL free, `inter2` +4.2%/+12.9%, `intra8` +41.5%) but its
+magnitudes are not quotable and no number crosses between the two suites.
+
+**KleidiAI: entry #9's direction does not reproduce.** §3.20 priced KleidiAI's SME kernels at **4–9%
+in favour of ON**, from two runs it described as thermally degraded (stdev 12–25 ms). Re-measured at
+two thread counts in two thermal states, with stdev 2.4–9.5 ms and non-overlapping per-round medians:
+
+| | KleidiAI on | off | Δ |
+|---|---|---|---|
+| intra2 (shipping), 36.3 °C | 119 ms | **107 ms** | **off 10.1% faster** |
+| intra2 (shipping), 33.2 °C | 92 ms | **80 ms** | **off 13.0% faster** |
+| intra4, 36.3 °C | 128 ms | 121 ms | off 5.5% faster |
+| intra4, 33.2 °C | 96 ms | 93 ms | off 3.1% faster |
+
+Four points, both thermal states, **all the opposite sign to §3.20**. The effect is largest at 2
+threads, which is what this device ships, and KleidiAI also costs 25–56 MB of PSS. A cold re-run was
+done specifically to test whether the sign was a throttling artefact; it is not — cold shows the
+larger gap.
+
+**SME is still live** — this is a claim about the kernels being faster, not about them running.
+`s26ultra_simpleperf_sme.txt` still shows the hottest symbol as
+`kai_run_matmul_clamp_f32_qai8dxp1vlx4_qsi8cxp4vlx4_1vlx4vl_sme_mopa`. What changed between the two
+sessions is neither the ISA nor ORT (1.27.0 both times) but ~30 commits of build, of which §3.30's
+shared weight blob and the `.ort` opt-cache path are the named suspects — a hypothesis, not a finding.
+
+**Evidence grade:** **MEASURED** for the thread bound (one device, the only one that reaches it) and
+**MEASURED, CONTESTED** for KleidiAI — two sessions disagree on the sign, and this one has the better
+controls but is still a single device.
+
+**Decision.** **KEEP the thread policy, now bound-confirmed: §3.21 moves from INFERRED to MEASURED.**
+**Nothing shipped for KleidiAI.** Disabling it is worth 10–13% at the configuration this part runs,
+which makes it a policy question and not a benchmark note — but a policy that keys off `caps.sme`
+would ship on the evidence of one device against a prior session that measured the opposite, and
+`disableKleidiAi` is a benchmark-only knob today.
+
+**Next.** Three things, in order: a dedicated cold `intra1` vs `intra2` A/B on this part (§1.1 of the
+results file); a third cold KleidiAI run, and if possible a second SME device, before any policy keys
+off it; and — if the KleidiAI regression holds — a bisect against §3.30 to find what changed, since
+that is the difference between a device quirk and a build defect.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -1836,17 +1920,19 @@ NO EFFECT. Deleting a row because it turned out not to work is how a ledger star
 
 ## Report metadata
 
-- **Status:** living document. Last extended 2026-08-12 (§3.37: the production-path thread and
-  execution-mode sweep; Q2b closed as KEEP).
+- **Status:** living document. Last extended 2026-08-12 (§3.37 the production-path thread and
+  execution-mode sweep on the M31, Q2b closed as KEEP; §3.38 the same on a recovered SM-S948B, which
+  closes §3.21's bound and **contests §3.20's KleidiAI direction**).
 - **Optimization sections (§3):** §3.1–§3.37 (38 headings). §3.1–§3.9 are the original phase-gated
   reconstruction; §3.10–§3.23 backfill everything landed since (startup, caches, affinity, baseline
   profile, bench framework, ORT upgrade, HI→EN, the nine-device campaign); §3.24–§3.29 are the
   2026-08-06 lifecycle and memory pass; §3.30–§3.32 are the 2026-08-10 export-side work;
   §3.33–§3.36 are the 2026-08-11 speech pass; §3.37 is the 2026-08-12 thread sweep.
 - **Open items:** 9 in §9 (Q0, Q4, Q5, Q6, Q7, Q8b, Q8c, Q16, Q17), plus §3.23, a fix the 2026-08-06
-  audit found incomplete. **Every shipping default is now measured on the production path** —
-  §3.21 was the last INFERRED one and §3.37 closed the claim under it, leaving only its numeric bound
-  untestable on obtainable hardware.
+  audit found incomplete, and **one newly contested result: §3.20's KleidiAI direction, which §3.38
+  measured with the opposite sign on the same device.** **Every shipping default is now MEASURED on
+  the production path** — §3.21 was the last INFERRED one, and §3.37 plus §3.38 closed both its claim
+  and its bound.
 - **Decisions by kind:** the ledger now carries 3 REVERTs with device numbers (`intra_op=8`, NO_OPT,
   PARALLEL+inter=2), 3 more from later passes (prime-core pinning, `disable_prepacking`, per-channel
   INT8), 2 retractions (§3.20's arena claim, §3.25's `release()` claim), and 2 entries closed by
