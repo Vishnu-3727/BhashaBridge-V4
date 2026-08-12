@@ -2334,6 +2334,106 @@ any of today's four experiments.
 
 ---
 
+### 3.48 The target vocabulary was built twice (Q4a) — KEEP
+
+**Problem.** The target dictionary was parsed into a `HashMap<String, Int>` and then **inverted** into
+a `Map<Int, String>`, because decode needs id → piece. The inversion built 122,672 `Pair`s, boxed
+122,672 `Integer`s a second time, filled a second hash table and discarded the first — a stage the
+startup breakdown had been reporting as `tokenizer:reverse_index` **at 402–567 ms** all along.
+
+**Implementation.** `parseEntries` now carries the character state machine and both shapes are built
+from it: `parseFlatIntDict` for the source map (encode looks up by string) and `parseIdToPiece`
+straight into an `Array<String?>` for the target. The ids are dense (0 … ~122,700), which is what an
+array is for.
+
+**Benchmark (SM-M315F, 3 cold launches of the real app, 33.6 °C).**
+
+| stage | before | after |
+|---|---|---|
+| `tokenizer:src_dict` | 1806 ms | 1644 ms |
+| `tokenizer:tgt_dict` | 738 ms | 854 ms |
+| `tokenizer:reverse_index` | 516 ms | **gone** |
+| **tokenizer total** | **3086 ms** | **2560 ms** |
+
+Parsing into the array rather than into the map is neutral in itself — `tgt_dict` absorbs what
+`reverse_index` used to be charged. The win is the inversion no longer happening: **−526 ms (−17%)**.
+
+**Verification.** 57 JVM tests. The array **doubles** when an id lands past its initial 128 K, and that
+growth is the whole risk: a hard bound would silently truncate a larger export, and a dropped piece
+decodes to nothing — a wrong translation with no error attached. `TokenizerTest` covers the doubling
+path and checks the real 122,672-entry dictionary resolves entry-for-entry against the map it replaced.
+
+**Evidence grade:** MEASURED. **Decision.** **KEEP.**
+
+**Next.** The remaining shape is strange and points at the real cost: `dict.SRC.json` is **0.62 MB and
+costs 1644 ms**, while `dict.TGT.json` is **3.23 MB and costs 854 ms**. Five times the bytes in half the
+time — so most of what is left is not proportional to the work. §3.49.
+
+---
+
+### 3.49 The vocabulary parse is JIT warm-up, so stop doing it (Q4b) — KEEP: cold start halved
+
+**Problem.** §3.48's leftover: whichever dictionary parses **first** pays ~1.5 s that has nothing to do
+with its size. The parser branches once per character across ~4 million characters, and the first
+caller runs it interpreted until the JIT compiles it. §3.29 had already isolated this (2586 ms on a
+cold process against 1303 ms once warm) and concluded a packed format was worth "about 440 ms" — that
+estimate came from warm numbers and was wrong by an order of magnitude.
+
+**Why not simply make the parser faster.** No amount of tuning removes a cost paid for *having* the
+loop, and this build cannot AOT it: ART declines to compile a `debuggable` app (§3.29), so the Baseline
+Profile route is blocked behind the H4 release-signing item.
+
+**Implementation.** Parse the JSON once per install and keep the result in a packed file beside it:
+a 16-byte header (magic, version, stamp) then `id:int, utf8Length:uint16, bytes` until EOF. Reading it
+is ~157,000 iterations of a trivial loop instead of 4,000,000 of a branchy one. The whole file is read
+into one array and walked by index — `DataInputStream` would charge several virtual calls per field,
+157,000 times, which is the cost being removed. **The stamp lives in the header**, not in a companion
+file, so validity is one atomic artifact; a stamp that can disagree with its data is what §3.47 needed
+a format token to avoid. Written `.part`-then-rename, like every other derived file here.
+
+**Benchmark (SM-M315F, real app, cold launches, 34.2 °C — *warmer* than the 33.6 °C baseline).**
+
+| | before Q4 | after §3.48 | after §3.49 |
+|---|---|---|---|
+| `tokenizer:src_dict` | 1806 ms | 1644 ms | **318 ms** |
+| `tokenizer:tgt_dict` | 738 ms | 854 ms | **225 ms** |
+| `tokenizer:reverse_index` | 516 ms | — | — |
+| **tokenizer total** | **3086 ms** | 2560 ms | **514 ms** |
+| **`engine_init` total** | **4812 ms** | 4612 ms | **2264 ms** |
+| `sessions:parallel` | 1705 ms | 1688 ms | 1668 ms |
+
+**Cold start −2548 ms (−53%).** `BenchmarkSuiteTest` warm: tokenizer 1255 → **125 ms**, `engine_init`
+2768 → **1712 ms**. In isolation (`VocabCacheTest`) the same load is **2566 ms from JSON against 386 ms
+from the cache, −85%**.
+
+Inference is untouched — 73.433 tok/s against 73.283, sustained median 614 ms against 616, `पानी ।`
+unchanged. The cache is also **smaller than the JSON it replaces**: 2.88 MB against 3.94 MB
+uncompressed for EN→HI, 4.2 MB across both directions.
+
+**Verification.** `MtEngineInstrumentedTest` 3/3, `HiEnEngineTest` 3/3, `OptCacheTest` 1/1,
+`BenchmarkSuiteTest` parity exact, 57 JVM tests.
+
+**`VocabCacheTest` paid for itself immediately by finding a bug that would have shipped.** The first
+stamp was `assets.openFd(name).length` — which **throws** for these dictionaries, because they ship
+DEFLATE-compressed (§3.29 measured `noCompress` on them as NO EFFECT and reverted it). The
+`runCatching` around it therefore stamped every vocabulary `-1`: **a cache that could never go stale.**
+A re-exported dictionary would have been ignored in favour of the old one, silently, forever. It now
+stamps on the package's `lastUpdateTime`, which moves on every install; a staged dictionary is stamped
+by its own length, matching `openDict`'s resolution order. The test writes all three failure shapes —
+truncated mid-entry, wrong magic, flipped stamp — and requires identical output through each plus that
+the rejected cache is healed.
+
+**Evidence grade:** MEASURED. **Decision.** **KEEP.**
+
+**Next.** Startup is now **2.26 s, and 1.67 s of it is `sessions:parallel`** — the model loads are the
+pole again, and §3.44/§3.46 already priced what is left there (~790 ms of prepacking that cannot be
+shared from Java, ~690 ms of graph residual). The tokenizer is no longer worth attacking: at 514 ms
+cold and 125 ms warm it is smaller than the noise on a model load. The next real lever is the H4
+release build — it would let ART AOT-compile the app, which is the other half of what §3.29 identified
+and the only remaining way to attack the residual interpretation cost.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -2508,7 +2608,7 @@ Three consequences worth stating once:
 | ~~Q2a~~ | ~~Price the logits copy~~ | — | **CLOSED 2026-08-06** — `LogitsReadBenchmarkTest` on the M31: 545.8 µs/token saved at 122k vocab, 6.55 ms per 12-token translation, ~1.0% end-to-end (§3.22) | done |
 | ~~Q2b~~ | ~~Does 4 intra-op threads ever win?~~ | — | **CLOSED 2026-08-12 — KEEP (§3.37).** No: on the SM-M315F production path, `intra4` pinned is +8.2% long / +26.9% short with 2.8× the stdev, and `intra4` unpinned carries the worst jitter in the sweep (p95 896 ms vs 677 ms). The shipping `intra2`+affinity arm is the fastest on both sentences. `intra3` and inter-op were measured for the first time and both lose. **The clamp's *bound* stays INFERRED** — the M31 derives 2 and cannot reach it | done |
 | ~~Q3~~ | ~~Overlap the tokenizer parse with session load~~ | — | **CLOSED 2026-08-06 — REVERTED.** Cold start got 341 ms *worse* (5,134 → 5,475 ms): the big cores are already saturated by the three session loads, so the parse slowed 2.9 → 5.5 s. The benchmark showing a win had warmed the parser first (§3.29) | done |
-| **Q4** | Packed binary vocabulary | **Re-opened larger by the Q3 revert.** The parse is serial again and is now the biggest single piece of engine construction: **2.9 s of a 5.1 s cold start**, against 2.15 s for all three ONNX sessions. `noCompress` on the JSON measured NO EFFECT, so it is the parser, not the I/O | A packed vocabulary (sorted `String[]`+`int[]`, or one `.bin`), measured in the **real app** via `engine_init` over 3 cold launches — never by a test that loads the tokenizer beforehand | Up to ~2 s of a 5.1 s cold start |
+| ~~Q4~~ | ~~Packed binary vocabulary~~ | — | **CLOSED 2026-08-12 — KEEP (§3.48 + §3.49).** Both halves shipped: the target vocabulary is parsed straight into an id-indexed array (the 516 ms inversion is gone), and both vocabularies are cached in a packed binary. **Tokenizer 3086 → 514 ms, cold start 4812 → 2264 ms (−53%).** The queue's ~440 ms ceiling was computed from warm numbers and was wrong by an order of magnitude — the cost was JIT warm-up on a 4-million-character loop | done |
 | **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting. **Blocked**: the contradicting pair was the S26U and CPH2603, neither of which is available | Explanation, not speed |
 | **Q6** | Greedy vs Beam on the real runtime | Beam is implemented, unit-tested, and has never been run against the model — its quality/latency trade is unknown | On-device A/B, quality judged on a fixed sentence set; note beam falls back to `decoder_init` every step today | Unknown; may be REVERT |
 | **Q7** | Execution-provider / kernel selection | The detector surfaces `dotprod`/`i8mm`/`sve2`/`sme2` but `ExecutionPolicy` does not act on them | Per-EP A/B where an EP exists for the part | Likely small — §3.20 priced the ISA at 4–9% |

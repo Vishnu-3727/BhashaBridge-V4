@@ -1,11 +1,12 @@
-# Engine startup and storage: four experiments, two shipped
+# Engine startup and storage: six experiments, four shipped
 
 **Date:** 2026-08-12 · **Device:** Samsung SM-M315F (Exynos 9611, Armv8.0, 4 big + 4 little, Android 12)
 · **Runtime:** ONNX Runtime 1.27.0 · **Direction measured:** EN→HI
 
-This report covers one session of work on ONNX Runtime session startup. It is a condensed, readable
-version of ledger entries **§3.44–§3.47** in `OPTIMIZATION_SUMMARY.md`, which remain the primary record
-(full method, rejected hypotheses, per-round numbers).
+This report covers one session of work on engine startup: first the ONNX Runtime session load, then the
+tokenizer that turned out to be the larger cost. It is a condensed, readable version of ledger entries
+**§3.44–§3.49** in `OPTIMIZATION_SUMMARY.md`, which remain the primary record (full method, rejected
+hypotheses, per-round numbers).
 
 ---
 
@@ -19,18 +20,24 @@ purpose, because the numbers bound the design space and stop the same idea being
 | Q18 | Where do the 2.15 s of session load go? | Load is **not I/O**; the removable half is an initializer copy | ✅ `55cfed7` |
 | Q19 | Bake the prepacked weights | Refused by the format that ships; +324 MB to buy 70 ms elsewhere | ❌ no-gain |
 | Q20 | Raw vs optimized ONNX vs ORT format | Optimization is worth ~20% of inference; **format is worth none of it** | ❌ probe only |
-| Q21 | Ship the optimized-ONNX artifact | **−193 MB storage, −324 MB memory**, inference unchanged | ✅ this change |
+| Q21 | Ship the optimized-ONNX artifact | **−193 MB storage, −324 MB memory**, inference unchanged | ✅ `fecc862` |
+| Q4a | The target vocabulary was built twice | The map→invert step cost 516 ms for a structure an array indexes | ✅ `9e533c2` |
+| Q4b | The vocabulary parse is JIT warm-up | Packed binary cache: **tokenizer 3086 → 514 ms** | ✅ `9f215fe` |
 
 **Net effect on the product**
 
 | Metric | Start of day | End of day | Change |
 |---|---|---|---|
-| Cold start (`engine_init`) | 6190 ms | ~5400–5600 ms | **−0.6 s** |
-| Session load (`sessions:parallel`) | 2183 ms | ~1633–1708 ms | **−0.5 s** |
+| **Cold start (`engine_init`)** | 6190 ms | **2264 ms** | **−3.93 s (−63%)** |
+| Tokenizer load | 3086 ms | **514 ms** | **−2.57 s (−83%)** |
+| Session load (`sessions:parallel`) | 2183 ms | 1668 ms | **−0.52 s (−24%)** |
 | Model cache on disk (EN→HI) | 472.9 MB | **279.8 MB** | **−193.1 MB (−41%)** |
 | Process memory (PSS, after 60 translations) | 783.2 MB | **459.6 MB** | **−323.6 MB (−41%)** |
-| Throughput | 73.26 tok/s | 73.28 tok/s | unchanged |
+| Throughput | 73.26 tok/s | 73.43 tok/s | unchanged |
 | Translation output | — | — | **byte-identical throughout** |
+
+The headline is the first row: **the app's engine now builds in a third of the time it did this
+morning**, and the largest single contribution came from the component nobody had been optimizing.
 
 ---
 
@@ -200,17 +207,88 @@ exclusions are now load-bearing rather than merely a quota optimization, and bot
 
 ---
 
-## 6. What is still open
+## 6. Q4 — the tokenizer, which was the real cost all along
 
-| Item | Why |
-|---|---|
-| **Q4 — the tokenizer parse** | Now the largest startup component by a wide margin: **~2.9 s serial**, against ~1.7 s for all three model loads. Untouched by all four experiments. It must **not** simply be parallelised — that was measured and reverted (§3.29). |
-| **Q15 — behaviour under memory pressure** | Cheaper and more meaningful now: the shipping config is the file-backed one, so the question is whether 276 MB of clean blob pages survive pressure better than 559 MB of anonymous heap did. |
-| **Startup A/B across formats** | Deliberately left NOT MEASURED. Closing it needs two builds and an interleaved cold protocol. |
+With the model loads down to ~1.7 s, the tokenizer was **the largest single component of startup**:
+3086 ms, more than the three ONNX sessions combined. It was fixed in two steps.
+
+### 6.1 The target vocabulary was built twice (§3.48)
+
+The target dictionary was parsed into a `HashMap<String, Int>` and then **inverted** into a
+`Map<Int, String>`, because decode needs id → piece. The inversion built 122,672 `Pair`s, boxed 122,672
+`Integer`s a second time, filled a second hash table and threw the first away. The startup breakdown had
+been reporting it as `tokenizer:reverse_index` at **402–567 ms** the whole time.
+
+Token ids are dense (0 … ~122,700), which is what an array is for. The parser now emits into an
+`Array<String?>` directly.
+
+| stage | before | after |
+|---|---|---|
+| `tokenizer:src_dict` | 1806 ms | 1644 ms |
+| `tokenizer:tgt_dict` | 738 ms | 854 ms |
+| `tokenizer:reverse_index` | 516 ms | **gone** |
+| **total** | **3086 ms** | **2560 ms** |
+
+The one risk is growth: the array doubles when an id lands past its initial 128 K, because a hard bound
+would silently truncate a larger export and a dropped piece decodes to *nothing* — a wrong translation
+with no error attached. `TokenizerTest` covers the doubling path and checks the real 122,672-entry
+dictionary entry-for-entry against the map it replaced.
+
+### 6.2 The parse is JIT warm-up, so stop doing it (§3.49)
+
+What remained made no sense by size: **`dict.SRC.json` is 0.62 MB and cost 1644 ms, while
+`dict.TGT.json` is 3.23 MB and cost 854 ms.** Five times the bytes in half the time.
+
+The explanation is that most of it is not parsing. The parser branches once per character across
+~4 million characters, and whichever dictionary goes **first** pays ~1.5 s running it interpreted before
+the JIT compiles it. Tuning the loop cannot remove a cost paid for *having* the loop — and this build
+cannot AOT it, because ART declines to compile a `debuggable` app.
+
+So the JSON is parsed once per install and the result kept in a packed file: a 16-byte header (magic,
+version, stamp) then `id:int, utf8Length:uint16, bytes` until EOF. Reading it is ~157,000 iterations of
+a trivial loop instead of 4,000,000 of a branchy one — and the file is *smaller* than the JSON it
+replaces (2.88 MB against 3.94 MB uncompressed).
+
+| | before Q4 | after §3.48 | after §3.49 |
+|---|---|---|---|
+| `tokenizer:src_dict` | 1806 ms | 1644 ms | **318 ms** |
+| `tokenizer:tgt_dict` | 738 ms | 854 ms | **225 ms** |
+| `tokenizer:reverse_index` | 516 ms | — | — |
+| **tokenizer total** | **3086 ms** | 2560 ms | **514 ms** |
+| **`engine_init` total** | **4812 ms** | 4612 ms | **2264 ms** |
+
+Measured at 34.2 °C, *warmer* than the 33.6 °C baseline, so temperature is not flattering the result.
+In isolation the same load is **2566 ms from JSON against 386 ms from the cache (−85%)**. Inference is
+untouched: 73.433 tok/s against 73.283, sustained median 614 ms against 616, output unchanged.
+
+### 6.3 The bug the test caught before it shipped
+
+The first version of the cache stamped on `assets.openFd(name).length`. That call **throws** for these
+dictionaries, because they ship DEFLATE-compressed — so the `runCatching` around it stamped every
+vocabulary `-1`. **A cache that could never go stale:** a re-exported dictionary would have been ignored
+in favour of the old one, silently, forever, with wrong translations and no error.
+
+`VocabCacheTest` caught it on its first run. The stamp is now the package's `lastUpdateTime`, which
+moves on every install. The test writes all three failure shapes deliberately — truncated mid-entry,
+wrong magic, flipped stamp — and requires identical output through each, plus that the rejected cache
+is healed. Every failure path falls back to the JSON, which is always in the APK, so a bad cache costs
+one launch a re-parse and nothing more.
 
 ---
 
-## 7. Reproducing any of this
+## 7. What is still open
+
+| Item | Why |
+|---|---|
+| **The model loads are the pole again** | Startup is 2.26 s and **1.67 s of it is `sessions:parallel`**. §3.44/§3.46 already priced what is left there: ~790 ms of prepacking that cannot be shared from Java, ~690 ms of graph residual. |
+| **The tokenizer is finished** | At 514 ms cold and 125 ms warm it is now smaller than the run-to-run noise on a model load. Further work there would be measuring nothing. |
+| **H4 — the release build** | The largest remaining structural lever. A non-`debuggable` build lets ART AOT-compile the app, which is the other half of the JIT cost §3.29 identified and the only way left to attack residual interpretation. Blocked on the owner's keystore. |
+| **Q15 — behaviour under memory pressure** | Cheaper and more meaningful now: the shipping config is the file-backed one, so the question is whether 276 MB of clean blob pages survive pressure better than 559 MB of anonymous heap did. |
+| **Startup A/B across artifact formats** | Deliberately left NOT MEASURED. Closing it needs two builds and an interleaved cold protocol. |
+
+---
+
+## 8. Reproducing any of this
 
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
@@ -229,6 +307,7 @@ Cold-launch numbers come from the real app, not a test: force-stop, launch, and 
 line from `BB.Bench`. Always record battery temperature next to any timing — the same code has read
 640 ms and 864 ms on temperature alone.
 
-**Probes added this session** (`app/src/androidTest/.../mt/`): `OrtLoadProbeTest` (load-path arms),
-`PrepackedBakeTest` (bake formats), `GraphFormatMatrixTest` (the artifact matrix, driven through the
-real engine via the benchmark-only `OrtTuning.graphDir`).
+**Probes and tests added this session** (`app/src/androidTest/.../mt/`): `OrtLoadProbeTest` (load-path
+arms), `PrepackedBakeTest` (bake formats), `GraphFormatMatrixTest` (the artifact matrix, driven through
+the real engine via the benchmark-only `OrtTuning.graphDir`), and `VocabCacheTest` (the vocabulary
+cache's corruption, truncation and staleness paths).
