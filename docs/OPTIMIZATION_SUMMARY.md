@@ -2814,6 +2814,73 @@ corpus, not a parity check on two sentences. This entry is why that distinction 
 
 ---
 
+### 3.55 Can the two decoders share their identical weights at runtime? (Q24) — NO from Java, and the API that looks like it should makes it worse
+
+**Problem.** §3.30 proved `decoder_step` holds **no unique tensor data at all** — every byte of it is
+already in `decoder_init` — and Q21 made both graphs point at the same regions of one blob on disk. On
+disk they share. The open question was whether they share in RAM, and §3.50 suggested not: the blob
+maps 138.7 MB of address space at **RSS 0** while the process holds ~410 MB of anonymous memory, which
+is what "ORT reads the initializers out of the file into the session allocator" looks like.
+
+**Part 1 — the duplication is real, and it is large.** `SharedWeightRuntimeTest` loads one graph at a
+time and watches native heap (settled 12 s between arms, since the allocator returns pages lazily,
+§3.25):
+
+| arm | native heap |
+|---|---|
+| `decoder_init` alone | 168,324 KB |
+| `decoder_step` alone | 155,432 KB |
+| `encoder` alone | 75,240 KB |
+| sum of the two decoders | 323,756 KB |
+| **both loaded together** | **322,872 KB** |
+| all three separately / together | 398,996 / 398,092 KB |
+
+**Sharing saves 884 KB of 323,756 — 0.27%, i.e. nothing.** Each session allocates its own full copy, so
+`decoder_step`'s ~152 MB is resident twice in every EN→HI engine: about **37% of the process's
+anonymous memory**, and the largest single piece of waste left anywhere in the app.
+
+**Part 2 — the only Java-reachable fix costs more than it saves.** `SessionOptions.addExternalInitializers`
+supplies initializers as `OrtValue`s and is the mechanism the whole idea depends on. It was tested on
+the largest single initializer, `decoder.embed_tokens.weight_quantized`, UINT8 [122672, 512] —
+62,808,064 bytes at offset 75,272,192 in `weights.bin` — mapped straight out of the blob:
+
+| | native heap |
+|---|---|
+| tensor created from the mapped region | **0 KB** — the buffer side is genuinely zero-copy |
+| session, baseline | 176,540 KB |
+| session, that initializer supplied externally | **241,302 KB** |
+
+**+64,762 KB, when a working mechanism would have saved ~61,336 KB.** Creating the tensor is free and
+ORT accepts a `MappedByteBuffer` slice, so the buffer half of the plan works exactly as hoped — but the
+session copies the supplied value into its own allocator instead of referencing it, and the result is
+an extra copy rather than a shared one.
+
+**Evidence grade:** MEASURED. The +64.7 MB is the heap delta; *why* ORT ends up holding it twice is
+inferred and not claimed.
+
+**Decision.** **Q24 is closed as NOT ACHIEVABLE from the Java API, and nothing shipped.** Both probes
+are kept — they are the instruments that would re-test this against a future ORT release, and the
+question is worth re-asking when one lands. The stable version is untouched, which was the brief.
+
+**What would actually fix it, and it is not a runtime change.** The duplication exists because there
+are **two decoder graphs**, and there are two only because `torch.onnx` exported the KV-cache contract
+that way: `decoder_init` builds the cache, `decoder_step` consumes it, and `decoder_step` has no
+`encoder_hidden_states` input at all because the exporter pruned it (see `EXPORT_WITH_CACHE.md`).
+Collapsing them into **one merged decoder** — the shape `optimum` exports as `decoder_model_merged`,
+with an `If` node selecting the first step from the rest — would leave one session holding one copy of
+the weights, removing the duplicate outright rather than trying to share it.
+
+That is an export change with real risk attached: an `If` node can inhibit fusions, and §3.31 already
+showed the decoder graphs behave differently from how their shape suggests. It would need the same
+gates as any export: `verify_cache.py`, parity, then `BenchmarkSuiteTest` — because ~152 MB of RAM is
+not worth a slower decode, and this project has been wrong about that trade before (§3.26).
+
+**Next.** If the merged decoder is ever attempted, measure it against this entry's numbers: the target
+is `decoder_init` + `decoder_step` at 322,872 KB collapsing toward ~168,324 KB, and the acceptance test
+is decode latency, not the memory.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -2979,6 +3046,7 @@ Three consequences worth stating once:
 | # | Experiment | Hypothesis | Measurement that closes it | Expected size |
 |---|---|---|---|---|
 | ~~Q19~~ | ~~Bake the prepacked weights~~ | — | **CLOSED 2026-08-12 — NO GAIN (§3.45).** ORT refuses the flag in ORT format outright ("not supported. Ignoring the flag.") and the `ortpp` artifacts are byte-identical to `ort`. On optimized ONNX + external initializers, where it *is* supported, it writes +324 MB (+69%) to buy 70 ms — on a path already 7% slower than the shipping `.ort` mapped load. Also refutes Q17's 204 MB: each graph writes its own external file, so `ext` is 471 MB against `.ort`'s 473 MB | done |
+| ~~Q24~~ | ~~Share the decoders' identical weights at runtime~~ | — | **CLOSED 2026-08-12 — NOT ACHIEVABLE from Java (§3.55).** The duplication is real and large: the two decoders share **884 KB of 323,756** when loaded together, so `decoder_step`'s ~152 MB is resident twice (~37% of process anon memory). `addExternalInitializers` is the only Java-reachable mechanism and it **costs +64.7 MB** where it should have saved 61.3 — the tensor is zero-copy but the session copies it anyway. The real fix is an export change: one merged decoder instead of two graphs | done |
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
 | ~~Q1~~ | ~~Slice the last position inside `decoder_init`~~ | — | **CLOSED — NO GAIN (§3.31).** Done, gate 7/7, and worth nothing: greedy seeds a one-token prefix, so `decoder_init` only ever runs at `dec_len = 1` and `decoder_init` measured 49.6 ms against a 49.0 ms control. The "largest remaining inference lever" was true of the graph and never exercised by the workload. Held for Q6 | done |
 | ~~Q23~~ | ~~Let the APK compress the weight blobs~~ | — | **CLOSED 2026-08-12 — KEEP (§3.54).** APK **617.3 → 520.3 MiB (−97.0 MiB)**; steady-state load unchanged (1657 vs 1668 ms), blob extracts byte-identical, one-time +2.5 s on first launch. The `openFd` trap was real: the old `getOrDefault(0L)` would have disabled blob extraction entirely. The same run also exposed §3.49's partial-cache bug | done |
