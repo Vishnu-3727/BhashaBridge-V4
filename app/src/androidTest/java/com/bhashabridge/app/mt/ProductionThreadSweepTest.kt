@@ -109,6 +109,34 @@ class ProductionThreadSweepTest {
         )
     }
 
+    /**
+     * What KleidiAI's kernels are worth on silicon that has something for them to dispatch to.
+     *
+     * `mlas.disable_kleidiai` forces MLAS's own kernels, so the delta is what KleidiAI (and, on an
+     * SME part, its `smopa` kernels) contributes. Measured at **two thread counts** so the ISA effect
+     * and the thread effect cannot confound each other — the arms are otherwise identical to their
+     * KleidiAI-on partners.
+     *
+     * Pointless on a part with no dotprod/i8mm/SME (the SM-M315F): there is nothing to dispatch to
+     * and the A/B measures noise at the cost of a thermally loaded run. Skip it there.
+     */
+    @Test
+    fun sweepKleidiAi() {
+        val caps = CpuCapabilities.detect()
+        val base = ExecutionPolicy.current
+        val shippingThreads = base.intraThreads ?: 1
+        sweep(
+            "KLEIDI",
+            listOf(
+                "SHIPPING" to base,
+                "SHIPPING_noKleidiAI" to base.copy(name = "SHIPPING_noKleidiAI", disableKleidiAi = true),
+                arm(caps, base, "intra4", threads = 4, affinity = false),
+                arm(caps, base, "intra4_noKleidiAI", threads = 4, affinity = false, noKleidiAi = true),
+            ),
+        )
+        Log.i(TAG, "KLEIDI_CONTEXT shippingThreads=$shippingThreads i8mm=${caps.i8mm} sme=${caps.sme} sme2=${caps.sme2} dotprod=${caps.dotProduct}")
+    }
+
     // ---------------------------------------------------------------------------------------------
 
     /**
@@ -130,6 +158,7 @@ class ProductionThreadSweepTest {
         threads: Int,
         affinity: Boolean,
         inter: Int? = null,
+        noKleidiAi: Boolean = false,
     ): Pair<String, OrtTuning> {
         val aff = if (affinity) ExecutionPolicy.affinityString(caps, threads) else null
         val name = if (affinity && aff == null) "${label}_noPinAvailable" else label
@@ -143,6 +172,7 @@ class ProductionThreadSweepTest {
             interThreads = inter,
             // Inter-op threads do nothing in SEQUENTIAL mode; without this the arm is a no-op.
             parallel = inter != null,
+            disableKleidiAi = noKleidiAi,
         )
     }
 
