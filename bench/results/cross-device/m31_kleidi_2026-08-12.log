@@ -1,0 +1,46 @@
+--------- beginning of main
+08-12 11:24:58.394  9636  9652 I BB_PROD_SWEEP: SUITE KLEIDI rounds=3 runs=10 arms=6
+08-12 11:24:58.394  9636  9652 I BB_PROD_SWEEP: TOPOLOGY ARMv8.0 cores=8(perf=4[4, 5, 6, 7],eff=4[0, 1, 2, 3]) neon=true fp16=false dotprod=false i8mm=false sve=false sve2=false sme=false sme2=false
+08-12 11:24:58.394  9636  9652 I BB_PROD_SWEEP: PRODUCTION base=arm-adaptive(threads=2,affinity) intra=2 arena=false optCache=true affinity=5,6,7,8
+08-12 11:24:58.394  9636  9652 I BB_PROD_SWEEP: BATTERY_START tempC=30.0 status=charging plugged=usb level=66
+08-12 11:24:58.395  9636  9652 I BB_PROD_SWEEP: UNAVAILABLE [battery.energyCounter]
+08-12 11:25:19.214  9636  9652 I BB_PROD_SWEEP: REFERENCE KLEIDI longTokens=12 shortTokens=2 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+08-12 11:25:19.215  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING r1/3 longMedian=658.00ms tempC=29.8
+08-12 11:25:33.561  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_noKleidiAI r1/3 longMedian=626.00ms tempC=29.9
+08-12 11:25:48.747  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI intra4 r1/3 longMedian=658.00ms tempC=29.9
+08-12 11:26:04.005  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI intra4_noKleidiAI r1/3 longMedian=653.00ms tempC=30.0
+08-12 11:26:18.492  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_recheck r1/3 longMedian=617.00ms tempC=29.9
+08-12 11:26:33.004  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_noKleidiAI_recheck r1/3 longMedian=637.00ms tempC=30.0
+08-12 11:26:47.586  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_noKleidiAI r2/3 longMedian=613.00ms tempC=30.1
+08-12 11:27:02.389  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI intra4 r2/3 longMedian=625.00ms tempC=30.1
+08-12 11:27:17.489  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI intra4_noKleidiAI r2/3 longMedian=712.00ms tempC=30.1
+08-12 11:27:31.824  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_recheck r2/3 longMedian=640.00ms tempC=30.2
+08-12 11:27:46.066  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_noKleidiAI_recheck r2/3 longMedian=610.00ms tempC=30.2
+08-12 11:28:00.781  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING r2/3 longMedian=664.00ms tempC=30.2
+08-12 11:28:15.697  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI intra4 r3/3 longMedian=644.00ms tempC=30.3
+08-12 11:28:31.019  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI intra4_noKleidiAI r3/3 longMedian=663.00ms tempC=30.3
+08-12 11:28:45.305  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_recheck r3/3 longMedian=641.00ms tempC=30.4
+08-12 11:28:59.526  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_noKleidiAI_recheck r3/3 longMedian=610.00ms tempC=30.4
+08-12 11:29:13.814  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING r3/3 longMedian=610.00ms tempC=30.4
+08-12 11:29:28.180  9636  9652 I BB_PROD_SWEEP: ROUND KLEIDI SHIPPING_noKleidiAI r3/3 longMedian=611.00ms tempC=30.4
+08-12 11:29:28.347  9636  9652 I BB_PROD_SWEEP: BATTERY_END tempC=30.4 level=67
+08-12 11:29:28.348  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI LONG SHIPPING {"n":30,"min":608.0,"max":688.0,"mean":643.433,"median":642.0,"p95":681.0,"p99":688.0,"stdev":24.362} tokens=12 tokPerSec=18.69
+08-12 11:29:28.348  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI SHORT SHIPPING {"n":30,"min":156.0,"max":194.0,"mean":165.267,"median":164.0,"p95":187.0,"p99":194.0,"stdev":9.077} tokens=2 tokPerSec=12.20
+08-12 11:29:28.349  9636  9652 I BB_PROD_SWEEP: SYS KLEIDI SHIPPING intra=2 inter=null parallel=false affinity=5,6,7,8 coresBusy=2.39 cpuMsPerTx=988.00 migrations=212 nonvolCtxt=1483 perfFreqMHz=[1482, 1664, 1664] tempC=29.8->30.4 pssKb=648001->647102 roundMedians=[658.00, 664.00, 610.00]
+08-12 11:29:28.349  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI LONG SHIPPING_noKleidiAI {"n":30,"min":606.0,"max":704.0,"mean":629.767,"median":620.0,"p95":667.0,"p99":704.0,"stdev":24.727} tokens=12 tokPerSec=19.35
+08-12 11:29:28.350  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI SHORT SHIPPING_noKleidiAI {"n":30,"min":156.0,"max":224.0,"mean":162.933,"median":159.0,"p95":172.0,"p99":224.0,"stdev":11.989} tokens=2 tokPerSec=12.58
+08-12 11:29:28.350  9636  9652 I BB_PROD_SWEEP: SYS KLEIDI SHIPPING_noKleidiAI intra=2 inter=null parallel=false affinity=5,6,7,8 coresBusy=2.41 cpuMsPerTx=975.50 migrations=160 nonvolCtxt=347 perfFreqMHz=[1664, 1664, 1664] tempC=29.8->30.4 pssKb=713699->638502 roundMedians=[626.00, 613.00, 611.00]
+08-12 11:29:28.351  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI LONG intra4 {"n":30,"min":572.0,"max":853.0,"mean":659.967,"median":644.0,"p95":765.0,"p99":853.0,"stdev":64.176} tokens=12 tokPerSec=18.63
+08-12 11:29:28.351  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI SHORT intra4 {"n":30,"min":150.0,"max":237.0,"mean":187.333,"median":187.0,"p95":218.0,"p99":237.0,"stdev":18.828} tokens=2 tokPerSec=10.70
+08-12 11:29:28.351  9636  9652 I BB_PROD_SWEEP: SYS KLEIDI intra4 intra=4 inter=null parallel=false affinity=OFF coresBusy=4.70 cpuMsPerTx=2031.50 migrations=891 nonvolCtxt=4623 perfFreqMHz=[1482, 1664, 1664] tempC=29.9->30.3 pssKb=654230->639731 roundMedians=[658.00, 625.00, 644.00]
+08-12 11:29:28.352  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI LONG intra4_noKleidiAI {"n":30,"min":574.0,"max":835.0,"mean":673.833,"median":663.0,"p95":783.0,"p99":835.0,"stdev":60.93} tokens=12 tokPerSec=18.10
+08-12 11:29:28.352  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI SHORT intra4_noKleidiAI {"n":30,"min":152.0,"max":240.0,"mean":197.4,"median":195.0,"p95":227.0,"p99":240.0,"stdev":19.869} tokens=2 tokPerSec=10.26
+08-12 11:29:28.353  9636  9652 I BB_PROD_SWEEP: SYS KLEIDI intra4_noKleidiAI intra=4 inter=null parallel=false affinity=OFF coresBusy=4.88 cpuMsPerTx=2169.83 migrations=1101 nonvolCtxt=5137 perfFreqMHz=[1664, 1664, 1664] tempC=29.9->30.3 pssKb=785283->710563 roundMedians=[653.00, 712.00, 663.00]
+08-12 11:29:28.353  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI LONG SHIPPING_recheck {"n":30,"min":606.0,"max":666.0,"mean":626.5,"median":617.0,"p95":657.0,"p99":666.0,"stdev":19.767} tokens=12 tokPerSec=19.45
+08-12 11:29:28.354  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI SHORT SHIPPING_recheck {"n":30,"min":156.0,"max":203.0,"mean":161.967,"median":159.0,"p95":179.0,"p99":203.0,"stdev":9.002} tokens=2 tokPerSec=12.58
+08-12 11:29:28.354  9636  9652 I BB_PROD_SWEEP: SYS KLEIDI SHIPPING_recheck intra=2 inter=null parallel=false affinity=5,6,7,8 coresBusy=2.39 cpuMsPerTx=963.50 migrations=152 nonvolCtxt=344 perfFreqMHz=[1664, 1664, 1664] tempC=30.0->30.4 pssKb=641658->650498 roundMedians=[617.00, 640.00, 641.00]
+08-12 11:29:28.355  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI LONG SHIPPING_noKleidiAI_recheck {"n":30,"min":603.0,"max":827.0,"mean":633.767,"median":612.0,"p95":739.0,"p99":827.0,"stdev":45.651} tokens=12 tokPerSec=19.61
+08-12 11:29:28.355  9636  9652 I BB_PROD_SWEEP: RESULT KLEIDI SHORT SHIPPING_noKleidiAI_recheck {"n":30,"min":156.0,"max":224.0,"mean":166.8,"median":163.0,"p95":204.0,"p99":224.0,"stdev":16.404} tokens=2 tokPerSec=12.27
+08-12 11:29:28.355  9636  9652 I BB_PROD_SWEEP: SYS KLEIDI SHIPPING_noKleidiAI_recheck intra=2 inter=null parallel=false affinity=5,6,7,8 coresBusy=2.39 cpuMsPerTx=976.67 migrations=183 nonvolCtxt=703 perfFreqMHz=[1664, 1664, 1664] tempC=30.0->30.4 pssKb=697556->647797 roundMedians=[637.00, 610.00, 610.00]
+08-12 11:29:28.356  9636  9652 I BB_PROD_SWEEP: DRIFT KLEIDI firstRound=641.50ms lastRound=629.83ms ratio=0.98
+08-12 11:29:28.356  9636  9652 I BB_PROD_SWEEP: KLEIDI_CONTEXT shippingThreads=2 i8mm=false sme=false sme2=false dotprod=false

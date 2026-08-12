@@ -19,12 +19,12 @@ import org.junit.Test
 class ExecutionPolicyTest {
 
     // A 4-big (ids 4-7) + 4-LITTLE (ids 0-3) layout, whatever the real numbering happens to be.
-    private fun caps(perfIds: List<Int>, effIds: List<Int>) = CpuCapabilities(
+    private fun caps(perfIds: List<Int>, effIds: List<Int>, sme: Boolean = false) = CpuCapabilities(
         architecture = "ARMv8.0", coreCount = perfIds.size + effIds.size,
         performanceCores = perfIds.size, efficiencyCores = effIds.size,
         performanceCoreIds = perfIds, efficiencyCoreIds = effIds,
         neon = true, fp16 = false, dotProduct = false, i8mm = false,
-        sve = false, sve2 = false, sme = false, sme2 = false,
+        sve = false, sve2 = false, sme = sme, sme2 = false,
     )
 
     @Test fun oneWorkerPinnedToWholeBigCluster() {
@@ -57,6 +57,23 @@ class ExecutionPolicyTest {
         val tuning = ExecutionPolicy.select(c)
         assertEquals(2, tuning.intraThreads)
         assertEquals(1, tuning.intraOpAffinities!!.split(";").size)
+    }
+
+    @Test fun kleidiAiIsDisabledOnlyOnSmeParts() {
+        // §3.39: KleidiAI's 8-bit kernels are SME-only, and on the one SME part measured they are
+        // 10-13% slower than MLAS's own. The predicate is caps.sme rather than an unconditional
+        // true so that every non-SME device keeps byte-identical behaviour by construction — that
+        // is the whole reason this is a one-line condition and not a constant, so pin it.
+        val nonSme = caps(listOf(4, 5, 6, 7), listOf(0, 1, 2, 3), sme = false)
+        val sme = caps(listOf(4, 5, 6, 7), listOf(0, 1, 2, 3), sme = true)
+        assertEquals(false, ExecutionPolicy.select(nonSme).disableKleidiAi)
+        assertEquals(true, ExecutionPolicy.select(sme).disableKleidiAi)
+        // Nothing else may move with it: same threads, same affinity, same allocator.
+        val a = ExecutionPolicy.select(nonSme)
+        val b = ExecutionPolicy.select(sme)
+        assertEquals(a.intraThreads, b.intraThreads)
+        assertEquals(a.intraOpAffinities, b.intraOpAffinities)
+        assertEquals(a.cpuArena, b.cpuArena)
     }
 
     @Test fun noAffinityWhenNothingToPin() {

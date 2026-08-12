@@ -52,10 +52,11 @@ dot-product or i8mm acceleration, which is exactly what the detector reports.
 
 | knob | rule | on SM-M315F | why it is a rule, not a constant |
 |---|---|---|---|
-| intra_op threads | `(performanceCores / 2)` clamped to `[1,2]` | 4 perf → **2** | small int8 GEMMs are latency-bound and saturate parallelism fast; half the big cluster hits the Phase-7 optimum, and no device has ever measured more than 2 as better (see below) |
-| inter_op | sequential | — | one latency-bound stream, not a throughput fan-out |
+| intra_op threads | `(performanceCores / 2)` clamped to `[1,2]` | 4 perf → **2** | small int8 GEMMs are latency-bound and saturate parallelism fast; half the big cluster hits the Phase-7 optimum, and no device has ever measured more than 2 as better. **Both halves are now MEASURED**: the claim on the M31 (§3.37) and the clamp's own bound on the 8-core SM-S948B, the only part that derives 4 — where 4 threads is +7.4% long / +19.2% short (§3.38) |
+| inter_op | sequential | — | one latency-bound stream, not a throughput fan-out. PARALLEL mode itself is free; the *second* inter-op thread costs +14.1% on the M31 and +4.2% on the S26U (§3.37–§3.38) |
 | CPU arena | off | off | Phase 7: the arena pool is pure overhead for this steady single-stream workload (−37% memory, no latency cost) — a workload property, not a device one |
 | int8 kernels | (not set) | NEON | ORT/MLAS dispatches SDOT/i8mm/SME on HWCAP at runtime; nothing to toggle from Java |
+| KleidiAI | **disabled when `caps.sme`** | on (no SME) | its NEON kernels are 4-bit `qsi4c32p` and inert for our 8-bit weights, so only SME parts reach its 8-bit `qsi8cxp` kernels — and there they measured **10–13% slower** than MLAS's own across three runs, at ~10% more CPU and ~35–45 MB more PSS (§3.39). Keyed off `caps.sme` so non-SME devices are byte-identical by construction |
 
 ### Why half the performance cluster
 
@@ -101,7 +102,7 @@ Most of the memory discipline is architectural, established in earlier phases an
 - **Session reuse** — `BhashaBridgeApp` owns one `MtEngine` per direction at process scope (R4.4/R4.5);
   the three sessions load once and serve every translation. No per-call session creation.
 - **Lazy allocation** — engines are built lazily via `translator(direction)` on first use, and released
-  on `onTrimMemory(COMPLETE)`.
+  on `onTrimMemory(BACKGROUND)` (was `COMPLETE`, which API 34+ no longer delivers — see R4.6).
 - **Persistent tensors** — within a translation, `encoder_hidden_states` and the attention mask are
   created once and reused across every decode step; the KV-cache `present` tensors persist step-to-step
   (each run's result is fed as the next `past`, closed only when superseded).

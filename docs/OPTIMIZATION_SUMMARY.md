@@ -1792,6 +1792,60 @@ does something outside SME and the policy must key off `caps.sme` instead. Only 
 
 ---
 
+### 3.40 SHIPPED — `ExecutionPolicy` disables KleidiAI on SME parts
+
+**Problem.** §3.39 settled that KleidiAI's SME kernels are 10–13% *slower* than MLAS's own at the
+shipping thread count on the SM-S948B, at ~10% more CPU and ~35–45 MB more PSS. `disableKleidiAi` was
+a benchmark-only knob, so every SME device shipped the slower path.
+
+**Implementation.** One line in `ExecutionPolicy.select`: `disableKleidiAi = caps.sme`, plus the
+policy `name` gaining a `,noKleidiAI` marker and the debug log line printing `kleidiAI=on|OFF`.
+Nothing else in the policy moves.
+
+**The predicate is `caps.sme`, not `true`, and that is the whole design.** Entry #9's kernel names
+argue KleidiAI is inert off SME silicon — its NEON `dotprod`/`i8mm` kernels are `qsi4c32p`, 4-bit,
+useless for 8-bit weights — and the SM-M315F measured that directly: KleidiAI on/off there differed
+by **2.1% against that run's own 4.0% control spread**, i.e. not attributable, with `intra4` pointing
+the other way. But the M31 has *neither* dotprod nor i8mm, so it cannot speak for parts that have
+i8mm without SME (the S22 Ultra, the Dimensity entries). Keying off `caps.sme` makes every non-SME
+device byte-identical **by construction** rather than by an argument, and costs one branch.
+
+**Verification.** `ExecutionPolicyTest.kleidiAiIsDisabledOnlyOnSmeParts` pins both directions and
+asserts threads/affinity/arena do not move with the flag — the same guard style that kept the thread
+clamp from drifting. Full JVM suite green; `:app` and `:benchapp` both assemble (the mirror compiles
+`ExecutionPolicy` too).
+
+On the SM-S948B after the change, cold: policy derives
+`arm-adaptive(threads=2,noKleidiAI) intra=2 arena=false affinity=OFF kleidiAI=OFF`,
+`MtEngineInstrumentedTest` **3/3 parity-exact**, `BenchmarkSuiteTest` 1/1.
+
+| | entry #9 (2026-07-31, `intra=4`) | now (`intra=2`, KleidiAI off) |
+|---|---|---|
+| inference median | 99 ms | **78 ms** |
+| p95 | 113 ms | **85 ms** |
+| first translation | 110 ms | 86 ms |
+| tokens/sec | 412.8 | **565.4** |
+
+**That −21% is compound and must not be attributed to this change.** Between those two measurements
+sit the intra-op clamp (worth ~6% on this part on the current build), this KleidiAI change (~12.7%),
+and roughly forty commits of other work. The isolated price of KleidiAI is the A/B in §3.39, not this
+table.
+
+**Evidence grade:** MEASURED on one SME device (three A/B runs plus this post-change confirmation);
+the non-SME half is MEASURED on the M31 as a null result and guaranteed structurally by the
+predicate.
+
+**Decision.** **SHIP.** Non-SME devices: no behavioural change. SME devices: −12.7% latency, ~10%
+less CPU, ~35–45 MB less PSS.
+
+**Next.** Two things this rests on that a second SME device would firm up: that the regression is a
+property of SME silicon generally rather than of this part, and that §3.20's opposite result was a
+measurement artefact rather than a build difference. If a bisect against §3.30 ever explains the
+latter, the predicate may want to be narrower — or the underlying cause fixed instead, at which point
+this line should be re-tested rather than assumed.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |

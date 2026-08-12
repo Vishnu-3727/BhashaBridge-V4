@@ -43,14 +43,34 @@ object ExecutionPolicy {
      *   same int8 graphs use plain NEON on an Armv8.0 core and SDOT/i8mm/SME on capable cores with no
      *   config here. The policy therefore does not (and cannot, from Java SessionOptions) toggle ISA
      *   kernels; [caps] informs threads, logging, and future execution-provider selection.
+     * - **KleidiAI is disabled on SME parts, which is the one place it is reachable.** Its NEON
+     *   `dotprod`/`i8mm` kernels are `qsi4c32p` — 4-bit, and therefore inert for this project's 8-bit
+     *   weights — so only its 8-bit `qsi8cxp` SME kernels ever run. Measured on the SM-S948B, three
+     *   runs at three temperatures with in-run duplicate controls: those kernels are **10–13% slower**
+     *   than MLAS's own at the shipping thread count, and also cost ~10% more CPU and ~35–45 MB of
+     *   PSS. On the SM-M315F (no dotprod, no i8mm, no SME) the same A/B is indistinguishable — the
+     *   2.1% "effect" was smaller than that run's own 4.0% control spread. See OPTIMIZATION_SUMMARY
+     *   §3.38–§3.39.
+     *
+     *   The predicate is `caps.sme` rather than an unconditional `true` deliberately: every non-SME
+     *   device then keeps byte-identical behaviour by construction, instead of relying on the M31
+     *   result generalising to parts that have i8mm but no SME, which no run has measured.
+     *
+     *   This **reverses §3.20's direction**, which priced KleidiAI at 4–9% the other way from two runs
+     *   it described as thermally degraded. SME still executes — `simpleperf` finds
+     *   `kai_..._sme_mopa` hottest — this says those kernels are slower, not absent.
      */
     fun select(caps: CpuCapabilities): OrtTuning {
         val threads = (caps.performanceCores / 2).coerceIn(1, 2)
         val affinity = affinityString(caps, threads)
         return OrtTuning(
-            name = "arm-adaptive(threads=$threads${if (affinity != null) ",affinity" else ""})",
+            name = "arm-adaptive(threads=$threads${if (affinity != null) ",affinity" else ""}" +
+                "${if (caps.sme) ",noKleidiAI" else ""})",
             intraThreads = threads,
             cpuArena = false,
+            // Only SME silicon reaches KleidiAI's 8-bit kernels, and there they are a measured
+            // regression (§3.39). Off SME parts this is false and nothing changes.
+            disableKleidiAi = caps.sme,
             // Phase 2A: the production path bakes a fully-optimized graph once per install and loads
             // it NO_OPT thereafter, so graph optimization is off every startup after the first.
             optCache = true,
@@ -92,7 +112,8 @@ object ExecutionPolicy {
     val current: OrtTuning by lazy {
         select(capabilities).also {
             logDebug(LogTag.APP) {
-                "ORT policy ${it.name} intra=${it.intraThreads} arena=${it.cpuArena} affinity=${it.intraOpAffinities ?: "OFF"}"
+                "ORT policy ${it.name} intra=${it.intraThreads} arena=${it.cpuArena} " +
+                    "affinity=${it.intraOpAffinities ?: "OFF"} kleidiAI=${if (it.disableKleidiAi) "OFF" else "on"}"
             }
         }
     }
