@@ -118,7 +118,7 @@ class SustainedEnergyTest {
                         if (on.isNotEmpty()) freqs += (on.average() / 1000.0).toLong()
                     }
                     // Any return to power invalidates the arm: charging current swamps the signal.
-                    if (s.batteryPlugged != null && s.batteryPlugged != "none") replugged = true
+                    if (!isUnplugged(s.batteryPlugged)) replugged = true
                     Log.i(
                         TAG,
                         "SAMPLE $mode t=${(System.currentTimeMillis() - startMs) / 1000}s " +
@@ -138,7 +138,7 @@ class SustainedEnergyTest {
             val cc1 = end.chargeCounterUah
             val vAvg = if (volts.isEmpty()) 0.0 else volts.average() / 1000.0
 
-            if (replugged || end.batteryPlugged != null && end.batteryPlugged != "none") {
+            if (replugged || !isUnplugged(end.batteryPlugged)) {
                 Log.w(TAG, "RESULT INVALID_REPLUGGED $mode — power returned during the run; no energy number")
             } else if (cc0 == null || cc1 == null) {
                 Log.w(TAG, "RESULT INVALID_NO_COUNTER $mode — BatteryManager gave no charge counter")
@@ -190,9 +190,15 @@ class SustainedEnergyTest {
         repeat(18) { i ->
             val s = SystemStats.capture(context, "plugcheck")
             val plugged = s.batteryPlugged
-            if (plugged == null || plugged == "none") {
+            if (isUnplugged(plugged)) {
                 Log.i(TAG, "UNPLUGGED — measurement window opens (temp=${s.batteryTempC}C level=${s.batteryLevelPct}%)")
                 return true
+            }
+            if (plugged !in KNOWN_PLUGGED_STATES) {
+                // Fail loudly rather than spin for three minutes against a value we do not model —
+                // which is exactly how the first attempt at this run was lost.
+                Log.w(TAG, "UNKNOWN_PLUG_STATE '$plugged' — not one of $KNOWN_PLUGGED_STATES; refusing to guess")
+                return false
             }
             Log.i(TAG, "WAITING_FOR_UNPLUG ${i * 10}s plugged=$plugged — unplug the cable now")
             Thread.sleep(10_000)
@@ -200,11 +206,24 @@ class SustainedEnergyTest {
         return false
     }
 
+    /**
+     * The one place this test decides what "on battery" means.
+     *
+     * The string comes from `SystemStats.pluggedName`, where `BatteryManager.EXTRA_PLUGGED == 0` maps
+     * to **`"unplugged"`**. An earlier version of this file compared against `"none"` — a value that
+     * exists nowhere — so the gate never opened, every arm reported `INVALID_STILL_PLUGGED` while the
+     * cable was actually out, and a 30-minute measurement was lost. A null is *unknown*, not
+     * unplugged: refusing it is what keeps a failed read from being reported as an energy number.
+     */
+    private fun isUnplugged(plugged: String?): Boolean = plugged == "unplugged"
+
     private fun f(v: Double) = String.format(Locale.ROOT, "%.3f", v)
     private fun argOf(key: String): String? = InstrumentationRegistry.getArguments().getString(key)
     private fun intArg(key: String, default: Int): Int = argOf(key)?.toIntOrNull() ?: default
 
     private companion object {
         const val TAG = "BB_ENERGY"
+        /** Every value `SystemStats.pluggedName` can produce; anything else means the model is stale. */
+        val KNOWN_PLUGGED_STATES = setOf("unplugged", "ac", "usb", "wireless", "unknown")
     }
 }
