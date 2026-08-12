@@ -41,9 +41,9 @@ the export pipeline.
 
 And five deductions the previous revision did not have, because the work that created them had not
 happened yet. They are in the sections below: `mappedInitializers` shipping off with its justifying
-claim unproven, one shipping default resting on INFERRED evidence, the asset payload growing to
-909 MB, the release build being unshippable, and the audit's finding that four correctness defects
-had shipped.
+claim unproven, one shipping default resting on INFERRED evidence, an asset payload that reached
+909 MB before being cut to 619 MB, the release build being unshippable, and the audit's finding that
+four correctness defects had shipped.
 
 ---
 
@@ -108,8 +108,10 @@ reload nothing.
   translations. All fixed, but they were in shipped code and the truncation one had *survived a
   commit that claimed to fix truncation*.
 - **Model quality is not addressed.** No fine-tuning. See §5.
-- **Asset payload grew.** 638 MB in v3.4.1 → 909 MB, because the cache duplicates decoder weights
-  across `decoder_init` and `decoder_step`. The speed win has a real disk cost.
+- **The asset payload is still 619 MB**, though it is no longer a regression: 909 MB was an export
+  defect, not the cache's price — `decoder_step` shipped a second copy of weights already in
+  `decoder_init`, and one shared blob took the APK to 617 MB with output bit-identical (§3.30). The
+  remaining size is the model, and only a smaller model or a pruned vocabulary moves it.
 
 ---
 
@@ -142,8 +144,8 @@ what the previous version got wrong and why.
 
 ### Weaknesses
 
-- **909 MB of assets.** Not installable from Play without asset delivery; a judge must side-load, and
-  the download is large enough to be a real barrier.
+- **619 MB of assets**, after §3.30 removed 277 MB of duplicated weights. Still not installable from
+  Play without asset delivery; a judge must side-load, and the download is a real barrier.
 - **~5.1 s to first translation is better, not good.** It is behind a progress screen, and a memory
   trim makes the user pay a reload — measured at 3.5 s for a warm swap-back, not the ~10 s previously
   claimed (§3.24b).
@@ -185,7 +187,7 @@ device, and that is enforced by the permission set.
 
 ### Weaknesses
 
-- **Distribution is unsolved** at 909 MB, and it limits reach more than any technical factor in this
+- **Distribution is unsolved** at 619 MB, and it limits reach more than any technical factor in this
   project.
 - **No field validation.** No user testing with the populations described; the impact case is
   reasoned, not evidenced.
@@ -264,7 +266,7 @@ Scored separately because the mapping is not one-to-one.
 
 | Category | Standing | Headline |
 |---|---|---|
-| **Model size** | Strong | 1869 → 472 MB (3.96×); process memory −38%; swap peak −36.7%; 451 MB file-backed. **But** total assets grew 638 → 909 MB |
+| **Model size** | Strong | 1869 → 472 MB (3.96×); **APK 894 → 617 MB** (§3.30); process memory −38%; swap peak −36.7%; 451 MB file-backed |
 | **Model speed** | **Strongest** | 2.12× @12 tokens; tokens/s 9.5 → 21.6; TTFT 78.5 / 107.1 / 139.5 ms; engine ready 27.0 s → ~5.1 s |
 | **Model quality** | **Weak — partial** | **No fine-tuning.** What exists is output correctness: truncation **31% → 0%** measured, JSON escape decoding, quote round-trip. Quantization parity is a gate, not a gain |
 | **Inference server speed** | N/A | Mobile track. No server, no network |
@@ -291,13 +293,17 @@ higher.
    the project's biggest presentational weakness — that its best results are only legible in prose.
 3. **Measure WER against real voices** (+1–2, Impact). It is the number that decides whether anyone
    would use this, and it is currently unmeasured on both directions.
-4. **Solve distribution** — Play Asset Delivery or a first-run model download (+1–2, Impact). 909 MB
-   bounds reach more than any technical factor.
-5. **Close §3.21 with a measurement** (+1, Implementation). `ProductionThreadSweepTest` sets
-   `intraThreads` explicitly, so the claim under the clamp — "4 threads is never optimal" — can be
-   tested on an S22 Ultra even though that device does not derive 4 (§9 Q2b).
-6. **Q1: slice the last position inside the exported `decoder_init`** (+1–2, Implementation). The
-   graph returns logits for every prefix position and the runtime discards all but the last. This is
-   the largest remaining inference lever and the only one with real headroom.
+4. **Solve distribution** — Play Asset Delivery or a first-run model download (+1–2, Impact). 619 MB
+   bounds reach more than any technical factor, and §3.30 took the easy 277 MB already.
+5. ~~**Close §3.21 with a measurement**~~ — **DONE 2026-08-12 (§3.37).** The claim under the clamp
+   holds: on the SM-M315F production path the shipping arm is the fastest measured on both sentence
+   lengths, and 4 threads loses pinned (+8.2% / +26.9%) and unpinned (worst jitter in the sweep). The
+   numeric bound stays INFERRED — no obtainable device derives 4.
+6. ~~**Q1: slice the last position inside the exported `decoder_init`**~~ — **DONE and NOT SHIPPED
+   (§3.31).** It was carried here as "the largest remaining inference lever"; it is not one. Greedy
+   seeds a one-token prefix and every later token takes `decoder_step`, so `decoder_init` runs once
+   per translation at `dec_len = 1` — the case where the slice removes exactly zero work. Measured
+   49.6 ms against a 49.0 ms control. The graph exists and passes the 7/7 gate; it is held for beam
+   (Q6), the only workload that calls `decoder_init` with a long prefix.
 7. **Fine-tune, or measure quality properly** (+1–2). A BLEU/chrF run against a FLORES subset would
    at least give the model-quality category a number, even without fine-tuning.

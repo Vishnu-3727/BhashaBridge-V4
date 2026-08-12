@@ -244,10 +244,13 @@ private class CachedLogitsSource(
  * batched fan-out. Both branches read `shape[1]`/`shape[2]` only, so a batched tensor would be wrong
  * in either; the assumption belongs to the engine, not to this function.
  *
- * ponytail: the real lever is upstream. `decoder_init` computes and returns logits for every prefix
- * position and the runtime discards all but the last, so the copy is proportional to a prefix nothing
- * reads. Slicing the last position inside the exported graph would shrink the ORT-side allocation too,
- * not just this copy — a model_pipeline re-export, tracked as a finding rather than done here.
+ * ponytail: the "real lever upstream" this comment used to claim — slicing the last position inside
+ * the exported `decoder_init` so it stops returning a row per prefix position — was re-exported and
+ * measured, and it is worth nothing here (OPTIMIZATION_SUMMARY §3.31). Greedy seeds a one-token
+ * prefix and every later token takes `decoder_step`, so `decoder_init` runs once per translation at
+ * `dec_len = 1`: there is no discarded row to remove, and the `shape[1] == 1L` fast path below is
+ * what the greedy path actually takes. The sliced graph is held for beam (§9 Q6), which is the only
+ * caller that hands `decoder_init` a long prefix.
  */
 internal fun lastLogitsRow(tensor: OnnxTensor): FloatArray {
     val shape = tensor.info.shape               // [1, dec_len, vocab]
