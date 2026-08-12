@@ -22,7 +22,14 @@ class TokenizerTest {
     )
 
     private fun enHi(src: Map<String, Int> = srcDict) =
-        Tokenizer(src, tgtIdToPiece = emptyMap(), srcLangId = 4, tgtLangId = 15)
+        Tokenizer(src, tgtIdToPiece = emptyArray(), srcLangId = 4, tgtLangId = 15)
+
+    /** Builds the id-indexed target array these tests used to express as a map literal. */
+    private fun idToPiece(vararg pairs: Pair<Int, String>): Array<String?> {
+        val out = arrayOfNulls<String>((pairs.maxOf { it.first }) + 1)
+        pairs.forEach { (id, piece) -> out[id] = piece }
+        return out
+    }
 
     @Test
     fun `encode wraps subwords with lang ids and eos`() {
@@ -50,7 +57,7 @@ class TokenizerTest {
     fun `decode drops specials and lang tags and restores spaces`() {
         val tok = Tokenizer(
             srcPieceToId = emptyMap(),
-            tgtIdToPiece = mapOf(4 to "eng_Latn", 100 to "▁hello", 200 to "▁world", 2 to "</s>"),
+            tgtIdToPiece = idToPiece(4 to "eng_Latn", 100 to "▁hello", 200 to "▁world", 2 to "</s>"),
             srcLangId = 4, tgtLangId = 15,
         )
         assertEquals("hello world", tok.decode(longArrayOf(4, 100, 200, 2)))
@@ -109,6 +116,39 @@ class TokenizerTest {
     }
 
     /**
+     * Q4 (§3.48): the id-indexed target array must carry exactly what the map carried.
+     *
+     * The array starts at 128 K and **doubles** when an id lands past the end. That growth is the whole
+     * risk in the change: a vocabulary whose highest id exceeded the initial capacity would otherwise
+     * be silently truncated, and a dropped piece decodes to nothing — a wrong translation with no error
+     * attached. Both the small case and an id past the initial capacity are checked here.
+     */
+    @Test
+    fun `id-indexed target array matches the map it replaced`() {
+        val arr = Tokenizer.parseIdToPiece(StringReader("""{"a": 1, "b": 5, "▁c": 2}"""))
+        assertEquals("a", arr[1])
+        assertEquals("b", arr[5])
+        assertEquals("▁c", arr[2])
+        assertEquals(null, arr[3]) // gaps stay null
+
+        // Past the 128 K initial capacity: the doubling path, which nothing else exercises.
+        val big = Tokenizer.parseIdToPiece(StringReader("""{"x": 1, "far": 200000}"""))
+        assertEquals("far", big[200000])
+        assertEquals("x", big[1])
+    }
+
+    /** The same check against the real vocabulary: every entry of the map resolves in the array. */
+    @Test
+    fun `real target dictionary survives the map to array change entry for entry`() {
+        val tgt = File("src/main/assets/dict.TGT.json")
+        assumeTrue("dictionaries not staged locally — skipping", tgt.exists())
+
+        val map = tgt.reader(Charsets.UTF_8).use { Tokenizer.parseFlatIntDict(it) }
+        val arr = tgt.reader(Charsets.UTF_8).use { Tokenizer.parseIdToPiece(it) }
+        assertEquals("every id must resolve to the same piece", 0, map.count { (k, v) -> arr[v] != k })
+    }
+
+    /**
      * The parser reads 64 K characters at a time, so every entry it can be interrupted mid-way
      * through — a key, an escape pair, a number — has to survive the seam between two blocks. This
      * dictionary is far longer than one block and its entries do not align to it, so the seam lands
@@ -135,7 +175,7 @@ class TokenizerTest {
         assertTrue("hin_Deva present", src.containsKey("hin_Deva"))
 
         val (srcLang, tgtLang) = Tokenizer.langIds(Direction.EN_TO_HI, src)
-        val ids = Tokenizer(src, emptyMap(), srcLang, tgtLang).encode("hello world").toList()
+        val ids = Tokenizer(src, emptyArray(), srcLang, tgtLang).encode("hello world").toList()
         assertEquals("starts with source lang id", srcLang, ids.first())
         assertEquals("second is target lang id", tgtLang, ids[1])
         assertEquals("ends with </s>=2", 2L, ids.last())

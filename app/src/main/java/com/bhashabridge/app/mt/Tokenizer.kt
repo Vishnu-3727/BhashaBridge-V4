@@ -24,7 +24,15 @@ import java.io.Reader
  */
 class Tokenizer internal constructor(
     private val srcPieceToId: Map<String, Int>,
-    private val tgtIdToPiece: Map<Int, String>,
+    /**
+     * id → piece, as a **flat array indexed by token id**, not a map (Q4, §3.48).
+     *
+     * The ids are dense and small (0 … ~122,700), which is exactly what an array is for. The map this
+     * replaced was built by inverting the target vocabulary after parsing it — 122,672 `Pair`s, 122,672
+     * boxed `Integer`s and a second hash table, measured at **516 ms of every cold start** for a
+     * structure an array addresses in one instruction.
+     */
+    private val tgtIdToPiece: Array<String?>,
     private val srcLangId: Long,
     private val tgtLangId: Long,
 ) {
@@ -77,7 +85,7 @@ class Tokenizer internal constructor(
     fun decode(ids: LongArray): String =
         ids.asSequence()
             .filter { it !in SPECIAL }
-            .mapNotNull { tgtIdToPiece[it.toInt()] }
+            .mapNotNull { tgtIdToPiece.getOrNull(it.toInt()) }
             .filter { !LANG_TAG.matches(it) }
             .joinToString("")
             .replace(MARK, " ")
@@ -136,11 +144,13 @@ class Tokenizer internal constructor(
             // building the reverse index. Inline and debug-gated — release builds are unchanged.
             val src = openDict(context, srcDict).use { parseFlatIntDict(bufferedUtf8(it)) }
             Metrics.stage("tokenizer:src_dict")
-            val tgt = openDict(context, tgtDict).use { parseFlatIntDict(bufferedUtf8(it)) }
+            // Straight into the id-indexed array (Q4, §3.48). The target vocabulary is only ever read
+            // as id → piece, so the map-then-invert this replaced built two structures to end up with
+            // neither: the map was discarded and the inversion cost 516 ms on its own.
+            val tgt = openDict(context, tgtDict).use { parseIdToPiece(bufferedUtf8(it)) }
             Metrics.stage("tokenizer:tgt_dict")
             val (srcLang, tgtLang) = langIds(direction, src)
-            return Tokenizer(src, tgt.entries.associate { (k, v) -> v to k }, srcLang, tgtLang)
-                .also { Metrics.stage("tokenizer:reverse_index") }
+            return Tokenizer(src, tgt, srcLang, tgtLang)
         }
 
         // Language-tag ids come from IndicTrans2's tokenizer config; fallbacks apply only if the
@@ -165,16 +175,55 @@ class Tokenizer internal constructor(
          */
         internal fun parseFlatIntDict(reader: Reader): Map<String, Int> {
             val map = HashMap<String, Int>(1 shl 16)
+            parseEntries(reader) { piece, id -> map[piece] = id }
+            return map
+        }
+
+        /**
+         * The same parse, straight into an **array indexed by id** — the shape the target vocabulary
+         * is actually used in (Q4, §3.48).
+         *
+         * Building a `Map<String, Int>` and inverting it afterwards produced the same information via
+         * two hash tables, 122,672 `Pair`s and two rounds of `Integer` boxing, and threw the first
+         * table away. The ids are dense, so the array is both smaller and O(1) without hashing.
+         *
+         * The array grows by doubling rather than being sized from a constant: the vocabulary's
+         * highest id is a property of the export, and a hard-coded bound would silently truncate the
+         * tail of a larger one — dropped pieces decode as nothing, which is a wrong translation with
+         * no error attached. Negative ids cannot index an array and are skipped; the JSON shape does
+         * not produce them, and a corrupt file should not crash the tokenizer.
+         */
+        internal fun parseIdToPiece(reader: Reader): Array<String?> {
+            var out = arrayOfNulls<String>(1 shl 17)
+            parseEntries(reader) { piece, id ->
+                if (id >= 0) {
+                    if (id >= out.size) {
+                        var size = out.size
+                        while (size <= id) size = size shl 1
+                        out = out.copyOf(size)
+                    }
+                    out[id] = piece
+                }
+            }
+            return out
+        }
+
+        /**
+         * The character-level state machine, shared by [parseFlatIntDict] and [parseIdToPiece].
+         *
+         * `inline` so [emit] is compiled into the loop body: this runs once per vocabulary entry —
+         * 122,672 times for the target dictionary — and a megamorphic call there would cost more than
+         * the structure the callback exists to build.
+         */
+        private inline fun parseEntries(reader: Reader, crossinline emit: (String, Int) -> Unit) {
             val sb = StringBuilder()
             var inString = false
             var escape = false
             var key = ""
             var readingKey = true
-            fun commit() {
-                val id = sb.toString().trim().toIntOrNull()
-                if (key.isNotEmpty() && id != null) map[key] = id
-                key = ""; sb.clear(); readingKey = true
-            }
+            // The commit was a local function until Q4 made this `inline`, which Kotlin does not allow
+            // one inside. Both of its call sites — `,` and `}` — had identical bodies, so they are now
+            // one branch with the body written out once; nothing about the state machine changed.
             // Escape state lives out here, not inside the per-chunk loop: a `\"` pair or a `\uXXXX`
             // sequence can straddle the 64 K seam between two reads.
             var unicodeRemaining = 0
@@ -214,15 +263,17 @@ class Tokenizer internal constructor(
                         ch == '"' && !inString -> inString = true
                         ch == '"' && inString -> { inString = false; if (readingKey) { key = sb.toString(); sb.clear() } }
                         ch == ':' && !inString -> { readingKey = false; sb.clear() }
-                        ch == ',' && !inString -> commit()
-                        ch == '}' && !inString -> commit()
+                        (ch == ',' || ch == '}') && !inString -> {
+                            val id = sb.toString().trim().toIntOrNull()
+                            if (key.isNotEmpty() && id != null) emit(key, id)
+                            key = ""; sb.clear(); readingKey = true
+                        }
                         inString -> sb.append(ch)
                         ch.isDigit() || ch == '-' -> sb.append(ch)
                     }
                 }
                 read = reader.read(chunk)
             }
-            return map
         }
     }
 }

@@ -9,7 +9,7 @@
                   Rebuilt automatically on next launch.
 
   Excluding filesDir is also what keeps the Q21 bake safe. ORT warns that an ALL_OPT graph
-  "should only be used in the same environment the model was optimized in" -- it is baked
+  "should only be used in the same environment the model was optimized in". It is baked
   per install, on the device that will run it, and these rules stop a cloud restore or a
   device-to-device transfer from carrying one phone's optimized graphs onto another's CPU.
     - external  : benchmark JSON reports (files/bench) and ORT profiling traces
