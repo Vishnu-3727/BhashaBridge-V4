@@ -33,21 +33,6 @@ class TruncationCorpusTest {
 
     private val app get() = ApplicationProvider.getApplicationContext<BhashaBridgeApp>()
 
-    /**
-     * Wraps the shipping decoder and records what it produced.
-     *
-     * `MtEngine` takes its `Decoder` as a constructor parameter, so the count is the real one — same
-     * argmax, same repetition penalty, same n-gram blocking, same cap — with no production code
-     * added for the sake of a measurement and no decode logic reimplemented in a test.
-     */
-    private class CountingDecoder(private val inner: Decoder) : Decoder {
-        var lastGenerated = 0
-            private set
-
-        override fun decode(logits: LogitsSource, sourceLen: Int): LongArray =
-            inner.decode(logits, sourceLen).also { lastGenerated = it.size - 1 } // minus start token
-    }
-
     @Test
     fun capHitRateAcrossSentenceLengths() {
         val counter = CountingDecoder(GreedyDecoder())
@@ -140,4 +125,24 @@ class TruncationCorpusTest {
             """The sign says "no entry" here.""",
         )
     }
+}
+
+/**
+ * Wraps the shipping decoder and records what it produced.
+ *
+ * `MtEngine` takes its `Decoder` as a constructor parameter, so the count is the real one — same
+ * argmax, same repetition penalty, same n-gram blocking, same cap — with no production code added
+ * for the sake of a measurement and no decode logic reimplemented in a test.
+ *
+ * Top-level rather than nested because two tests now need it: [TruncationCorpusTest] measures how
+ * often the length cap is reached, and [ProductionThreadSweepTest] uses it to get a token count for
+ * tokens/sec. Counting by re-encoding the output instead would use the *source* vocabulary on target
+ * text, which misses every word and inflates the count — a trap this project has fallen into once.
+ */
+internal class CountingDecoder(private val inner: Decoder) : Decoder {
+    var lastGenerated = 0
+        private set
+
+    override fun decode(logits: LogitsSource, sourceLen: Int): LongArray =
+        inner.decode(logits, sourceLen).also { lastGenerated = it.size - 1 } // minus start token
 }
