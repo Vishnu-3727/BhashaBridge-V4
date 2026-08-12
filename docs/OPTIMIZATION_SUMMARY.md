@@ -2644,6 +2644,97 @@ and it should be measured against MLAS before it is believed — MLAS is not obv
 
 ---
 
+### 3.53 What the 617 MB is actually made of (Q23) — sized, with two levers nobody had listed
+
+**Problem.** The distribution footprint is 617.3 MiB (arm64 APK) and the standing options were a
+list — on-demand direction, Play Asset Delivery, more quantization, vocabulary pruning — with no
+measured size against any of them. A list without numbers cannot be ranked.
+
+**Composition, measured.**
+
+| component | size | share |
+|---|---|---|
+| `weights.bin` (EN→HI) | 263.6 MiB | 43% |
+| `hi_en_weights.bin` (HI→EN) | 219.5 MiB | 36% |
+| **Vosk speech models** (`model` 55 + `model-hi` 79) | **134 MiB** | **21%** |
+| six graphs + four dictionaries | 16.4 MiB | 3% |
+
+**The speech models are a fifth of the app and were absent from the options list.** They are also the
+easiest thing to move: `VoskModels` already stages them from assets into `filesDir` with a stamp, so
+the extraction machinery a download would need is the machinery that already runs.
+
+**Lever E — the `noCompress` rule looks obsolete, and it is worth 109 MB.** `androidResources` sets
+`noCompress += setOf("onnx", "bin", "pb")`, with a comment explaining that ORT mmaps model files and a
+compressed asset cannot be mmapped. That was true when ORT loaded from the APK. **It has not been true
+since Phase 2B**: `extractAsset` copies every asset into `filesDir` and ORT loads from *there*, so APK
+compression costs a one-time inflate during extraction and nothing afterwards.
+
+Exact DEFLATE of the two blobs, measured rather than estimated:
+
+| blob | stored | deflated | |
+|---|---|---|---|
+| `weights.bin` | 276.4 MB | 213.2 MB | 77.1% |
+| `hi_en_weights.bin` | 230.1 MB | 184.2 MB | 80.0% |
+| **total** | **506.5 MB** | **397.4 MB** | **−109.1 MB** |
+
+**It is not a one-line change, and the reason is a trap this project has already been bitten by
+twice.** `AssetManager.openFd` only works on *stored* entries. Two call sites depend on it:
+`OnnxModels.assetLength` (the cache stamp) and `sharedWeightsLength` (the storage pre-check, and part
+of the stamp). Compressing the blob makes `openFd` throw, `sharedWeightsLength` falls back to `0`, and
+`0` means "self-contained graphs, nothing to extract" — **the blob would never be extracted and every
+launch would fail.** This is the same shape as the Q4b stamp bug found the same day (§3.49), where a
+`runCatching` around `openFd` silently stamped every vocabulary `-1`. The fix is the same one: stamp on
+the package's `lastUpdateTime`, and get the blob's length from the stream or a build constant.
+
+**Lever Q16 — real, but the queue oversold it by 2×.** The tied embedding *is* stored twice per
+decoder, confirmed by reading the initializer table:
+
+| direction | tensor | shape | dtype | size |
+|---|---|---|---|---|
+| EN→HI | `decoder.embed_tokens.weight_quantized` | [122672, 512] | UINT8 | 62.8 MB |
+| EN→HI | `onnx::MatMul_6364_quantized` | [512, 122672] | INT8 | 62.8 MB |
+| HI→EN | the same pair | [32296, 512] / [512, 32296] | UINT8 / INT8 | 16.5 MB each |
+
+Same matrix, transposed, under two quantization schemes — asymmetric UINT8 for the `Gather`, symmetric
+INT8 for the output projection — which is exactly why §3.30's content addressing cannot collapse them,
+and the `decoder_step` copies *are* shared with `decoder_init`, so that dedup is working as designed.
+
+**The recoverable amount is 62.8 + 16.5 = 79.3 MB, not the ~158 MB the queue implies.** Both copies
+exist, but the matrix is still needed once; only the redundant *encoding* can go. The route is an
+export change — emit both uses from one quantization scheme and orientation so `dedup_weights.py`
+content-addresses them into one region — plus a runtime `Transpose` on the gathered row, which is
+~12 lookups of 512 bytes per translation and therefore free.
+
+**Ranking, by saving against risk.**
+
+| lever | saving | what it costs |
+|---|---|---|
+| **E. deflate the blobs in the APK** | **109.1 MB** | two `openFd` call sites; slower first-launch extraction. **No UX change** |
+| **Q16. one embedding encoding** | **79.3 MB** | export change + parity + a quality check. **No UX change** |
+| A. HI→EN on demand (weights + graphs + dicts + Hindi Vosk) | **306.6 MiB** | hosting, a download, and the offline-first install promise |
+| A-lite. speech models on demand | 134 MiB | same, but smaller and the staging already exists |
+| B. Play Asset Delivery | 0 by itself | enabler for A; needs AAB + Play distribution, which this project may not use |
+| C. int4 / MatMulNBits | up to ~240 MB | quality risk on a 200M distilled model, and **no quality harness exists to judge it** |
+| D. vocabulary pruning | ~90 MB (EN→HI) | changes the output space; hardest of all |
+
+**E and Q16 do not simply add**: Q16 removes 79.3 MB of blob that E would otherwise have compressed, so
+together they are ≈ **170 MB**, taking the APK to roughly **450 MB with no change to how the app is
+installed or used**. That is the whole no-UX-cost budget; everything beyond it requires a download.
+
+**Evidence grade:** MEASURED for every size (asset table, exact DEFLATE of both blobs, initializer
+shapes read from the graphs). **NOT MEASURED:** that E preserves behaviour, and any quality claim about
+C or D.
+
+**Decision.** **Nothing shipped — this is the sizing that lets the options be ranked.** E is the
+recommendation: the largest saving, no user-visible change, and its one hazard is already understood.
+
+**Next.** E first, and its acceptance test is not the APK size but a **cold launch on a wiped
+`filesDir`** — the failure mode is extraction, not compression. Then Q16, whose gate is a quality check
+rather than parity: re-quantizing the embedding to one scheme may move the output, so it needs a
+corpus comparison and not just `पानी ।`.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -2811,7 +2902,8 @@ Three consequences worth stating once:
 | ~~Q19~~ | ~~Bake the prepacked weights~~ | — | **CLOSED 2026-08-12 — NO GAIN (§3.45).** ORT refuses the flag in ORT format outright ("not supported. Ignoring the flag.") and the `ortpp` artifacts are byte-identical to `ort`. On optimized ONNX + external initializers, where it *is* supported, it writes +324 MB (+69%) to buy 70 ms — on a path already 7% slower than the shipping `.ort` mapped load. Also refutes Q17's 204 MB: each graph writes its own external file, so `ext` is 471 MB against `.ort`'s 473 MB | done |
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
 | ~~Q1~~ | ~~Slice the last position inside `decoder_init`~~ | — | **CLOSED — NO GAIN (§3.31).** Done, gate 7/7, and worth nothing: greedy seeds a one-token prefix, so `decoder_init` only ever runs at `dec_len = 1` and `decoder_init` measured 49.6 ms against a 49.0 ms control. The "largest remaining inference lever" was true of the graph and never exercised by the workload. Held for Q6 | done |
-| **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes — 62.8 MB each in EN→HI, so four copies across the decoder pair. Content-addressing cannot catch it (§3.30); it needs an export-side change so one copy serves both the gather and the projection | Re-export → `verify_cache.py` 7/7 → APK size → `MtBenchmarkTest` on the M31, since a runtime transpose would trade size for latency | Up to ~125 MB EN→HI, ~33 MB HI→EN |
+| **Q23** | **Let the APK compress the weight blobs** | `noCompress` excludes `bin`/`onnx` because "ORT mmaps model files" — untrue since Phase 2B, which extracts every asset to `filesDir` and loads from there. Measured DEFLATE: 506.5 → 397.4 MB, **−109.1 MB** (§3.53) | Drop `bin` from `noCompress`, then replace the two `openFd` call sites — `assetLength` and `sharedWeightsLength` — because **`openFd` throws on compressed assets** and the `0` fallback disables blob extraction entirely, bricking launch. Accept on a cold launch with a wiped `filesDir`, not on the APK size | **109.1 MB**, no UX change |
+| **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes. **Confirmed by reading the initializer table (§3.53)**, and the `decoder_step` copies are already shared with `decoder_init`, so §3.30 is working — this is the one case it cannot catch | Export both uses from one scheme and orientation so `dedup_weights.py` content-addresses them; runtime `Transpose` on the gathered row is ~12 lookups per translation. Gate is a **quality** check, not just parity, since re-quantizing may move the output | **79.3 MB** (62.8 EN→HI + 16.5 HI→EN) — **not** the ~158 MB previously recorded, which counted both copies of a matrix still needed once |
 | ~~Q21~~ | ~~Ship the optimized-ONNX + shared-blob artifact~~ | — | **CLOSED 2026-08-12 — KEEP (§3.47).** Shipped. Storage 473 → 280 MB (−193 MB), PSS 783 → 460 MB (−324 MB), inference unchanged (73.28 vs 73.26 tok/s), startup neutral. Upgrade path verified on a device holding the old `.ort` cache | done |
 | ~~Q20~~ | ~~Raw vs optimized ONNX vs ORT format~~ | — | **CLOSED 2026-08-12 — OPEN candidate (§3.46).** Graph optimization is worth ~20% of steady inference (773 vs 618 ms) and **the format is worth none of it** — all six optimized arms tie. Biggest file (`opt_ext_pp`, 797 MB) has the worst first inference (1000–1517 ms). `ort_path` is dominated on every axis. Winner on footprint is `opt_inline` → Q21 | done |
 | ~~Q17~~ | ~~Carry the §3.30 saving onto the device~~ | — | **CLOSED 2026-08-12 — done by Q21 (§3.47).** Its 204.3 MB was real and is now shipping as 280 MB against 473 MB, with parity, inference and the upgrade path measured — none of which Q17 had. The cross-platform worry never applied: the bake runs on the device that will run the graph, and `filesDir` is excluded from backup and device transfer | done |
