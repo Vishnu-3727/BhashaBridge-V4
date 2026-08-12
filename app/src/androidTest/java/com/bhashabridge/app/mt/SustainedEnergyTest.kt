@@ -60,6 +60,166 @@ class SustainedEnergyTest {
         "Could you please tell me how to get to the railway station from here?",
     )
 
+    /**
+     * How many tokens one pass through [corpus] generates — the denominator for energy per token.
+     *
+     * Runs **plugged in**, because it measures nothing electrical: greedy decoding is deterministic
+     * and parity-exact across every configuration this project has measured, so the token count for a
+     * given sentence is a fixed property of the model, not of the run that observed it. That makes it
+     * recoverable after the fact, which is how the first energy cycle's missing denominator gets
+     * filled without asking anyone to pull the cable again.
+     */
+    @Test
+    fun corpusTokens() {
+        val counter = CountingDecoder(GreedyDecoder())
+        val engine = MtEngine(context, Direction.EN_TO_HI, counter)
+        try {
+            repeat(2) { engine.translate(corpus.first()) }
+            var total = 0L
+            corpus.forEachIndexed { i, sentence ->
+                val out = engine.translate(sentence)
+                val t = counter.lastGenerated
+                total += t
+                Log.i(TAG, "CORPUS_TOKENS[$i] tokens=$t \"$sentence\" -> \"$out\"")
+            }
+            Log.i(TAG, "CORPUS_TOKENS_TOTAL perCycle=$total sentences=${corpus.size} " +
+                "meanPerTranslation=${f(total.toDouble() / corpus.size)}")
+        } finally {
+            engine.release()
+        }
+    }
+
+    /**
+     * The whole measurement in **one** invocation and **one** unplug window: idle → busy → idle.
+     *
+     * Three chained `am instrument` calls meant three independent gates, and that is exactly how the
+     * first real attempt was lost — arm one's gate opened during a previous step's unplug, the cable
+     * came back, and the remaining arms found it plugged. One window cannot desynchronise from the
+     * operator, the two idle arms bracket the busy one so baseline drift is visible, and the arithmetic
+     * that turns three drains into a per-translation figure happens here rather than by hand across
+     * three log blocks.
+     *
+     * The gate also requires the device to have been off charge for [SETTLE_CHECKS] consecutive
+     * checks, so a brief unplug left over from an earlier step cannot start the run.
+     */
+    @Test
+    fun cycle() {
+        val idleMin = intArg("idleMinutes", 8)
+        val busyMin = intArg("busyMinutes", 14)
+        val sampleMs = intArg("sampleMs", 15_000).toLong()
+
+        Log.i(TAG, "CYCLE_CONFIG idle=${idleMin}m busy=${busyMin}m idle=${idleMin}m corpus=${corpus.size}")
+        Log.i(TAG, "POLICY ${ExecutionPolicy.current.name} intra=${ExecutionPolicy.current.intraThreads} " +
+            "kleidiAI=${if (ExecutionPolicy.current.disableKleidiAi) "OFF" else "on"}")
+
+        val counter = CountingDecoder(GreedyDecoder())
+        val engine = MtEngine(context, Direction.EN_TO_HI, counter)
+        try {
+            repeat(3) { engine.translate(corpus.last()) }        // warm, outside every window
+
+            if (!awaitUnplugged()) {
+                Log.w(TAG, "RESULT INVALID_STILL_PLUGGED — no energy number; the device never came off USB")
+                return
+            }
+
+            val a = phase("idle1", idleMin, sampleMs, null, null)
+            val b = phase("busy", busyMin, sampleMs, engine, counter)
+            val c = phase("idle2", idleMin, sampleMs, null, null)
+
+            if (a == null || b == null || c == null) {
+                Log.w(TAG, "RESULT INVALID_REPLUGGED — power returned during the cycle; no energy number")
+                return
+            }
+
+            // Idle draw is measured on both sides of the workload and averaged, so a baseline that
+            // drifts with temperature is halved rather than picked from whichever end suits.
+            val idleRateUahPerS = (a.drainUah + c.drainUah).toDouble() / (a.seconds + c.seconds)
+            val busyRateUahPerS = b.drainUah / b.seconds
+            val attributableUah = (busyRateUahPerS - idleRateUahPerS) * b.seconds
+            val vAvg = (a.vAvg + b.vAvg + c.vAvg) / 3.0
+            val energyJ = (attributableUah / 1_000_000.0) * vAvg * 3600.0
+
+            Log.i(TAG, "IDLE_BRACKET first=${f(a.drainUah / a.seconds * 3600)}uAh/h last=${f(c.drainUah / c.seconds * 3600)}uAh/h " +
+                "drift=${f(if (a.drainUah > 0) c.drainUah / a.drainUah.toDouble() else 0.0)}")
+            Log.i(TAG, "CYCLE_RESULT busy_uAh=${b.drainUah} idle_rate_uAh_per_h=${f(idleRateUahPerS * 3600)} " +
+                "attributable_uAh=${f(attributableUah)} quanta=${f(attributableUah / QUANTUM_UAH)} vAvg=${f(vAvg)}V " +
+                "energy_J=${f(energyJ)}")
+            if (b.translations > 0) {
+                Log.i(TAG, "ENERGY_PER_TRANSLATION J=${f(energyJ / b.translations)} " +
+                    "translations=${b.translations} tokens=${b.tokens} " +
+                    "J_per_1k_tokens=${f(energyJ / b.tokens * 1000)} " +
+                    "quantisation_error_pct=${f(100.0 * QUANTUM_UAH / attributableUah)}")
+            }
+        } finally {
+            engine.release()
+        }
+    }
+
+    /** One measured phase. Returns null if power came back, which voids the whole cycle. */
+    private fun phase(
+        name: String,
+        minutes: Int,
+        sampleMs: Long,
+        engine: MtEngine?,
+        counter: CountingDecoder?,
+    ): Phase? {
+        val start = SystemStats.capture(context, "$name-start")
+        val startMs = System.currentTimeMillis()
+        val deadline = startMs + minutes * 60_000L
+        var nextSample = startMs + sampleMs
+        val volts = ArrayList<Int>().apply { start.voltageMv?.let { add(it) } }
+        val latencies = ArrayList<Long>()
+        var translations = 0L
+        var tokens = 0L
+        var i = 0
+
+        while (System.currentTimeMillis() < deadline) {
+            if (engine != null) {
+                val t0 = System.nanoTime()
+                engine.translate(corpus[i++ % corpus.size])
+                latencies += (System.nanoTime() - t0) / 1_000_000
+                translations++
+                tokens += (counter?.lastGenerated ?: 0).toLong()
+            } else {
+                Thread.sleep(200)
+            }
+            if (System.currentTimeMillis() >= nextSample) {
+                val s = SystemStats.capture(context, name)
+                s.voltageMv?.let { volts += it }
+                if (!isUnplugged(s.batteryPlugged)) {
+                    Log.w(TAG, "REPLUGGED during $name — cycle void")
+                    return null
+                }
+                Log.i(TAG, "SAMPLE $name t=${(System.currentTimeMillis() - startMs) / 1000}s cc=${s.chargeCounterUah} " +
+                    "v=${s.voltageMv} temp=${s.batteryTempC} level=${s.batteryLevelPct} translations=$translations")
+                nextSample += sampleMs
+            }
+        }
+
+        val end = SystemStats.capture(context, "$name-end")
+        end.voltageMv?.let { volts += it }
+        if (!isUnplugged(end.batteryPlugged)) return null
+        val cc0 = start.chargeCounterUah ?: return null
+        val cc1 = end.chargeCounterUah ?: return null
+        val seconds = (System.currentTimeMillis() - startMs) / 1000.0
+        val p = Phase(name, cc0 - cc1, seconds, volts.average() / 1000.0, translations, tokens)
+        // tokens on this line too: the first cycle's CYCLE_RESULT was voided by a replug and took the
+        // only record of the token count with it, leaving a per-translation figure that could not be
+        // converted to per-token. A phase should carry its own denominator.
+        Log.i(TAG, "PHASE $name drain_uAh=${p.drainUah} seconds=${f(seconds)} translations=$translations " +
+            "tokens=$tokens tempStart=${start.batteryTempC} tempEnd=${end.batteryTempC}")
+        if (latencies.isNotEmpty()) {
+            Log.i(TAG, "PHASE_LATENCY $name ${Stats.of(latencies).toJson()} " +
+                "throughput_tr_per_s=${f(translations / seconds)}")
+        }
+        return p
+    }
+
+    private class Phase(
+        val name: String, val drainUah: Long, val seconds: Double,
+        val vAvg: Double, val translations: Long, val tokens: Long,
+    )
+
     @Test
     fun sustained() {
         val minutes = intArg("minutes", 10)
@@ -187,13 +347,26 @@ class SustainedEnergyTest {
      * Returns false if it never happens — the caller then reports no energy rather than a wrong one.
      */
     private fun awaitUnplugged(): Boolean {
-        repeat(18) { i ->
+        var settled = 0
+        // Sized for a human, not a script: the operator may be several minutes away from the phone.
+        // A five-minute gate expired before the cable came out once, wasting a launch.
+        repeat(intArg("waitMinutes", 30) * 6) { i ->
             val s = SystemStats.capture(context, "plugcheck")
             val plugged = s.batteryPlugged
             if (isUnplugged(plugged)) {
-                Log.i(TAG, "UNPLUGGED — measurement window opens (temp=${s.batteryTempC}C level=${s.batteryLevelPct}%)")
-                return true
+                // Require several consecutive off-charge checks. A brief unplug left over from an
+                // earlier step must not open the window — that is precisely how one run was lost.
+                settled++
+                if (settled >= SETTLE_CHECKS) {
+                    Log.i(TAG, "UNPLUGGED and settled — measurement window opens " +
+                        "(temp=${s.batteryTempC}C level=${s.batteryLevelPct}%)")
+                    return true
+                }
+                Log.i(TAG, "UNPLUGGED ${settled}/$SETTLE_CHECKS — hold, confirming it is deliberate")
+                Thread.sleep(10_000)
+                return@repeat
             }
+            settled = 0
             if (plugged !in KNOWN_PLUGGED_STATES) {
                 // Fail loudly rather than spin for three minutes against a value we do not model —
                 // which is exactly how the first attempt at this run was lost.
@@ -225,5 +398,9 @@ class SustainedEnergyTest {
         const val TAG = "BB_ENERGY"
         /** Every value `SystemStats.pluggedName` can produce; anything else means the model is stale. */
         val KNOWN_PLUGGED_STATES = setOf("unplugged", "ac", "usb", "wireless", "unknown")
+        /** Consecutive off-charge checks, 10 s apart, before the window opens. */
+        const val SETTLE_CHECKS = 3
+        /** Measured on the SM-M315F: the charge counter moves in steps of this size. */
+        const val QUANTUM_UAH = 5361.0
     }
 }

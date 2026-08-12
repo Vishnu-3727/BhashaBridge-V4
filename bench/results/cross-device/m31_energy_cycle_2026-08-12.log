@@ -1,0 +1,130 @@
+--------- beginning of main
+08-12 14:03:24.191 20126 20144 I BB_ENERGY: CYCLE_CONFIG idle=8m busy=14m idle=8m corpus=8
+08-12 14:03:24.245 20126 20144 I BB_ENERGY: POLICY arm-adaptive(threads=2,affinity) intra=2 kleidiAI=on
+08-12 14:03:31.926 20126 20144 I BB_ENERGY: WAITING_FOR_UNPLUG 0s plugged=usb — unplug the cable now
+08-12 14:03:42.036 20126 20144 I BB_ENERGY: WAITING_FOR_UNPLUG 10s plugged=usb — unplug the cable now
+08-12 14:03:52.145 20126 20144 I BB_ENERGY: WAITING_FOR_UNPLUG 20s plugged=usb — unplug the cable now
+08-12 14:04:02.257 20126 20144 I BB_ENERGY: UNPLUGGED 1/3 — hold, confirming it is deliberate
+08-12 14:04:12.370 20126 20144 I BB_ENERGY: UNPLUGGED 2/3 — hold, confirming it is deliberate
+08-12 14:04:22.479 20126 20144 I BB_ENERGY: UNPLUGGED and settled — measurement window opens (temp=30.1C level=85%)
+08-12 14:04:37.793 20126 20144 I BB_ENERGY: SAMPLE idle1 t=15s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:04:52.798 20126 20144 I BB_ENERGY: SAMPLE idle1 t=30s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:05:07.805 20126 20144 I BB_ENERGY: SAMPLE idle1 t=45s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:05:22.807 20126 20144 I BB_ENERGY: SAMPLE idle1 t=60s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:05:37.811 20126 20144 I BB_ENERGY: SAMPLE idle1 t=75s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:05:52.818 20126 20144 I BB_ENERGY: SAMPLE idle1 t=90s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:06:07.827 20126 20144 I BB_ENERGY: SAMPLE idle1 t=105s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:06:22.843 20126 20144 I BB_ENERGY: SAMPLE idle1 t=120s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:06:37.844 20126 20144 I BB_ENERGY: SAMPLE idle1 t=135s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:06:52.852 20126 20144 I BB_ENERGY: SAMPLE idle1 t=150s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:07:07.848 20126 20144 I BB_ENERGY: SAMPLE idle1 t=165s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:07:22.841 20126 20144 I BB_ENERGY: SAMPLE idle1 t=180s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:07:37.860 20126 20144 I BB_ENERGY: SAMPLE idle1 t=195s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:07:52.874 20126 20144 I BB_ENERGY: SAMPLE idle1 t=210s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:08:07.886 20126 20144 I BB_ENERGY: SAMPLE idle1 t=225s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:08:22.882 20126 20144 I BB_ENERGY: SAMPLE idle1 t=240s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:08:37.861 20126 20144 I BB_ENERGY: SAMPLE idle1 t=255s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:08:52.868 20126 20144 I BB_ENERGY: SAMPLE idle1 t=270s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:09:07.867 20126 20144 I BB_ENERGY: SAMPLE idle1 t=285s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:09:22.870 20126 20144 I BB_ENERGY: SAMPLE idle1 t=300s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:09:37.873 20126 20144 I BB_ENERGY: SAMPLE idle1 t=315s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:09:52.856 20126 20144 I BB_ENERGY: SAMPLE idle1 t=330s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:10:07.868 20126 20144 I BB_ENERGY: SAMPLE idle1 t=345s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:10:22.872 20126 20144 I BB_ENERGY: SAMPLE idle1 t=360s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:10:37.853 20126 20144 I BB_ENERGY: SAMPLE idle1 t=375s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:10:52.860 20126 20144 I BB_ENERGY: SAMPLE idle1 t=390s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:11:07.852 20126 20144 I BB_ENERGY: SAMPLE idle1 t=405s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:11:22.856 20126 20144 I BB_ENERGY: SAMPLE idle1 t=420s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:11:37.862 20126 20144 I BB_ENERGY: SAMPLE idle1 t=435s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:11:52.859 20126 20144 I BB_ENERGY: SAMPLE idle1 t=450s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:12:07.854 20126 20144 I BB_ENERGY: SAMPLE idle1 t=465s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:12:22.859 20126 20144 I BB_ENERGY: SAMPLE idle1 t=480s cc=4556850 v=4055 temp=30.1 level=85 translations=0
+08-12 14:12:22.966 20126 20144 I BB_ENERGY: PHASE idle1 drain_uAh=0 seconds=480.382 translations=0 tempStart=30.1 tempEnd=30.1
+08-12 14:12:38.608 20126 20144 I BB_ENERGY: SAMPLE busy t=15s cc=4556850 v=3950 temp=29.7 level=85 translations=39
+08-12 14:12:53.310 20126 20144 I BB_ENERGY: SAMPLE busy t=30s cc=4556850 v=3950 temp=29.7 level=85 translations=76
+08-12 14:13:08.389 20126 20144 I BB_ENERGY: SAMPLE busy t=45s cc=4556850 v=3950 temp=29.7 level=85 translations=112
+08-12 14:13:23.563 20126 20144 I BB_ENERGY: SAMPLE busy t=60s cc=4556850 v=3950 temp=29.7 level=85 translations=151
+08-12 14:13:38.455 20126 20144 I BB_ENERGY: SAMPLE busy t=75s cc=4556850 v=3950 temp=29.7 level=85 translations=189
+08-12 14:13:53.338 20126 20144 I BB_ENERGY: SAMPLE busy t=90s cc=4556850 v=3950 temp=29.7 level=85 translations=226
+08-12 14:14:08.970 20126 20144 I BB_ENERGY: SAMPLE busy t=105s cc=4556850 v=3950 temp=29.7 level=85 translations=264
+08-12 14:14:23.455 20126 20144 I BB_ENERGY: SAMPLE busy t=120s cc=4556850 v=3950 temp=29.7 level=85 translations=302
+08-12 14:14:38.226 20126 20144 I BB_ENERGY: SAMPLE busy t=135s cc=4556850 v=3943 temp=29.7 level=84 translations=339
+08-12 14:14:53.576 20126 20144 I BB_ENERGY: SAMPLE busy t=150s cc=4556850 v=3943 temp=29.7 level=84 translations=376
+08-12 14:15:08.713 20126 20144 I BB_ENERGY: SAMPLE busy t=165s cc=4551489 v=3943 temp=29.7 level=84 translations=415
+08-12 14:15:23.454 20126 20144 I BB_ENERGY: SAMPLE busy t=180s cc=4551489 v=3943 temp=29.7 level=84 translations=453
+08-12 14:15:38.206 20126 20144 I BB_ENERGY: SAMPLE busy t=195s cc=4540767 v=3943 temp=29.7 level=84 translations=489
+08-12 14:15:53.903 20126 20144 I BB_ENERGY: SAMPLE busy t=210s cc=4540767 v=3943 temp=29.7 level=84 translations=528
+08-12 14:16:08.332 20126 20144 I BB_ENERGY: SAMPLE busy t=225s cc=4535406 v=3943 temp=29.7 level=84 translations=566
+08-12 14:16:23.407 20126 20144 I BB_ENERGY: SAMPLE busy t=240s cc=4535406 v=3943 temp=29.7 level=84 translations=604
+08-12 14:16:38.480 20126 20144 I BB_ENERGY: SAMPLE busy t=255s cc=4530045 v=3943 temp=29.7 level=84 translations=640
+08-12 14:16:53.217 20126 20144 I BB_ENERGY: SAMPLE busy t=270s cc=4530045 v=3943 temp=29.7 level=84 translations=674
+08-12 14:17:08.522 20126 20144 I BB_ENERGY: SAMPLE busy t=285s cc=4524684 v=3873 temp=29.8 level=84 translations=700
+08-12 14:17:23.176 20126 20144 I BB_ENERGY: SAMPLE busy t=300s cc=4524684 v=3873 temp=29.8 level=84 translations=730
+08-12 14:17:38.226 20126 20144 I BB_ENERGY: SAMPLE busy t=315s cc=4519323 v=3873 temp=29.8 level=84 translations=765
+08-12 14:17:53.337 20126 20144 I BB_ENERGY: SAMPLE busy t=330s cc=4519323 v=3873 temp=29.8 level=84 translations=796
+08-12 14:18:08.986 20126 20144 I BB_ENERGY: SAMPLE busy t=345s cc=4508601 v=3873 temp=29.8 level=84 translations=832
+08-12 14:18:23.411 20126 20144 I BB_ENERGY: SAMPLE busy t=360s cc=4508601 v=3873 temp=29.8 level=84 translations=869
+08-12 14:18:38.360 20126 20144 I BB_ENERGY: SAMPLE busy t=375s cc=4503240 v=3884 temp=29.8 level=83 translations=903
+08-12 14:18:53.246 20126 20144 I BB_ENERGY: SAMPLE busy t=390s cc=4503240 v=3884 temp=29.8 level=83 translations=940
+08-12 14:19:08.316 20126 20144 I BB_ENERGY: SAMPLE busy t=405s cc=4497879 v=3884 temp=29.8 level=83 translations=977
+08-12 14:19:23.678 20126 20144 I BB_ENERGY: SAMPLE busy t=420s cc=4497879 v=3884 temp=29.8 level=83 translations=1016
+08-12 14:19:38.413 20126 20144 I BB_ENERGY: SAMPLE busy t=435s cc=4492518 v=3884 temp=29.8 level=83 translations=1055
+08-12 14:19:53.306 20126 20144 I BB_ENERGY: SAMPLE busy t=450s cc=4492518 v=3884 temp=29.8 level=83 translations=1094
+08-12 14:20:08.431 20126 20144 I BB_ENERGY: SAMPLE busy t=465s cc=4481796 v=3884 temp=29.8 level=83 translations=1133
+08-12 14:20:23.333 20126 20144 I BB_ENERGY: SAMPLE busy t=480s cc=4481796 v=3884 temp=29.8 level=83 translations=1171
+08-12 14:20:38.508 20126 20144 I BB_ENERGY: SAMPLE busy t=495s cc=4476435 v=3884 temp=29.8 level=83 translations=1208
+08-12 14:20:53.332 20126 20144 I BB_ENERGY: SAMPLE busy t=510s cc=4476435 v=3884 temp=29.8 level=83 translations=1247
+08-12 14:21:08.413 20126 20144 I BB_ENERGY: SAMPLE busy t=525s cc=4471074 v=3884 temp=29.8 level=83 translations=1286
+08-12 14:21:23.315 20126 20144 I BB_ENERGY: SAMPLE busy t=540s cc=4471074 v=3884 temp=29.8 level=83 translations=1324
+08-12 14:21:38.313 20126 20144 I BB_ENERGY: SAMPLE busy t=555s cc=4465713 v=3884 temp=29.8 level=83 translations=1362
+08-12 14:21:53.465 20126 20144 I BB_ENERGY: SAMPLE busy t=570s cc=4465713 v=3884 temp=29.8 level=83 translations=1400
+08-12 14:22:08.694 20126 20144 I BB_ENERGY: SAMPLE busy t=585s cc=4460352 v=3884 temp=29.8 level=83 translations=1439
+08-12 14:22:23.210 20126 20144 I BB_ENERGY: SAMPLE busy t=600s cc=4460352 v=3884 temp=29.8 level=83 translations=1477
+08-12 14:22:38.453 20126 20144 I BB_ENERGY: SAMPLE busy t=615s cc=4454991 v=3884 temp=29.8 level=83 translations=1516
+08-12 14:22:53.185 20126 20144 I BB_ENERGY: SAMPLE busy t=630s cc=4454991 v=3884 temp=29.8 level=83 translations=1553
+08-12 14:23:08.561 20126 20144 I BB_ENERGY: SAMPLE busy t=645s cc=4449630 v=3927 temp=30.0 level=82 translations=1592
+08-12 14:23:23.401 20126 20144 I BB_ENERGY: SAMPLE busy t=660s cc=4449630 v=3927 temp=30.0 level=82 translations=1631
+08-12 14:23:38.332 20126 20144 I BB_ENERGY: SAMPLE busy t=675s cc=4444269 v=3927 temp=30.0 level=82 translations=1670
+08-12 14:23:53.452 20126 20144 I BB_ENERGY: SAMPLE busy t=690s cc=4444269 v=3927 temp=30.0 level=82 translations=1709
+08-12 14:24:08.302 20126 20144 I BB_ENERGY: SAMPLE busy t=705s cc=4438908 v=3927 temp=30.0 level=82 translations=1747
+08-12 14:24:23.201 20126 20144 I BB_ENERGY: SAMPLE busy t=720s cc=4438908 v=3927 temp=30.0 level=82 translations=1784
+08-12 14:24:38.797 20126 20144 I BB_ENERGY: SAMPLE busy t=735s cc=4433547 v=3927 temp=30.0 level=82 translations=1824
+08-12 14:24:53.605 20126 20144 I BB_ENERGY: SAMPLE busy t=750s cc=4433547 v=3927 temp=30.0 level=82 translations=1863
+08-12 14:25:08.514 20126 20144 I BB_ENERGY: SAMPLE busy t=765s cc=4428186 v=3927 temp=30.0 level=82 translations=1902
+08-12 14:25:23.185 20126 20144 I BB_ENERGY: SAMPLE busy t=780s cc=4428186 v=3927 temp=30.0 level=82 translations=1940
+08-12 14:25:38.404 20126 20144 I BB_ENERGY: SAMPLE busy t=795s cc=4428186 v=3927 temp=30.0 level=82 translations=1979
+08-12 14:25:53.404 20126 20144 I BB_ENERGY: SAMPLE busy t=810s cc=4428186 v=3927 temp=30.0 level=82 translations=2016
+08-12 14:26:08.173 20126 20144 I BB_ENERGY: SAMPLE busy t=825s cc=4417464 v=3927 temp=30.0 level=82 translations=2055
+08-12 14:26:23.738 20126 20144 I BB_ENERGY: SAMPLE busy t=840s cc=4417464 v=3927 temp=30.0 level=82 translations=2095
+08-12 14:26:23.841 20126 20144 I BB_ENERGY: PHASE busy drain_uAh=139386 seconds=840.773 translations=2095 tempStart=30.1 tempEnd=30.0
+08-12 14:26:23.874 20126 20144 I BB_ENERGY: PHASE_LATENCY busy {"n":2095,"min":133.0,"max":1569.0,"mean":397.921,"median":374.0,"p95":774.0,"p99":829.0,"stdev":213.259} throughput_tr_per_s=2.492
+08-12 14:26:39.172 20126 20144 I BB_ENERGY: SAMPLE idle2 t=15s cc=4412103 v=3927 temp=30.0 level=82 translations=0
+08-12 14:26:54.165 20126 20144 I BB_ENERGY: SAMPLE idle2 t=30s cc=4412103 v=3927 temp=30.0 level=82 translations=0
+08-12 14:27:09.166 20126 20144 I BB_ENERGY: SAMPLE idle2 t=45s cc=4406742 v=3927 temp=30.0 level=82 translations=0
+08-12 14:27:24.158 20126 20144 I BB_ENERGY: SAMPLE idle2 t=60s cc=4406742 v=3927 temp=30.0 level=82 translations=0
+08-12 14:27:39.141 20126 20144 I BB_ENERGY: SAMPLE idle2 t=75s cc=4406742 v=3927 temp=30.0 level=82 translations=0
+08-12 14:27:54.346 20126 20144 I BB_ENERGY: SAMPLE idle2 t=90s cc=4406742 v=3927 temp=30.0 level=82 translations=0
+08-12 14:28:09.351 20126 20144 I BB_ENERGY: SAMPLE idle2 t=105s cc=4406742 v=3927 temp=30.0 level=82 translations=0
+08-12 14:28:24.346 20126 20144 I BB_ENERGY: SAMPLE idle2 t=120s cc=4406742 v=3927 temp=30.0 level=82 translations=0
+08-12 14:28:39.325 20126 20144 I BB_ENERGY: SAMPLE idle2 t=135s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:28:54.334 20126 20144 I BB_ENERGY: SAMPLE idle2 t=150s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:29:09.316 20126 20144 I BB_ENERGY: SAMPLE idle2 t=165s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:29:24.305 20126 20144 I BB_ENERGY: SAMPLE idle2 t=180s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:29:39.297 20126 20144 I BB_ENERGY: SAMPLE idle2 t=195s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:29:54.292 20126 20144 I BB_ENERGY: SAMPLE idle2 t=210s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:30:09.287 20126 20144 I BB_ENERGY: SAMPLE idle2 t=225s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:30:24.294 20126 20144 I BB_ENERGY: SAMPLE idle2 t=240s cc=4401381 v=3927 temp=30.0 level=82 translations=0
+08-12 14:30:39.302 20126 20144 I BB_ENERGY: SAMPLE idle2 t=255s cc=4396020 v=3978 temp=30.2 level=82 translations=0
+08-12 14:30:54.302 20126 20144 I BB_ENERGY: SAMPLE idle2 t=270s cc=4396020 v=3978 temp=30.2 level=82 translations=0
+08-12 14:31:09.365 20126 20144 W BB_ENERGY: REPLUGGED during idle2 — cycle void
+08-12 14:31:09.365 20126 20144 W BB_ENERGY: RESULT INVALID_REPLUGGED — power returned during the cycle; no energy number
+--------- beginning of main
+08-12 14:41:49.805  1057  1242 I BB_ENERGY: CORPUS_TOKENS[0] tokens=2 "Water." -> "पानी ।"
+08-12 14:41:49.983  1057  1242 I BB_ENERGY: CORPUS_TOKENS[1] tokens=2 "Thank you." -> "धन्यवाद ।"
+08-12 14:41:50.220  1057  1242 I BB_ENERGY: CORPUS_TOKENS[2] tokens=3 "Where is the hospital?" -> "अस्पताल कहाँ है"
+08-12 14:41:50.635  1057  1242 I BB_ENERGY: CORPUS_TOKENS[3] tokens=6 "Hello, how are you?" -> "हैलो , आप कैसे हैं ?"
+08-12 14:41:51.094  1057  1242 I BB_ENERGY: CORPUS_TOKENS[4] tokens=7 "I need a doctor immediately." -> "मुझे तुरंत डॉक्टर की ज़रूरत है ।"
+08-12 14:41:51.570  1057  1242 I BB_ENERGY: CORPUS_TOKENS[5] tokens=8 "Please call an ambulance right now." -> "कृपया अभी एक एम्बुलेंस को कॉल करें ।"
+08-12 14:41:52.281  1057  1242 I BB_ENERGY: CORPUS_TOKENS[6] tokens=12 "The weather is very nice today and I want to go outside." -> "आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+08-12 14:41:53.179  1057  1242 I BB_ENERGY: CORPUS_TOKENS[7] tokens=15 "Could you please tell me how to get to the railway station from here?" -> "क्या आप कृपया मुझे बता सकते हैं कि यहाँ से रेलवे स्टेशन कैसे पहुँचा जाए"
+08-12 14:41:53.179  1057  1242 I BB_ENERGY: CORPUS_TOKENS_TOTAL perCycle=55 sentences=8 meanPerTranslation=6.875

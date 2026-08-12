@@ -1973,6 +1973,82 @@ has been running against a broken load path, so any of its numbers taken since �
 
 ---
 
+### 3.43 Energy per translation on the SM-M315F — 0.9 J, and what the hardware would not give
+
+**Problem.** The project had good thermal evidence (90 consecutive translations, +0.5 °C, no
+throttling signature) and no energy result at all. "How much battery does a translation cost" was
+unanswerable.
+
+**What the hardware allows, established before measuring anything.** `/sys/class/power_supply/battery`
+is SELinux-blocked, so everything comes through `BatteryManager`. Its charge counter moves in steps of
+**5361 µAh on this device** (measured: 3704451 → 3709812 → 3715173 → 3720534), updating every ~20 s —
+about 21.8 mWh, or 78 J, per tick. **A single translation is a small fraction of one tick, so
+per-translation energy cannot be read directly at any sample rate.** The only honest instrument is a
+long sustained run whose drain clears the quantum many times, with the device's idle draw subtracted:
+`((drain_busy − drain_idle) × V̄) / translations`. Power rails would have been better —
+`dumpsys powerstats` returns nothing here and the `IPowerStats` HAL is not exposed.
+
+**Implementation.** `SustainedEnergyTest#cycle`: idle → busy → idle in **one** invocation and **one**
+unplug window, with the two idle arms bracketing the workload so baseline drift is visible rather than
+assumed. It refuses to produce a number while charging — charging current dwarfs the workload and
+drives the counter *upward*, so a reading taken on USB is not weak but wrong. Engine construction and
+warm-up happen outside every window. Screen state is fixed and identical across arms, so the display
+cancels in the subtraction instead of the CPU risking suspend with the screen off.
+
+**Benchmark.** SM-M315F, 8-sentence mixed-length corpus, EN→HI, `intra=2` + affinity:
+
+| phase | duration | charge drain | note |
+|---|---|---|---|
+| idle | 480.4 s | **0 µAh** — counter never moved from 4556850 | ⇒ idle draw is **< 40.2 mAh/h** |
+| busy | 840.8 s | **139,386 µAh** (4556850 → 4417464) | **2095 translations**, V̄ = 3.9135 V (56 samples) |
+
+The closing idle arm was cut short by an early replug and the cycle voided itself by its own rule —
+**but the missing baseline is bounded, not unknown**, which is what rescues the run: idle drew less
+than one quantum in 8 minutes, so its rate lies in [0, 11.16] µAh/s and brackets the answer tightly.
+
+- busy energy = 0.139386 Ah × 3.9135 V = **1963.9 J**
+- less the *maximum possible* idle draw over the same 840.8 s = **1831.5 J**
+
+Token count recovered separately (`corpusTokens`, run plugged in — greedy decoding is deterministic
+and parity-exact, so a sentence's token count is a property of the model, not of the run that saw it):
+**55 tokens per 8-sentence cycle**, so 2095 translations = 261 cycles + 7 sentences = **14,395 tokens**.
+
+| metric | value |
+|---|---|
+| **energy per translation** | **0.87 – 0.94 J** (≈0.91 J) |
+| **energy per 1000 generated tokens** | **127 – 136 J** (≈132 J) |
+| sustained power while translating | **≈2.34 W** (597 mAh/h at 3.91 V) |
+| quantisation error | ±3.8% (26 quanta measured) |
+| throughput | 2.49 translations/s, median 374 ms, p95 774 ms |
+| thermal | **29.7 → 30.0 °C across 2095 consecutive translations** |
+| battery level | 85% → 82% |
+
+**No throttling signature**: 0.3 °C over 14 minutes of unbroken inference, and the p95/median ratio of
+2.07 is the mixed-length corpus (2 to 15 tokens), not degradation. At 597 mAh/h this phone's 6000 mAh
+battery is roughly **10 hours of continuous, back-to-back translation** — a bound on the workload, not
+a usage prediction.
+
+**Evidence grade:** MEASURED, with the stated interval. The width comes from the hardware's 5361 µAh
+quantum, not from noise, and is reported rather than averaged away.
+
+**Three harness failures preceded any data, all mine, all worth recording** because each was a way of
+getting a confident wrong answer instead of no answer: the unplug gate compared against `"none"`, a
+string that exists nowhere, so it never opened while the log cheerfully printed
+`plugged=unplugged`; three chained invocations meant three independent gates, and the first opened
+during a previous step's unplug; and the gate's five-minute wait expired before a human could reach
+the cable. The workload was being measured carefully and the instrument around it not at all.
+
+**Decision.** No code change — this is a characterisation, and the first energy figure the project has.
+
+**Next.** The V3-vs-V4 half. v3.4's tree builds here (`JAVA_HOME` plus `-Dorg.gradle.java.home`
+override its hardcoded Linux path; `local.properties` needed repointing), and a twin harness
+`SustainedEnergyV3Test` is written against v3's own `Translator` with the identical corpus, arms and
+gate. **v3 caps decoding at `maxLength = 18` and this corpus's longest translation is 15 tokens, so
+v3 will not truncate on it** — the confound that would have flattered v3 does not apply here, which is
+why this corpus is the right one for the comparison.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |

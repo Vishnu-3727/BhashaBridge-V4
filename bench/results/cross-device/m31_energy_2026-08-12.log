@@ -1,0 +1,88 @@
+--------- beginning of main
+08-12 13:24:19.254 17588 17603 I BB_ENERGY: CONFIG mode=idle minutes=8 sampleMs=15000 corpus=8
+08-12 13:24:19.302 17588 17603 I BB_ENERGY: POLICY arm-adaptive(threads=2,affinity) intra=2 kleidiAI=on
+08-12 13:24:19.395 17588 17603 I BB_ENERGY: WAITING_FOR_UNPLUG 0s plugged=usb — unplug the cable now
+08-12 13:24:29.481 17588 17603 I BB_ENERGY: WAITING_FOR_UNPLUG 10s plugged=usb — unplug the cable now
+08-12 13:24:39.568 17588 17603 I BB_ENERGY: WAITING_FOR_UNPLUG 20s plugged=usb — unplug the cable now
+08-12 13:24:49.650 17588 17603 I BB_ENERGY: WAITING_FOR_UNPLUG 30s plugged=usb — unplug the cable now
+08-12 13:24:59.737 17588 17603 I BB_ENERGY: WAITING_FOR_UNPLUG 40s plugged=usb — unplug the cable now
+08-12 13:25:09.819 17588 17603 I BB_ENERGY: WAITING_FOR_UNPLUG 50s plugged=usb — unplug the cable now
+08-12 13:25:19.921 17588 17603 I BB_ENERGY: WAITING_FOR_UNPLUG 60s plugged=usb — unplug the cable now
+08-12 13:25:30.010 17588 17603 I BB_ENERGY: UNPLUGGED — measurement window opens (temp=31.5C level=74%)
+08-12 13:25:45.280 17588 17603 I BB_ENERGY: SAMPLE idle t=15s cc=4015389 v=4099 temp=31.5 level=74 plugged=unplugged translations=0 freqMHz=1027
+08-12 13:26:00.268 17588 17603 I BB_ENERGY: SAMPLE idle t=30s cc=4020750 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1495
+08-12 13:26:15.395 17588 17603 I BB_ENERGY: SAMPLE idle t=45s cc=4020750 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1560
+08-12 13:26:30.345 17588 17603 I BB_ENERGY: SAMPLE idle t=60s cc=4020750 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1183
+08-12 13:26:45.287 17588 17603 I BB_ENERGY: SAMPLE idle t=75s cc=4020750 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1456
+08-12 13:27:00.233 17588 17603 I BB_ENERGY: SAMPLE idle t=90s cc=4020750 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1456
+08-12 13:27:15.407 17588 17603 I BB_ENERGY: SAMPLE idle t=105s cc=4020750 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1196
+08-12 13:27:30.380 17588 17603 I BB_ENERGY: SAMPLE idle t=120s cc=4015389 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1274
+08-12 13:27:45.364 17588 17603 I BB_ENERGY: SAMPLE idle t=135s cc=4015389 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1040
+08-12 13:28:00.354 17588 17603 I BB_ENERGY: SAMPLE idle t=150s cc=4015389 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1027
+08-12 13:28:15.352 17588 17603 I BB_ENERGY: SAMPLE idle t=165s cc=4015389 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1261
+08-12 13:28:30.330 17588 17603 I BB_ENERGY: SAMPLE idle t=180s cc=4015389 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1098
+08-12 13:28:45.312 17588 17603 I BB_ENERGY: SAMPLE idle t=195s cc=4015389 v=3943 temp=31.1 level=74 plugged=unplugged translations=0 freqMHz=1150
+08-12 13:29:00.298 17588 17603 I BB_ENERGY: SAMPLE idle t=210s cc=4010028 v=4110 temp=31.9 level=74 plugged=usb translations=0 freqMHz=1027
+08-12 13:29:15.282 17588 17603 I BB_ENERGY: SAMPLE idle t=225s cc=4010028 v=4116 temp=32.0 level=74 plugged=usb translations=0 freqMHz=1066
+08-12 13:29:30.271 17588 17603 I BB_ENERGY: SAMPLE idle t=240s cc=4020750 v=4098 temp=31.9 level=75 plugged=usb translations=0 freqMHz=1079
+08-12 13:29:45.240 17588 17603 I BB_ENERGY: SAMPLE idle t=255s cc=4020750 v=4100 temp=31.8 level=75 plugged=usb translations=0 freqMHz=1157
+08-12 13:30:00.397 17588 17603 I BB_ENERGY: SAMPLE idle t=270s cc=4031472 v=4104 temp=31.9 level=75 plugged=usb translations=0 freqMHz=1235
+08-12 13:30:15.375 17588 17603 I BB_ENERGY: SAMPLE idle t=285s cc=4031472 v=4105 temp=31.9 level=75 plugged=usb translations=0 freqMHz=1443
+08-12 13:30:30.361 17588 17603 I BB_ENERGY: SAMPLE idle t=300s cc=4036833 v=4107 temp=31.9 level=75 plugged=usb translations=0 freqMHz=1183
+08-12 13:30:45.344 17588 17603 I BB_ENERGY: SAMPLE idle t=315s cc=4042194 v=4108 temp=31.9 level=75 plugged=usb translations=0 freqMHz=1105
+08-12 13:31:00.318 17588 17603 I BB_ENERGY: SAMPLE idle t=330s cc=4052916 v=4109 temp=31.9 level=75 plugged=usb translations=0 freqMHz=1079
+08-12 13:31:15.305 17588 17603 I BB_ENERGY: SAMPLE idle t=345s cc=4058277 v=4109 temp=32.0 level=75 plugged=usb translations=0 freqMHz=1183
+08-12 13:31:30.287 17588 17603 I BB_ENERGY: SAMPLE idle t=360s cc=4063638 v=4111 temp=32.0 level=75 plugged=usb translations=0 freqMHz=994
+08-12 13:31:45.269 17588 17603 I BB_ENERGY: SAMPLE idle t=375s cc=4063638 v=4112 temp=32.0 level=75 plugged=usb translations=0 freqMHz=1027
+08-12 13:32:00.234 17588 17603 I BB_ENERGY: SAMPLE idle t=390s cc=4074360 v=4112 temp=32.0 level=76 plugged=usb translations=0 freqMHz=1202
+08-12 13:32:15.417 17588 17603 I BB_ENERGY: SAMPLE idle t=405s cc=4074360 v=4114 temp=32.1 level=76 plugged=usb translations=0 freqMHz=1079
+08-12 13:32:30.395 17588 17603 I BB_ENERGY: SAMPLE idle t=420s cc=4079721 v=4116 temp=32.0 level=76 plugged=usb translations=0 freqMHz=1131
+08-12 13:32:45.368 17588 17603 I BB_ENERGY: SAMPLE idle t=435s cc=4085082 v=4116 temp=32.1 level=76 plugged=usb translations=0 freqMHz=1131
+08-12 13:33:00.349 17588 17603 I BB_ENERGY: SAMPLE idle t=450s cc=4090443 v=4116 temp=32.1 level=76 plugged=usb translations=0 freqMHz=1079
+08-12 13:33:15.329 17588 17603 I BB_ENERGY: SAMPLE idle t=465s cc=4095804 v=4116 temp=32.1 level=76 plugged=usb translations=0 freqMHz=1202
+08-12 13:33:30.310 17588 17603 I BB_ENERGY: SAMPLE idle t=480s cc=4101165 v=4119 temp=32.1 level=76 plugged=usb translations=0 freqMHz=1079
+08-12 13:33:30.395 17588 17603 W BB_ENERGY: RESULT INVALID_REPLUGGED idle — power returned during the run; no energy number
+08-12 13:33:30.396 17588 17603 I BB_ENERGY: THERMAL idle tempStart=31.5 tempEnd=32.1 tempPeak=32.1 freqMHz=[1027, 1495, 1560, 1183, 1456, 1456, 1196, 1274, 1040, 1027, 1261, 1098, 1150, 1027, 1066, 1079, 1157, 1235, 1443, 1183, 1105, 1079, 1183, 994, 1027, 1202, 1079, 1131, 1131, 1079, 1202, 1079]
+08-12 13:33:30.396 17588 17603 I BB_ENERGY: LEVEL idle start=74% end=76%
+08-12 13:33:32.980 18146 18161 I BB_ENERGY: CONFIG mode=busy minutes=14 sampleMs=15000 corpus=8
+08-12 13:33:33.028 18146 18161 I BB_ENERGY: POLICY arm-adaptive(threads=2,affinity) intra=2 kleidiAI=on
+08-12 13:33:41.437 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 0s plugged=usb — unplug the cable now
+08-12 13:33:51.551 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 10s plugged=usb — unplug the cable now
+08-12 13:34:01.663 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 20s plugged=usb — unplug the cable now
+08-12 13:34:11.779 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 30s plugged=usb — unplug the cable now
+08-12 13:34:21.895 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 40s plugged=usb — unplug the cable now
+08-12 13:34:32.003 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 50s plugged=usb — unplug the cable now
+08-12 13:34:42.111 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 60s plugged=usb — unplug the cable now
+08-12 13:34:52.224 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 70s plugged=usb — unplug the cable now
+08-12 13:35:02.341 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 80s plugged=usb — unplug the cable now
+08-12 13:35:12.456 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 90s plugged=usb — unplug the cable now
+08-12 13:35:22.565 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 100s plugged=usb — unplug the cable now
+08-12 13:35:32.673 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 110s plugged=usb — unplug the cable now
+08-12 13:35:42.778 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 120s plugged=usb — unplug the cable now
+08-12 13:35:52.887 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 130s plugged=usb — unplug the cable now
+08-12 13:36:02.999 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 140s plugged=usb — unplug the cable now
+08-12 13:36:13.110 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 150s plugged=usb — unplug the cable now
+08-12 13:36:23.210 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 160s plugged=usb — unplug the cable now
+08-12 13:36:33.317 18146 18161 I BB_ENERGY: WAITING_FOR_UNPLUG 170s plugged=usb — unplug the cable now
+08-12 13:36:43.318 18146 18161 W BB_ENERGY: RESULT INVALID_STILL_PLUGGED — no energy number; the device never came off USB
+08-12 13:36:45.992 18386 18401 I BB_ENERGY: CONFIG mode=idle minutes=8 sampleMs=15000 corpus=8
+08-12 13:36:46.047 18386 18401 I BB_ENERGY: POLICY arm-adaptive(threads=2,affinity) intra=2 kleidiAI=on
+08-12 13:36:46.139 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 0s plugged=usb — unplug the cable now
+08-12 13:36:56.227 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 10s plugged=usb — unplug the cable now
+08-12 13:37:06.311 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 20s plugged=usb — unplug the cable now
+08-12 13:37:16.397 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 30s plugged=usb — unplug the cable now
+08-12 13:37:26.487 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 40s plugged=usb — unplug the cable now
+08-12 13:37:36.574 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 50s plugged=usb — unplug the cable now
+08-12 13:37:46.659 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 60s plugged=usb — unplug the cable now
+08-12 13:37:56.749 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 70s plugged=usb — unplug the cable now
+08-12 13:38:06.837 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 80s plugged=usb — unplug the cable now
+08-12 13:38:16.926 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 90s plugged=usb — unplug the cable now
+08-12 13:38:27.016 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 100s plugged=usb — unplug the cable now
+08-12 13:38:37.100 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 110s plugged=usb — unplug the cable now
+08-12 13:38:47.181 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 120s plugged=usb — unplug the cable now
+08-12 13:38:57.266 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 130s plugged=usb — unplug the cable now
+08-12 13:39:07.348 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 140s plugged=usb — unplug the cable now
+08-12 13:39:17.429 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 150s plugged=usb — unplug the cable now
+08-12 13:39:27.508 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 160s plugged=usb — unplug the cable now
+08-12 13:39:37.589 18386 18401 I BB_ENERGY: WAITING_FOR_UNPLUG 170s plugged=usb — unplug the cable now
+08-12 13:39:47.589 18386 18401 W BB_ENERGY: RESULT INVALID_STILL_PLUGGED — no energy number; the device never came off USB
