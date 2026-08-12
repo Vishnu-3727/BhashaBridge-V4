@@ -2507,6 +2507,68 @@ practice. The corrected memory picture also makes §3.24b's two-engine worry sma
 
 ---
 
+### 3.51 100 EN↔HI switches (Q22) — PASS: no leak, no crash, flat build time
+
+**Problem.** §3.24b fixed the *peak* of a direction swap — engines are evicted before the replacement is
+built, worth −36.7% of swap peak — but over a handful of swaps. The failure that repetition exposes is
+different: a session, a mapping or an allocator arena not returned each cycle, accumulating until the
+low-memory killer arrives. **V3.4.1 shipped exactly that** (LESSONS_FROM_V3 L2: `release()` was correct
+code with zero call sites, and every rotation leaked ~639 MB), which is why the ownership rules exist.
+Nothing had ever stressed them.
+
+**Implementation.** `DirectionSwitchStressTest` alternates EN→HI / HI→EN 100 times through
+**`BhashaBridgeApp.translator(direction)`** — not `MtEngine(...)` directly — so every cycle exercises
+the real `evictOtherDirections` and borrow-lock machinery an Activity would, including the eviction
+ordering §3.24b installed. Each cycle builds, translates in that direction, and lets the next cycle's
+eviction release it. `-e cycles N` shortens it.
+
+The pass conditions are asserted rather than eyeballed: zero failures, and neither PSS nor native heap
+may drift more than 150 MB between the first and last decile. A blank or `<unk>`-only translation counts
+as a failure — an engine that "works" while producing garbage is the silent version of this bug.
+
+**Benchmark (SM-M315F, 33.5 → 33.6 °C across the run, 256 s).**
+
+| | first decile | last decile | drift |
+|---|---|---|---|
+| total PSS | 418.7 MB | 410.0 MB | **−8 MB** |
+| native heap allocated | 364.05 MB | 364.02 MB | **−0.03 MB** |
+
+| | value |
+|---|---|
+| cycles | **100** |
+| failures / crashes / ANRs | **0 / 0 / 0** |
+| peak PSS | 606.8 MB |
+| steady PSS, EN→HI / HI→EN | ~460 MB / ~360 MB |
+| mapped model bytes | **constant** — 138 MB EN→HI, 94 MB HI→EN, every cycle |
+| engine build | median **1822 ms**, min 1709, p95 2007, p99 2070, stdev 91 |
+| translate | median **627 ms**, p95 672, p99 723 |
+| process swap | flat at 24.2 MB after the first cycles |
+
+**What each number rules out.**
+
+- **Native heap drift of 30 KB over 100 builds and releases** is the direct answer to "is a session
+  leaking": one engine is ~364 MB of native allocation, so even a 1% per-cycle leak would have shown as
+  hundreds of MB. Sessions are being returned.
+- **Mapped model bytes are identical every cycle** (138 MB / 94 MB, never cumulative), so mappings are
+  unmapped on release too — address space is not accumulating behind the RSS.
+- **Build time is flat**: 1709–2127 ms across all 100, stdev 91 ms, with no upward trend. A leak that
+  the allocator was working around would show here before it showed in PSS.
+- **Peak 606.8 MB against a ~460 MB steady state** is one engine plus load transient — nowhere near the
+  ~1.19 GB two-engine peak §3.24b was written to prevent, and lower than that entry's numbers because
+  §3.47 took 324 MB off the baseline since.
+
+**Evidence grade:** MEASURED, one device, one run of 100.
+
+**Decision.** **PASS — no code change.** The ownership design holds under repetition; this is the
+regression test that was missing, not a fix.
+
+**Next.** The test asserts drift bounds, so it can run in CI-style before a release. The one thing it
+does **not** cover is switching *under* memory pressure — §3.50 showed the LMK kills this process rather
+than swapping it, so a swap that arrives while the device is already tight is a different experiment
+from either this one or §3.50 alone.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
