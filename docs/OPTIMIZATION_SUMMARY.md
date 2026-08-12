@@ -1730,6 +1730,68 @@ that is the difference between a device quirk and a build defect.
 
 ---
 
+### 3.39 Both of §3.38's open arms, counterbalanced — KleidiAI settles, `intra1` does not
+
+**Problem.** §3.38 left two questions open on the SM-S948B, and both were open for the same reason:
+the arm of interest was compared against a control that came from somewhere else — another suite,
+another run, or a duplicate that happened to exist. `intra1` was −6.3% against one control and −3.3%
+against another. KleidiAI reversed §3.20's sign but had no duplicate pair of its own.
+
+**Investigation.** Re-run both cold with the control **inside** the design: every configuration
+appears twice, so `_a` vs `_b` measures the run's repeatability and the arms of interest measure the
+effect. Two new suites, `sweepOneVsTwo` and a `sweepKleidiAi` extended with recheck arms at the
+shipping thread count. Test-only.
+
+**Benchmark — `intra1` vs `intra2`.** 30.4 → 31.8 °C, **drift 1.00**, cores at 2942 MHz throughout.
+The duplicate pairs landed on **identical medians** — `intra1` 83/83, `intra2` 87/87 — so the floor
+is ~0:
+
+| | long | short | stdev | CPU-ms/tx |
+|---|---|---|---|---|
+| `intra1` (a / b) | 83 / 83 | 22 / 22 | 2.18 / 3.64 | 59 / 57 |
+| `intra2` (a / b) | 87 / 87 | 23 / 24 | 1.33 / 3.00 | 141 / 143 |
+
+Real and reproducible: **−4.6% long at 41% of the CPU**, round medians never overlapping. And still
+**sub-threshold** — 4.6% on the long sentence misses the >5%-on-both bar by one number. **Not
+shipped**, and it must not become a rule regardless: the same arm is **+15.7% on the SM-M315F**
+(§3.37). One thread wins on eight wide Oryon cores and loses badly on four A73s, so this is a
+device-class effect with no predicate any current detector supplies. The durable part is the CPU
+column — 41% of the energy for 4.6% more latency is what a battery-saver mode on this silicon class
+would look like.
+
+**Benchmark — KleidiAI, third replicate.** 31.8 → 33.4 °C, drift 1.03, with recheck arms:
+
+| | long | short | CPU-ms/tx | PSS | round medians |
+|---|---|---|---|---|---|
+| on (arm / recheck) | 90 / 91 | 24 / 24 | 149 / 150 | 673 / 677 MB | 89·92·90, 89·91·93 |
+| off (arm / recheck) | **78 / 80** | **21 / 22** | 133 / 135 | 653 / 638 MB | 77·78·81, 78·81·81 |
+
+**Controls agree to 1.1% and 2.5%; the effect is 12.7% — five times the floor**, with no overlap in
+any round. Across all three runs at the shipping thread count: −10.1% (36.3 °C), −13.0% (33.2 °C),
+−12.7% (31.8 °C); at `intra4`, −5.5% / −3.1% / −5.2%.
+
+**It is not a latency-for-energy trade.** Disabling KleidiAI also costs ~10% less CPU (133–135 vs
+149–150 ms/tx) and ~35–45 MB less PSS. Better on all three axes simultaneously.
+
+**Evidence grade:** MEASURED. KleidiAI is settled **on this device and this build** — three runs,
+three temperatures, in-run controls, against §3.20's two runs that it called thermally degraded
+(stdev 12–25 ms, against 2.0–2.5 ms here). §3.20's magnitude is superseded and its **direction is
+withdrawn**; what survives from it is that SME executes, which `simpleperf` showed directly.
+
+**Decision.** **Nothing shipped yet, and one cheap test stands between here and shipping.** Entry #9
+established that KleidiAI's NEON `dotprod`/`i8mm` kernels are `qsi4c32p` — **4-bit**, inert for this
+project's 8-bit weights — and only its SME kernels are 8-bit `qsi8cxp`. If that holds,
+`disableKleidiAi = true` is a **no-op on every non-SME part** and a 12.7% win on SME silicon, which
+makes an unconditional setting as safe as one keyed off `caps.sme` and far simpler. **That no-op is an
+assumption until measured.**
+
+**Next.** Run `sweepKleidiAi` on the SM-M315F (Armv8.0: no dotprod, no i8mm, no SME). Indistinguishable
+arms there confirm the inert half and put the change on two devices; a difference there means the knob
+does something outside SME and the policy must key off `caps.sme` instead. Only then decide whether
+`ExecutionPolicy` sets it — and it is a shipping default, so it lands with its own entry, not this one.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |

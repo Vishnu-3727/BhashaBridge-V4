@@ -150,3 +150,82 @@ SME parts, or that entry #9 was wrong rather than measuring a build that behaved
   at the configuration this device actually runs. `disableKleidiAi` is currently a benchmark-only knob;
   making `ExecutionPolicy` set it on SME parts is a policy change and needs a second SME device, or at
   minimum a third cold run, before it ships.
+
+---
+
+## 5. Addendum — the two counterbalanced follow-ups
+
+Both questions §4 left open were re-run the same day on a cold device, using a design where the
+control is **inside** the run: every configuration appears twice, so `_a` against `_b` measures the
+run's own repeatability while the arms of interest measure the effect.
+
+### 5.1 `intra1` vs `intra2` — real, reproducible, and still below the shipping bar
+
+`sweepOneVsTwo`, 30.4 → 31.8 °C, **drift 1.00**, all cores pinned at 2942 MHz for the whole run:
+
+| arm | long | short | stdev long | p95 | CPU-ms/tx | round medians |
+|---|---|---|---|---|---|---|
+| `intra1_a` | 83 | 22 | 2.18 | 87 | 59 | 85 / 83 / 84 |
+| `intra1_b` | 83 | 22 | 3.64 | 92 | 57 | 83 / 83 / 85 |
+| `intra2_a` | 87 | 23 | 1.33 | 89 | 141 | 87 / 86 / 87 |
+| `intra2_b` | 87 | 24 | 3.00 | 92 | 143 | 87 / 88 / 87 |
+
+**The duplicate pairs land on identical medians** (83/83 and 87/87), so this run's floor is ~0 and the
+gap is not noise: `intra1` is **−4.6% long / −4.3 to −8.3% short at 41% of the CPU** (58 vs 142 ms/tx),
+and the two groups' round medians never overlap.
+
+It still **does not clear the >5%-on-both bar**, and one number decides that: 4.6% on the long
+sentence. Recorded as a **real but sub-threshold device-class effect, not shipped.**
+
+The reason it must not become a rule is in the other device's data: the same `intra1` arm is
+**+15.7% long / +13.5% short on the SM-M315F** (§3.37). One thread wins on 8 wide Oryon cores and
+loses badly on 4 A73s, so "use one thread" is not a policy — it would need a predicate no current
+detector supplies, on the evidence of one part. What is worth remembering is the **CPU** column: 41%
+of the energy for 4.6% more latency is the shape a battery-saver mode would want, on this class of
+silicon.
+
+### 5.2 KleidiAI — third replicate, with the control inside the run
+
+`sweepKleidiAi` re-run cold at 31.8 → 33.4 °C, drift 1.03, now carrying `SHIPPING_recheck` and
+`SHIPPING_noKleidiAI_recheck` — byte-identical duplicates of the two arms that matter:
+
+| arm | long | short | stdev | CPU-ms/tx | PSS | round medians |
+|---|---|---|---|---|---|---|
+| `SHIPPING` (on) | 90 | 24 | 2.00 | 149 | 673 MB | 89 / 92 / 90 |
+| `SHIPPING_recheck` (on) | 91 | 24 | 2.45 | 150 | 677 MB | 89 / 91 / 93 |
+| `SHIPPING_noKleidiAI` | **78** | **21** | 2.21 | 133 | 653 MB | 77 / 78 / 81 |
+| `..._noKleidiAI_recheck` | **80** | **22** | 2.36 | 135 | 638 MB | 78 / 81 / 81 |
+| `intra4` | 96 | 29 | 3.58 | 307 | 683 MB | 96 / 96 / 97 |
+| `intra4_noKleidiAI` | 91 | 27 | 3.07 | 292 | 630 MB | 89 / 91 / 93 |
+
+**The control pairs agree to 1.1% (on) and 2.5% (off); the effect is 12.7%** — five times the floor,
+with no overlap between the two groups in any round.
+
+Three independent runs, at three temperatures, at the thread count this device ships:
+
+| run | entry temp | KleidiAI on | off | Δ |
+|---|---|---|---|---|
+| 1 | 36.3 °C | 119 ms | 107 ms | −10.1% |
+| 2 | 33.2 °C | 92 ms | 80 ms | −13.0% |
+| 3 | 31.8 °C | 90.5 ms | 79 ms | **−12.7%** |
+
+At `intra4` the same direction, smaller: −5.5% / −3.1% / −5.2%.
+
+**It is not a latency-for-energy trade.** Disabling KleidiAI *also* uses ~10% less CPU (133–135 vs
+149–150 ms/tx) and ~35–45 MB less PSS. It is better on all three axes at once.
+
+**Status: on this device and this build, KleidiAI's SME kernels are a 12.7% regression at the shipping
+configuration**, measured three times with in-run controls. This now outweighs §3.20's opposite-signed
+4–9%, which came from two runs it called thermally degraded (stdev 12–25 ms against the 2.0–2.5 ms
+here). It remains **one device**.
+
+### 5.3 What would make this shippable
+
+Entry #9 established that KleidiAI's NEON `dotprod`/`i8mm` kernels are `qsi4c32p` — **4-bit**, and
+therefore inert for this project's 8-bit weights — while only its SME kernels (`qsi8cxp`) are 8-bit.
+If that holds, `disableKleidiAi = true` is a **no-op on every non-SME part** and a 12.7% win here,
+which would make an unconditional setting as safe as one keyed off `caps.sme`.
+
+**That "no-op" is an assumption until measured.** The cheap decisive test is `sweepKleidiAi` on the
+SM-M315F (Armv8.0, no dotprod, no i8mm, no SME): if the arms are indistinguishable there, the claim
+holds on both ends and the change rests on two devices instead of one.

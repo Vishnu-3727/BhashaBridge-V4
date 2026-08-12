@@ -110,6 +110,33 @@ class ProductionThreadSweepTest {
     }
 
     /**
+     * One intra-op thread against two, counterbalanced — the arm §3.38 could not settle.
+     *
+     * On the SM-S948B `intra1` came out −6.3% against `SHIPPING` but only −3.3% against `SHIPPING`'s
+     * own duplicate, with a worse stdev, i.e. at the repeatability floor. Six arms of ladder are the
+     * wrong instrument for a two-way question: each arm gets a third of the run and the floor has to
+     * be inferred from whichever duplicate pair happens to exist.
+     *
+     * Here both configurations are run **twice**, so `_a` against `_b` measures this run's own floor
+     * while `intra1` against `intra2` measures the effect. If the two `intra2` arms disagree by as
+     * much as `intra1` differs from them, there is no result — and that is a verdict, not a failure.
+     */
+    @Test
+    fun sweepOneVsTwo() {
+        val caps = CpuCapabilities.detect()
+        val base = ExecutionPolicy.current
+        sweep(
+            "ONEVSTWO",
+            listOf(
+                arm(caps, base, "intra1_a", threads = 1, affinity = false),
+                arm(caps, base, "intra2_a", threads = 2, affinity = true),
+                arm(caps, base, "intra1_b", threads = 1, affinity = false),
+                arm(caps, base, "intra2_b", threads = 2, affinity = true),
+            ),
+        )
+    }
+
+    /**
      * What KleidiAI's kernels are worth on silicon that has something for them to dispatch to.
      *
      * `mlas.disable_kleidiai` forces MLAS's own kernels, so the delta is what KleidiAI (and, on an
@@ -132,6 +159,11 @@ class ProductionThreadSweepTest {
                 "SHIPPING_noKleidiAI" to base.copy(name = "SHIPPING_noKleidiAI", disableKleidiAi = true),
                 arm(caps, base, "intra4", threads = 4, affinity = false),
                 arm(caps, base, "intra4_noKleidiAI", threads = 4, affinity = false, noKleidiAi = true),
+                // Counterbalance pair at the shipping thread count, where the effect is largest.
+                // Byte-identical to the first two arms, so their disagreement IS this run's
+                // repeatability floor — read it before reading the KleidiAI delta.
+                "SHIPPING_recheck" to base.copy(name = "SHIPPING_recheck"),
+                "SHIPPING_noKleidiAI_recheck" to base.copy(name = "SHIPPING_noKleidiAI_recheck", disableKleidiAi = true),
             ),
         )
         Log.i(TAG, "KLEIDI_CONTEXT shippingThreads=$shippingThreads i8mm=${caps.i8mm} sme=${caps.sme} sme2=${caps.sme2} dotprod=${caps.dotProduct}")
