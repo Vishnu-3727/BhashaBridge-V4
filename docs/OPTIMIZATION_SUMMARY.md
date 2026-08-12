@@ -600,8 +600,11 @@ and checks the affinity group count still tracks the thread count, so the bound 
 **Evidence grade:** **INFERRED** — the gain comes from entry #9's table, not from a run after this
 edit. No device was attached.
 
-**Decision.** KEEP. **Next:** re-run `ProductionThreadSweepTest` + `BenchmarkSuiteTest` on the S26U
-to convert this to MEASURED. Until then it is the ledger's one unconfirmed shipping default.
+**Decision.** KEEP. **Next:** ~~re-run `ProductionThreadSweepTest` + `BenchmarkSuiteTest` on the S26U
+to convert this to MEASURED~~ — the S26U is gone, so this was closed the other way. **§3.37 measured
+the claim underneath the clamp on the SM-M315F production path (2026-08-12): 4 threads loses in both
+its pinned and unpinned forms, and the shipping arm is the fastest measured.** The *bound* itself is
+still INFERRED, because no obtainable device has 8 performance cores and therefore none derives 4.
 
 ### 3.22 Per-token logits copy (`13007e3`) — OPEN, NOT MEASURED
 
@@ -1533,6 +1536,116 @@ another beam change — the decode width has now been swept and there is nothing
 
 ---
 
+### 3.37 The thread policy, measured on the production path at last (Q2b) — KEEP
+
+**Problem.** §3.21 tightened the intra-op clamp from `[1,4]` to `[1,2]` and recorded itself as
+**INFERRED**: the numbers came from the SM-S948B *before* the edit, and that device is gone. It has
+been the ledger's one unconfirmed shipping default ever since. Checking what it would take to confirm
+turned up worse than a missing run — the harness could not have answered the question:
+
+- **No arm in `ProductionThreadSweepTest` was the shipping configuration.** Every arm set
+  `intraOpAffinities = null` while production ships `intra=2` **with** one pinned worker. The sweep
+  compared six things, none of which was what users run.
+- **`intra=3` had never been measured on any device** — the arms were 1/2/4/6/8.
+- **Inter-op had never been measured on the production path at all.** `interThreads` is plumbed
+  (`OnnxModels.kt`), but ORT ignores it unless the execution mode is PARALLEL, so an arm that sets it
+  alone measures nothing. The only evidence was Phase 7's `parallel_inter2` REVERT, taken under
+  ALL_OPT with the cache off — and rule #2 of this document says such results do not transfer.
+- tokens/sec, CPU utilization and frequency were not collected, and battery temperature came from a
+  sysfs path that read `n/a` for the **entire** S26U run.
+
+**Investigation.** Two suites, both on the real load path (baked `.ort`, NO_OPT, mmap), n=30 per arm
+per sentence, three rounds with the config order rotated, parity asserted on output **and** generated
+token count. `SHIPPING` — `ExecutionPolicy.current` untouched — runs in both suites as the common
+control, so the two invocations can be checked against each other before being read together.
+
+Arms are now built by one function that regenerates the affinity string from
+`ExecutionPolicy.affinityString` and `require()`s ORT's `threads - 1` group count. That is not
+tidiness: `base` carries exactly one group, ORT rejects any other count at `createSession`, and
+inheriting it would have thrown for every arm with a different thread count ~2.4 s into a session
+load. The same function forces `parallel = true` whenever `interThreads` is set.
+
+**Implementation.** Test-only — `ProductionThreadSweepTest` plus the `CountingDecoder` promoted out of
+`TruncationCorpusTest` (`b5b8baa`), and one counter fix (`6929a59`). Nothing under `app/src/main`
+changed, so nothing shipped changed.
+
+Instrumentation is `SystemStats` snapshots bracketing the timed runs only: process CPU seconds →
+cores-busy and **CPU-ms per translation**, migrations and involuntary context switches, in-load
+per-core frequency, battery temperature via `BatteryManager`, and a PSS tripwire. No background
+sampler — these are exact kernel counters — and no system-wide CPU figure is reported, because
+`/proc/stat` is SELinux-blocked and *reads back empty rather than failing*, which would make it a
+plausible-looking zero.
+
+The first smoke run exposed exactly that failure mode in the metric it *did* have:
+`migrations=0 nonvolCtxt=0` on all six arms, because `SystemStats` reads `/proc/self/sched` and
+`/proc/self/status`, and both describe the **thread-group leader** — the app's idle main thread, which
+neither translates nor belongs to ORT's pool. Summed across `/proc/self/task/*/sched` instead (the
+field is `se.nr_migrations`, matched exactly so `nr_migrations_cold` does not fold in) it became the
+most informative column in the sweep.
+
+**Benchmark.** SM-M315F, `perf=4[4,5,6,7]`, charging, 34.3 → 33.8 °C — the device *cooled* during the
+ladder. Drift ratio 1.04 and 1.00; the control pair agrees to **2.6% long / 0.0% short**, so anything
+smaller than ~2.6% across suites is not a result. Full tables in
+`bench/results/cross-device/m31_exynos9611_thread_sweep.md`, raw log alongside it.
+
+| arm | long | Δ | short | Δ | stdev | p95 | CPU-ms/tx | migrations |
+|---|---|---|---|---|---|---|---|---|
+| **SHIPPING** intra2+pin | **623** | — | **163** | — | 21.3 | 677 | 968 | 170 |
+| `intra1` | 721 | +15.7% | 185 | +13.5% | 17.8 | 760 | **512** | 26 |
+| `intra2_noAff` | 641 | +2.9% | 165 | +1.2% | 47.3 | 711 | 987 | 343 |
+| `intra3_aff` | 628 | +0.8% | 182 | +11.7% | 30.0 | 663 | 1564 | 789 |
+| `intra4_aff` | 674 | +8.2% | 207 | +26.9% | 60.3 | 788 | 2193 | 1860 |
+| `intra4_noAff` | 643 | +3.2% | 195 | +19.6% | **88.8** | **896** | 2151 | 1262 |
+| `intra2_parallel_inter1` | 619 | −3.1%* | 160 | −1.8%* | 20.4 | 667 | 972 | 163 |
+| `intra2_parallel_inter2` | 729 | **+14.1%** | 224 | **+37.4%** | 42.2 | 871 | 1783 | 585 |
+| `intra6_noAff` | 751 | +17.5% | 264 | +62.0% | 79.1 | 899 | 3228 | 2825 |
+| `intra8_noAff` | 913 | **+42.9%** | 326 | **+100%** | 59.3 | 1033 | 4195 | 4624 |
+
+\* against the EXECMODE suite's own `SHIPPING` (639 ms / 163 ms), i.e. inside the noise floor.
+
+Four findings, in the order they settle things:
+
+1. **The shipping configuration is the fastest arm on both sentence lengths**, at the second-lowest
+   stdev in the set. Not a tie broken by rounding: the next-best short median is +1.2% and everything
+   else is +8% or worse.
+2. **4 threads loses in both forms.** Pinned — 4 threads at its best — is +8.2% / +26.9% with 2.8× the
+   stdev. Unpinned is nominally +3.2% on the long median but carries the **worst jitter in the sweep**
+   (stdev 88.8 ms, p95 896 ms against 677 ms): judged on median + jitter rather than the best single
+   run, it is the worst arm on the ladder. That is the claim under the clamp, on the production path.
+3. **3 threads is not a rung.** Best p95 in the suite and a long median inside the noise floor, but
+   **+61% CPU** and +11.7% on the short sentence — the shape most real input takes.
+4. **PARALLEL mode is free; the second inter-op thread is not.** The `inter1` control changes nothing
+   measurable and burns *identical* CPU (972.33 vs 972.33 ms/tx), so the cost is the second thread:
+   +14.1% / +37.4% and +83% CPU. **Phase 7's `parallel_inter2` REVERT now has production-path
+   numbers** — it transfers, which rule #2 did not let us assume.
+
+Two things fell out that were not the question. **Affinity is not neutral on this device after all:**
+single-variable, pinning halves migrations (170 vs 343), cuts involuntary switches 62%, and drops
+stdev 55% (21.3 vs 47.3 ms), at a median difference still inside the noise floor. The earlier "neutral
+on the SM-M315F" reading came from medians alone; affinity's claim was always about jitter, and this
+is the first run on this device that could see the mechanism. And **`intra1` costs half the CPU of
+shipping for +15.7% latency** (512 vs 968 CPU-ms/tx) — already measured, if a battery-saver or
+thermally-throttled mode is ever wanted.
+
+**Evidence grade:** **MEASURED — for the claim, not for the bound.** The M31 has 4 performance cores
+and therefore *derives* 2; it cannot reach the `[1,2]` clamp's upper bound at all. This sweep sets
+`intraThreads` explicitly, so it tests "4 threads never wins" and not the bound itself. **The bound
+stays INFERRED for 8-performance-core parts**, and no obtainable device derives 4 — the S22 Ultra also
+derives 2 after `dc3011e`. §3.21 is now confirmed on its substance and still unconfirmed on its
+arithmetic, which is a smaller gap than it had and an honest one.
+
+**Decision.** **KEEP `(perfCores / 2).coerceIn(1, 2)` with big-cluster affinity, unchanged.** No
+shipping code was touched by this entry.
+
+**Next.** Run both suites on the S22 Ultra when it is available: it adds an ARMv9 / i8mm / SVE2
+topology and, with `disableKleidiAi`, separates "KleidiAI is worth something" from "SME is worth
+something" (Q12). Note also that `bench/results/cross-device/samsung_s22ultra_snapdragon8gen1.md`
+records `perf=1[7], eff=7` → `intra=1`: that entry was measured under the **old** frequency-only
+perf/eff split, before `CpuCapabilities.perfEffSplit` was changed to split at the bottom tier, so its
+numbers are single-threaded and do not represent shipping policy. Re-measure it or mark it stale.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -1690,6 +1803,7 @@ Three consequences worth stating once:
   2 as well (1×X2 + 3×A710 = 4 perf cores after `dc3011e`), so neither device *reaches* the bound. It
   can still be closed on the underlying claim — "4 threads is never optimal" — by an explicit sweep,
   since `ProductionThreadSweepTest` sets `intraThreads` directly rather than deriving it (Q2b).
+  **Done 2026-08-12 (§3.37): the claim holds, the bound is still INFERRED.**
 - **KleidiAI on i8mm-only silicon is newly worth measuring.** The S22 Ultra has i8mm and SVE2 but no
   SME, and the `mlas.disable_kleidiai` A/B did not exist when that device was last benchmarked. It
   would separate "KleidiAI is worth something" from "SME is worth something" (Q12).
@@ -1701,7 +1815,7 @@ Three consequences worth stating once:
 | **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes — 62.8 MB each in EN→HI, so four copies across the decoder pair. Content-addressing cannot catch it (§3.30); it needs an export-side change so one copy serves both the gather and the projection | Re-export → `verify_cache.py` 7/7 → APK size → `MtBenchmarkTest` on the M31, since a runtime transpose would trade size for latency | Up to ~125 MB EN→HI, ~33 MB HI→EN |
 | **Q17** | Carry the §3.30 saving onto the device | The `.ort` bake re-inlines the shared blob, so device storage is unchanged. Baking ALL_OPT to optimized **ONNX** with external initializers instead measured 204.3 MB against the 397.9 MB baked pair, NO_OPT load times overlapping and output identical — but the bake would move to the host, and ORT does not promise its optimized output is portable across platforms | Host-bake on x86, load the result on the M31: parity first, then `BenchmarkSuiteTest`. A parity failure closes this permanently and is the cheap outcome to look for | ~190 MB of device storage per direction |
 | ~~Q2a~~ | ~~Price the logits copy~~ | — | **CLOSED 2026-08-06** — `LogitsReadBenchmarkTest` on the M31: 545.8 µs/token saved at 122k vocab, 6.55 ms per 12-token translation, ~1.0% end-to-end (§3.22) | done |
-| **Q2b** | Does 4 intra-op threads ever win? | §3.21 tightened the clamp to `[1,2]` on one device's evidence. **Neither available device derives 4**, so the bound itself is untestable here — but the claim under it is not | `ProductionThreadSweepTest` on an S22 Ultra, which sets `intraThreads` explicitly: intra 1/2/4/6/8 on the production path, rotated rounds, parity-exact arms | Confirms or refutes a shipping default on a second topology |
+| ~~Q2b~~ | ~~Does 4 intra-op threads ever win?~~ | — | **CLOSED 2026-08-12 — KEEP (§3.37).** No: on the SM-M315F production path, `intra4` pinned is +8.2% long / +26.9% short with 2.8× the stdev, and `intra4` unpinned carries the worst jitter in the sweep (p95 896 ms vs 677 ms). The shipping `intra2`+affinity arm is the fastest on both sentences. `intra3` and inter-op were measured for the first time and both lose. **The clamp's *bound* stays INFERRED** — the M31 derives 2 and cannot reach it | done |
 | ~~Q3~~ | ~~Overlap the tokenizer parse with session load~~ | — | **CLOSED 2026-08-06 — REVERTED.** Cold start got 341 ms *worse* (5,134 → 5,475 ms): the big cores are already saturated by the three session loads, so the parse slowed 2.9 → 5.5 s. The benchmark showing a win had warmed the parser first (§3.29) | done |
 | **Q4** | Packed binary vocabulary | **Re-opened larger by the Q3 revert.** The parse is serial again and is now the biggest single piece of engine construction: **2.9 s of a 5.1 s cold start**, against 2.15 s for all three ONNX sessions. `noCompress` on the JSON measured NO EFFECT, so it is the parser, not the I/O | A packed vocabulary (sorted `String[]`+`int[]`, or one `.bin`), measured in the **real app** via `engine_init` over 3 cold launches — never by a test that loads the tokenizer beforehand | Up to ~2 s of a 5.1 s cold start |
 | **Q5** | Instrument ORT's mmap acceptance | The device-dependent mmap benefit (§3.20 retraction) is unexplained; more devices have not resolved it and will not | ORT debug logging / native heap accounting. **Blocked**: the contradicting pair was the S26U and CPH2603, neither of which is available | Explanation, not speed |
@@ -1722,15 +1836,17 @@ NO EFFECT. Deleting a row because it turned out not to work is how a ledger star
 
 ## Report metadata
 
-- **Status:** living document. Last extended 2026-08-10 (§3.30–§3.32: the shared weight blob, Q1's
-  null result, and per-channel quantization as a REVERT; Q1 closed, Q16/Q17 opened).
-- **Optimization sections (§3):** 32. §3.1–§3.9 are the original phase-gated reconstruction;
-  §3.10–§3.23 backfill everything landed since (startup, caches, affinity, baseline profile, bench
-  framework, ORT upgrade, HI→EN, the nine-device campaign); §3.24–§3.29 are the 2026-08-06 lifecycle
-  and memory pass; §3.30–§3.32 are the 2026-08-10 export-side work.
-- **Open items:** 11 in §9, of which one (§3.21) is a landed-but-unconfirmed shipping default and one
-  (§3.23) is a fix the 2026-08-06 audit found incomplete. Q1 closed as NO GAIN; Q16 and Q17 opened
-  out of §3.30.
+- **Status:** living document. Last extended 2026-08-12 (§3.37: the production-path thread and
+  execution-mode sweep; Q2b closed as KEEP).
+- **Optimization sections (§3):** §3.1–§3.37 (38 headings). §3.1–§3.9 are the original phase-gated
+  reconstruction; §3.10–§3.23 backfill everything landed since (startup, caches, affinity, baseline
+  profile, bench framework, ORT upgrade, HI→EN, the nine-device campaign); §3.24–§3.29 are the
+  2026-08-06 lifecycle and memory pass; §3.30–§3.32 are the 2026-08-10 export-side work;
+  §3.33–§3.36 are the 2026-08-11 speech pass; §3.37 is the 2026-08-12 thread sweep.
+- **Open items:** 9 in §9 (Q0, Q4, Q5, Q6, Q7, Q8b, Q8c, Q16, Q17), plus §3.23, a fix the 2026-08-06
+  audit found incomplete. **Every shipping default is now measured on the production path** —
+  §3.21 was the last INFERRED one and §3.37 closed the claim under it, leaving only its numeric bound
+  untestable on obtainable hardware.
 - **Decisions by kind:** the ledger now carries 3 REVERTs with device numbers (`intra_op=8`, NO_OPT,
   PARALLEL+inter=2), 3 more from later passes (prime-core pinning, `disable_prepacking`, per-channel
   INT8), 2 retractions (§3.20's arena claim, §3.25's `release()` claim), and 2 entries closed by

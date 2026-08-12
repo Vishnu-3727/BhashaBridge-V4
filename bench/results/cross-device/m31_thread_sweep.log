@@ -1,0 +1,84 @@
+﻿--------- beginning of main
+08-12 09:26:30.594  6363  6386 I BB_PROD_SWEEP: SUITE LADDER rounds=3 runs=10 arms=6
+08-12 09:26:30.594  6363  6386 I BB_PROD_SWEEP: TOPOLOGY ARMv8.0 cores=8(perf=4[4, 5, 6, 7],eff=4[0, 1, 2, 3]) neon=true fp16=false dotprod=false i8mm=false sve=false sve2=false sme=false sme2=false
+08-12 09:26:30.594  6363  6386 I BB_PROD_SWEEP: PRODUCTION base=arm-adaptive(threads=2,affinity) intra=2 arena=false optCache=true affinity=5,6,7,8
+08-12 09:26:30.594  6363  6386 I BB_PROD_SWEEP: BATTERY_START tempC=34.3 status=charging plugged=usb level=64
+08-12 09:26:30.594  6363  6386 I BB_PROD_SWEEP: UNAVAILABLE [battery.energyCounter]
+08-12 09:26:50.329  6363  6386 I BB_PROD_SWEEP: REFERENCE LADDER longTokens=12 shortTokens=2 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+08-12 09:26:50.329  6363  6386 I BB_PROD_SWEEP: ROUND LADDER SHIPPING r1/3 longMedian=637.00ms tempC=34.3
+08-12 09:27:06.182  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra1 r1/3 longMedian=738.00ms tempC=34.3
+08-12 09:27:20.766  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra2_noAff r1/3 longMedian=641.00ms tempC=34.3
+08-12 09:27:35.329  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra3_aff r1/3 longMedian=625.00ms tempC=34.3
+08-12 09:27:50.323  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra4_aff r1/3 longMedian=666.00ms tempC=34.2
+08-12 09:28:05.351  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra4_noAff r1/3 longMedian=624.00ms tempC=34.2
+08-12 09:28:21.413  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra1 r2/3 longMedian=711.00ms tempC=34.1
+08-12 09:28:35.466  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra2_noAff r2/3 longMedian=612.00ms tempC=34.1
+08-12 09:28:49.496  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra3_aff r2/3 longMedian=616.00ms tempC=34.1
+08-12 09:29:04.472  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra4_aff r2/3 longMedian=638.00ms tempC=34.0
+08-12 09:29:19.223  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra4_noAff r2/3 longMedian=627.00ms tempC=34.0
+08-12 09:29:33.441  6363  6386 I BB_PROD_SWEEP: ROUND LADDER SHIPPING r2/3 longMedian=609.00ms tempC=33.9
+08-12 09:29:48.179  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra2_noAff r3/3 longMedian=680.00ms tempC=33.9
+08-12 09:30:03.148  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra3_aff r3/3 longMedian=637.00ms tempC=33.9
+08-12 09:30:19.459  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra4_aff r3/3 longMedian=722.00ms tempC=33.9
+08-12 09:30:36.640  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra4_noAff r3/3 longMedian=721.00ms tempC=33.9
+08-12 09:30:50.636  6363  6386 I BB_PROD_SWEEP: ROUND LADDER SHIPPING r3/3 longMedian=614.00ms tempC=33.8
+08-12 09:31:06.728  6363  6386 I BB_PROD_SWEEP: ROUND LADDER intra1 r3/3 longMedian=718.00ms tempC=33.8
+08-12 09:31:06.921  6363  6386 I BB_PROD_SWEEP: BATTERY_END tempC=33.8 level=65
+08-12 09:31:06.922  6363  6386 I BB_PROD_SWEEP: RESULT LADDER LONG SHIPPING {"n":30,"min":604.0,"max":687.0,"mean":625.6,"median":623.0,"p95":677.0,"p99":687.0,"stdev":21.335} tokens=12 tokPerSec=19.26
+08-12 09:31:06.923  6363  6386 I BB_PROD_SWEEP: RESULT LADDER SHORT SHIPPING {"n":30,"min":154.0,"max":196.0,"mean":164.833,"median":163.0,"p95":193.0,"p99":196.0,"stdev":11.012} tokens=2 tokPerSec=12.27
+08-12 09:31:06.923  6363  6386 I BB_PROD_SWEEP: SYS LADDER SHIPPING intra=2 inter=null parallel=false affinity=5,6,7,8 coresBusy=2.40 cpuMsPerTx=968.00 migrations=170 nonvolCtxt=355 perfFreqMHz=[1118, 1664, 1664] tempC=34.3->33.8 pssKb=635888->698595 roundMedians=[637.00, 609.00, 614.00]
+08-12 09:31:06.924  6363  6386 I BB_PROD_SWEEP: RESULT LADDER LONG intra1 {"n":30,"min":704.0,"max":764.0,"mean":725.967,"median":721.0,"p95":760.0,"p99":764.0,"stdev":17.757} tokens=12 tokPerSec=16.64
+08-12 09:31:06.924  6363  6386 I BB_PROD_SWEEP: RESULT LADDER SHORT intra1 {"n":30,"min":182.0,"max":220.0,"mean":187.933,"median":185.0,"p95":211.0,"p99":220.0,"stdev":8.552} tokens=2 tokPerSec=10.81
+08-12 09:31:06.924  6363  6386 I BB_PROD_SWEEP: SYS LADDER intra1 intra=1 inter=null parallel=false affinity=OFF coresBusy=1.10 cpuMsPerTx=511.50 migrations=26 nonvolCtxt=58 perfFreqMHz=[1664, 1664, 1664] tempC=34.3->33.8 pssKb=704140->637366 roundMedians=[738.00, 711.00, 718.00]
+08-12 09:31:06.925  6363  6386 I BB_PROD_SWEEP: RESULT LADDER LONG intra2_noAff {"n":30,"min":499.0,"max":749.0,"mean":639.167,"median":641.0,"p95":711.0,"p99":749.0,"stdev":47.347} tokens=12 tokPerSec=18.72
+08-12 09:31:06.926  6363  6386 I BB_PROD_SWEEP: RESULT LADDER SHORT intra2_noAff {"n":30,"min":129.0,"max":231.0,"mean":168.233,"median":165.0,"p95":218.0,"p99":231.0,"stdev":19.269} tokens=2 tokPerSec=12.12
+08-12 09:31:06.926  6363  6386 I BB_PROD_SWEEP: SYS LADDER intra2_noAff intra=2 inter=null parallel=false affinity=OFF coresBusy=2.40 cpuMsPerTx=987.33 migrations=343 nonvolCtxt=942 perfFreqMHz=[1664, 1664, 1664] tempC=34.3->33.9 pssKb=659640->641498 roundMedians=[641.00, 612.00, 680.00]
+08-12 09:31:06.927  6363  6386 I BB_PROD_SWEEP: RESULT LADDER LONG intra3_aff {"n":30,"min":571.0,"max":749.0,"mean":626.633,"median":628.0,"p95":663.0,"p99":749.0,"stdev":29.957} tokens=12 tokPerSec=19.11
+08-12 09:31:06.928  6363  6386 I BB_PROD_SWEEP: RESULT LADDER SHORT intra3_aff {"n":30,"min":151.0,"max":208.0,"mean":177.8,"median":182.0,"p95":203.0,"p99":208.0,"stdev":15.774} tokens=2 tokPerSec=10.99
+08-12 09:31:06.928  6363  6386 I BB_PROD_SWEEP: SYS LADDER intra3_aff intra=3 inter=null parallel=false affinity=5,6,7,8;5,6,7,8 coresBusy=3.80 cpuMsPerTx=1563.50 migrations=789 nonvolCtxt=2707 perfFreqMHz=[1664, 1664, 1664] tempC=34.3->33.9 pssKb=662513->654443 roundMedians=[625.00, 616.00, 637.00]
+08-12 09:31:06.930  6363  6386 I BB_PROD_SWEEP: RESULT LADDER LONG intra4_aff {"n":30,"min":585.0,"max":803.0,"mean":675.7,"median":674.0,"p95":788.0,"p99":803.0,"stdev":60.256} tokens=12 tokPerSec=17.80
+08-12 09:31:06.930  6363  6386 I BB_PROD_SWEEP: RESULT LADDER SHORT intra4_aff {"n":30,"min":165.0,"max":228.0,"mean":201.9,"median":207.0,"p95":226.0,"p99":228.0,"stdev":15.921} tokens=2 tokPerSec=9.66
+08-12 09:31:06.931  6363  6386 I BB_PROD_SWEEP: SYS LADDER intra4_aff intra=4 inter=null parallel=false affinity=5,6,7,8;5,6,7,8;5,6,7,8 coresBusy=4.89 cpuMsPerTx=2193.17 migrations=1860 nonvolCtxt=8619 perfFreqMHz=[1664, 1664, 1664] tempC=34.2->33.9 pssKb=647888->653724 roundMedians=[666.00, 638.00, 722.00]
+08-12 09:31:06.932  6363  6386 I BB_PROD_SWEEP: RESULT LADDER LONG intra4_noAff {"n":30,"min":574.0,"max":982.0,"mean":676.933,"median":643.0,"p95":896.0,"p99":982.0,"stdev":88.802} tokens=12 tokPerSec=18.66
+08-12 09:31:06.932  6363  6386 I BB_PROD_SWEEP: RESULT LADDER SHORT intra4_noAff {"n":30,"min":167.0,"max":262.0,"mean":201.067,"median":195.0,"p95":261.0,"p99":262.0,"stdev":24.166} tokens=2 tokPerSec=10.26
+08-12 09:31:06.933  6363  6386 I BB_PROD_SWEEP: SYS LADDER intra4_noAff intra=4 inter=null parallel=false affinity=OFF coresBusy=4.81 cpuMsPerTx=2151.33 migrations=1262 nonvolCtxt=9345 perfFreqMHz=[1664, 1664, 1664] tempC=34.2->33.9 pssKb=653688->645195 roundMedians=[624.00, 627.00, 721.00]
+08-12 09:31:06.934  6363  6386 I BB_PROD_SWEEP: DRIFT LADDER firstRound=655.17ms lastRound=682.00ms ratio=1.04
+--------- beginning of main
+08-12 09:31:44.966  7970  7987 I BB_PROD_SWEEP: SUITE EXECMODE rounds=3 runs=10 arms=5
+08-12 09:31:44.966  7970  7987 I BB_PROD_SWEEP: TOPOLOGY ARMv8.0 cores=8(perf=4[4, 5, 6, 7],eff=4[0, 1, 2, 3]) neon=true fp16=false dotprod=false i8mm=false sve=false sve2=false sme=false sme2=false
+08-12 09:31:44.966  7970  7987 I BB_PROD_SWEEP: PRODUCTION base=arm-adaptive(threads=2,affinity) intra=2 arena=false optCache=true affinity=5,6,7,8
+08-12 09:31:44.967  7970  7987 I BB_PROD_SWEEP: BATTERY_START tempC=33.9 status=charging plugged=usb level=65
+08-12 09:31:44.967  7970  7987 I BB_PROD_SWEEP: UNAVAILABLE [battery.energyCounter]
+08-12 09:32:04.646  7970  7987 I BB_PROD_SWEEP: REFERENCE EXECMODE longTokens=12 shortTokens=2 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+08-12 09:32:04.647  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE SHIPPING r1/3 longMedian=651.00ms tempC=34.0
+08-12 09:32:19.041  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra2_parallel_inter1 r1/3 longMedian=622.00ms tempC=34.0
+08-12 09:32:34.728  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra2_parallel_inter2 r1/3 longMedian=728.00ms tempC=34.0
+08-12 09:32:52.185  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra6_noAff r1/3 longMedian=751.00ms tempC=34.0
+08-12 09:33:12.238  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra8_noAff r1/3 longMedian=913.00ms tempC=34.1
+08-12 09:33:26.758  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra2_parallel_inter1 r2/3 longMedian=619.00ms tempC=34.1
+08-12 09:33:42.862  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra2_parallel_inter2 r2/3 longMedian=729.00ms tempC=34.1
+08-12 09:34:00.031  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra6_noAff r2/3 longMedian=719.00ms tempC=34.1
+08-12 09:34:20.404  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra8_noAff r2/3 longMedian=916.00ms tempC=34.1
+08-12 09:34:34.786  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE SHIPPING r2/3 longMedian=608.00ms tempC=34.1
+08-12 09:34:50.715  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra2_parallel_inter2 r3/3 longMedian=736.00ms tempC=34.1
+08-12 09:35:08.336  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra6_noAff r3/3 longMedian=793.00ms tempC=34.0
+08-12 09:35:28.588  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra8_noAff r3/3 longMedian=896.00ms tempC=34.0
+08-12 09:35:42.641  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE SHIPPING r3/3 longMedian=643.00ms tempC=34.0
+08-12 09:35:57.187  7970  7987 I BB_PROD_SWEEP: ROUND EXECMODE intra2_parallel_inter1 r3/3 longMedian=606.00ms tempC=34.0
+08-12 09:35:57.399  7970  7987 I BB_PROD_SWEEP: BATTERY_END tempC=34.0 level=67
+08-12 09:35:57.400  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE LONG SHIPPING {"n":30,"min":601.0,"max":681.0,"mean":632.333,"median":639.0,"p95":677.0,"p99":681.0,"stdev":25.854} tokens=12 tokPerSec=18.78
+08-12 09:35:57.401  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE SHORT SHIPPING {"n":30,"min":156.0,"max":182.0,"mean":162.567,"median":163.0,"p95":176.0,"p99":182.0,"stdev":5.637} tokens=2 tokPerSec=12.27
+08-12 09:35:57.401  7970  7987 I BB_PROD_SWEEP: SYS EXECMODE SHIPPING intra=2 inter=null parallel=false affinity=5,6,7,8 coresBusy=2.40 cpuMsPerTx=972.33 migrations=159 nonvolCtxt=424 perfFreqMHz=[1664, 1664, 1664] tempC=34.0->34.0 pssKb=631976->655327 roundMedians=[651.00, 608.00, 643.00]
+08-12 09:35:57.402  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE LONG intra2_parallel_inter1 {"n":30,"min":603.0,"max":668.0,"mean":624.733,"median":619.0,"p95":667.0,"p99":668.0,"stdev":20.429} tokens=12 tokPerSec=19.39
+08-12 09:35:57.402  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE SHORT intra2_parallel_inter1 {"n":30,"min":155.0,"max":208.0,"mean":164.733,"median":160.0,"p95":203.0,"p99":208.0,"stdev":13.757} tokens=2 tokPerSec=12.50
+08-12 09:35:57.403  7970  7987 I BB_PROD_SWEEP: SYS EXECMODE intra2_parallel_inter1 intra=2 inter=1 parallel=true affinity=5,6,7,8 coresBusy=2.41 cpuMsPerTx=972.33 migrations=163 nonvolCtxt=354 perfFreqMHz=[1664, 1664, 1664] tempC=34.0->34.0 pssKb=641039->704604 roundMedians=[622.00, 619.00, 606.00]
+08-12 09:35:57.403  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE LONG intra2_parallel_inter2 {"n":30,"min":689.0,"max":882.0,"mean":736.867,"median":729.0,"p95":871.0,"p99":882.0,"stdev":42.238} tokens=12 tokPerSec=16.46
+08-12 09:35:57.404  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE SHORT intra2_parallel_inter2 {"n":30,"min":187.0,"max":280.0,"mean":228.033,"median":224.0,"p95":278.0,"p99":280.0,"stdev":23.728} tokens=2 tokPerSec=8.93
+08-12 09:35:57.404  7970  7987 I BB_PROD_SWEEP: SYS EXECMODE intra2_parallel_inter2 intra=2 inter=2 parallel=true affinity=5,6,7,8 coresBusy=3.63 cpuMsPerTx=1783.33 migrations=585 nonvolCtxt=2153 perfFreqMHz=[1664, 1664, 1664] tempC=34.0->34.1 pssKb=644954->642980 roundMedians=[728.00, 729.00, 736.00]
+08-12 09:35:57.405  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE LONG intra6_noAff {"n":30,"min":629.0,"max":912.0,"mean":761.1,"median":751.0,"p95":899.0,"p99":912.0,"stdev":79.087} tokens=12 tokPerSec=15.98
+08-12 09:35:57.405  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE SHORT intra6_noAff {"n":30,"min":196.0,"max":326.0,"mean":264.767,"median":264.0,"p95":324.0,"p99":326.0,"stdev":28.958} tokens=2 tokPerSec=7.58
+08-12 09:35:57.405  7970  7987 I BB_PROD_SWEEP: SYS EXECMODE intra6_noAff intra=6 inter=null parallel=false affinity=OFF coresBusy=6.18 cpuMsPerTx=3227.50 migrations=2825 nonvolCtxt=17139 perfFreqMHz=[1118, 1664, 936] tempC=34.0->34.0 pssKb=652629->646508 roundMedians=[751.00, 719.00, 793.00]
+08-12 09:35:57.406  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE LONG intra8_noAff {"n":30,"min":813.0,"max":1057.0,"mean":912.367,"median":913.0,"p95":1033.0,"p99":1057.0,"stdev":59.302} tokens=12 tokPerSec=13.14
+08-12 09:35:57.406  7970  7987 I BB_PROD_SWEEP: RESULT EXECMODE SHORT intra8_noAff {"n":30,"min":258.0,"max":386.0,"mean":324.5,"median":326.0,"p95":381.0,"p99":386.0,"stdev":34.893} tokens=2 tokPerSec=6.13
+08-12 09:35:57.407  7970  7987 I BB_PROD_SWEEP: SYS EXECMODE intra8_noAff intra=8 inter=null parallel=false affinity=OFF coresBusy=6.65 cpuMsPerTx=4195.00 migrations=4624 nonvolCtxt=31358 perfFreqMHz=[1664, 1664, 1664] tempC=34.1->34.0 pssKb=651698->654940 roundMedians=[913.00, 916.00, 896.00]
+08-12 09:35:57.407  7970  7987 I BB_PROD_SWEEP: DRIFT EXECMODE firstRound=733.00ms lastRound=734.80ms ratio=1.00
