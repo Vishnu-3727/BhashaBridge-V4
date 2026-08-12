@@ -2127,6 +2127,58 @@ bake time.
 
 ---
 
+### 3.45 Baking the prepacked weights (Q19) — NO GAIN, and the shipping format refuses it outright
+
+**Problem.** §3.44 left ~790 ms of MLAS prepacking as the largest remaining piece of session load, and
+§3.30 proved `decoder_init` and `decoder_step` prepack byte-identical tensors. The lazy version of
+"share it" — ORT's `PrepackedWeightsContainer` — is not in the Java API. The reachable version is to
+**write the prepacked weights at bake time**, via `session.save_external_prepacked_constant_initializers`.
+
+**Investigation.** The native library's own strings said where this could not work before a device was
+touched: `WritePrepackedToFileAndAddToProto` writes into a `TensorProto`, i.e. the **ONNX**
+external-data format, not the ORT flatbuffer. So the flag had to be tested against a different bake
+than the one that ships, and `PrepackedBakeTest` bakes all four combinations from the same sources and
+loads them the way production loads — three graphs, three threads, sessions closed immediately, arms
+rotated per round. The `ort` arm uses §3.44's mapped-initializer path, because that is the baseline a
+candidate must beat, not the one it replaced.
+
+**Benchmark (SM-M315F, 33.1 °C, 4 arms × 3 rotated rounds, every artifact page-cache warm).**
+
+| arm | bake | load median | on disk |
+|---|---|---|---|
+| `ort` — ALL_OPT → ORT format (**ships**) | 12,284 ms | **1441 ms** | 472,948,560 B |
+| `ortpp` — the same plus the prepacked flag | 11,942 ms | 1434 ms | **472,948,560 B — identical** |
+| `ext` — ALL_OPT → ONNX + external initializers | 10,543 ms | 1615 ms | 471,246,292 B |
+| `extpp` — `ext` plus the prepacked flag | 12,276 ms | 1545 ms | **797,385,456 B** |
+
+**The shipping format refuses the flag, and says so:** `[W:onnxruntime:, session_state.cc:1409
+GetSaveModeForPrepacks] Serializing optimized model in ORT format with external pre-packed constant
+initializers is not supported. Ignoring the flag.` The `ortpp` artifacts are byte-for-byte the size of
+the `ort` ones — the flag is not partially applied, it is dropped.
+
+On the format that does accept it, the prepacked data really is written — the external `.bin` grows
+from 202 → 342 MB (decoder_init) and 193 → 323 MB (decoder_step), **+324 MB across the trio, +69%** —
+and it buys **70 ms** (1615 → 1545). Not the ~790 ms `disable_prepacking` implied: that diagnostic
+removes *all* packing work, while the saved file evidently covers only part of it. And the whole ONNX
+external-initializer path is **+7% slower than the `.ort` mapped load that ships** (1545 vs 1441),
+before spending the extra storage.
+
+**Evidence grade:** MEASURED. **Decision.** **NO GAIN — nothing shipped.** Two independent reasons,
+either of which alone closes it: the production format cannot carry prepacked weights at all, and the
+format that can is slower and 324 MB larger.
+
+**One thing this run corrects on the way past.** Q17's expected saving does **not** reproduce here:
+the `ext` arm is 471 MB against the `.ort` pair's 473 MB, not the 204 MB the queue records. Each graph
+writes its **own** external initializer file, so the shared weight blob of §3.30 is re-inlined per
+graph exactly as the `.ort` bake re-inlines it. Whatever produced 204.3 MB was measuring something
+else, and Q17 must re-derive its number before anyone spends a re-export on it.
+
+**Next.** Prepacking stays where it is. The remaining startup pole is not ORT at all — it is the
+**~2.9–3.2 s serial tokenizer parse** (Q4), which is now larger than everything the session loads
+still cost put together.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -2291,11 +2343,11 @@ Three consequences worth stating once:
 
 | # | Experiment | Hypothesis | Measurement that closes it | Expected size |
 |---|---|---|---|---|
-| **Q19** | **Bake the prepacked weights, so the two decoders stop packing the same bytes twice** | §3.44 leaves ~790 ms of MLAS prepacking as the largest remaining piece of session load, and §3.30 proved decoder_init and decoder_step hold **byte-identical** tensors — so half of that work is duplicated. ORT's `PrepackedWeightsContainer` shares it across sessions but is **not reachable from the Java API**; `session.save_external_prepacked_constant_initializers` is, and moves the packing to bake time | Set it in `bakeOptions`, then the §3.44 probe again: `sessions:parallel` in the real app, cold, interleaved. Watch `.ort` size and `filesDir` — prepacked layouts are larger on disk, and Q17 is already fighting for that space. Parity before anything | Up to ~790 ms of a 1.6 s session load, if it transfers at all |
+| ~~Q19~~ | ~~Bake the prepacked weights~~ | — | **CLOSED 2026-08-12 — NO GAIN (§3.45).** ORT refuses the flag in ORT format outright ("not supported. Ignoring the flag.") and the `ortpp` artifacts are byte-identical to `ort`. On optimized ONNX + external initializers, where it *is* supported, it writes +324 MB (+69%) to buy 70 ms — on a path already 7% slower than the shipping `.ort` mapped load. Also refutes Q17's 204 MB: each graph writes its own external file, so `ext` is 471 MB against `.ort`'s 473 MB | done |
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
 | ~~Q1~~ | ~~Slice the last position inside `decoder_init`~~ | — | **CLOSED — NO GAIN (§3.31).** Done, gate 7/7, and worth nothing: greedy seeds a one-token prefix, so `decoder_init` only ever runs at `dec_len = 1` and `decoder_init` measured 49.6 ms against a 49.0 ms control. The "largest remaining inference lever" was true of the graph and never exercised by the workload. Held for Q6 | done |
 | **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes — 62.8 MB each in EN→HI, so four copies across the decoder pair. Content-addressing cannot catch it (§3.30); it needs an export-side change so one copy serves both the gather and the projection | Re-export → `verify_cache.py` 7/7 → APK size → `MtBenchmarkTest` on the M31, since a runtime transpose would trade size for latency | Up to ~125 MB EN→HI, ~33 MB HI→EN |
-| **Q17** | Carry the §3.30 saving onto the device | The `.ort` bake re-inlines the shared blob, so device storage is unchanged. Baking ALL_OPT to optimized **ONNX** with external initializers instead measured 204.3 MB against the 397.9 MB baked pair, NO_OPT load times overlapping and output identical — but the bake would move to the host, and ORT does not promise its optimized output is portable across platforms | Host-bake on x86, load the result on the M31: parity first, then `BenchmarkSuiteTest`. A parity failure closes this permanently and is the cheap outcome to look for | ~190 MB of device storage per direction |
+| **Q17** | Carry the §3.30 saving onto the device — **premise now in doubt** | The `.ort` bake re-inlines the shared blob, so device storage is unchanged. Baking ALL_OPT to optimized **ONNX** with external initializers instead measured 204.3 MB against the 397.9 MB baked pair, NO_OPT load times overlapping and output identical — but the bake would move to the host, and ORT does not promise its optimized output is portable across platforms. **§3.45 baked exactly that arm on the M31 and got 471 MB against the `.ort` trio's 473 MB**: each graph writes its own external initializer file, so the shared blob is re-inlined per graph either way | **Re-derive the 204.3 MB first** — it is the whole reason this item exists, and one on-device bake now contradicts it. Only if it survives: host-bake on x86, load on the M31, parity first, then `BenchmarkSuiteTest` | ~190 MB of device storage per direction, **if the premise holds** |
 | ~~Q2a~~ | ~~Price the logits copy~~ | — | **CLOSED 2026-08-06** — `LogitsReadBenchmarkTest` on the M31: 545.8 µs/token saved at 122k vocab, 6.55 ms per 12-token translation, ~1.0% end-to-end (§3.22) | done |
 | ~~Q2b~~ | ~~Does 4 intra-op threads ever win?~~ | — | **CLOSED 2026-08-12 — KEEP (§3.37).** No: on the SM-M315F production path, `intra4` pinned is +8.2% long / +26.9% short with 2.8× the stdev, and `intra4` unpinned carries the worst jitter in the sweep (p95 896 ms vs 677 ms). The shipping `intra2`+affinity arm is the fastest on both sentences. `intra3` and inter-op were measured for the first time and both lose. **The clamp's *bound* stays INFERRED** — the M31 derives 2 and cannot reach it | done |
 | ~~Q3~~ | ~~Overlap the tokenizer parse with session load~~ | — | **CLOSED 2026-08-06 — REVERTED.** Cold start got 341 ms *worse* (5,134 → 5,475 ms): the big cores are already saturated by the three session loads, so the parse slowed 2.9 → 5.5 s. The benchmark showing a win had warmed the parser first (§3.29) | done |
