@@ -79,7 +79,46 @@ class OnnxModels(
      */
     val pastInputNames: List<String>
 
+    /**
+     * The weight blob this direction's three graphs share (Phase 13, `model_pipeline/dedup_weights.py`).
+     *
+     * `torch.onnx.export` writes a full copy of the decoder's weights into `decoder_init` *and*
+     * `decoder_step`; hashing the raw tensor bytes showed `decoder_step` holds **no unique tensor data
+     * at all** — 192.3 MB of it (EN→HI) is byte-identical to tensors already in `decoder_init`. The
+     * graphs now carry structure only and point their initializers at one content-addressed file, so
+     * the APK ships those bytes once. ONNX resolves an initializer's `location` **relative to the
+     * model file**, which is why the blob must land in `filesDir` beside the extracted graphs.
+     *
+     * Declared above [init] deliberately: Kotlin runs property initializers in declaration order and
+     * the three graphs load *inside* `init`, so a blob name declared after it would still be null when
+     * the first bake asks for it. Same trap as the Q14 `mappedModels` list.
+     */
+    private val sharedWeights: String = when (direction) {
+        Direction.EN_TO_HI -> "weights.bin"
+        Direction.HI_TO_EN -> "hi_en_weights.bin"
+    }
+
+    /** Guards the one-time extraction of [sharedWeights]; the three graph loads race for it. */
+    private val weightsLock = Any()
+
+    /**
+     * Length of [sharedWeights] in the APK, or `0` when this build ships self-contained graphs.
+     *
+     * Both asset layouts are supported on purpose. A build made before the Phase 13 export — or one
+     * rolled back to it — has every weight inside its graphs and no blob, and must keep working: this
+     * is the difference between a bad export being a rebuild and being a bricked launch. `0` disables
+     * the extraction and drops out of the cache stamp, so the old layout behaves exactly as it did.
+     */
+    private val sharedWeightsLength: Long =
+        runCatching { context.assets.openFd(sharedWeights).use { it.length } }.getOrDefault(0L)
+
     init {
+        // Before any load starts, so nothing can be mid-bake when it runs. The blob is only needed
+        // while a graph is being baked; the warm path reads `.ort` files that already inline their
+        // weights. Deleting it here rather than after the bake matches how the source `.onnx` copies
+        // are handled, and for the same reason — ORT may hold the file mapped for the session's life.
+        purgeSharedWeights(context.filesDir)
+
         val (encAsset, initAsset, stepAsset) = when (direction) {
             // Phase 6D: the verified INT8 cached graphs (Phase 6C), kept as the production path —
             // the benchmark showed the cache is a clear win at real output lengths (docs/CACHE_BENCHMARK.md).
@@ -225,6 +264,12 @@ class OnnxModels(
             extractAsset(context, name, src)
             extractNs = System.nanoTime() - extractStart
         }
+        // Phase 13 made the source graphs reference their weights externally, and [init] purges that
+        // blob before any load because the *baked* path only needs it while baking. This path is not
+        // the baked path: it hands ORT the `.onnx` itself, so the external data has to be on disk or
+        // the session fails to load at all. Restoring it here rather than keeping the blob alive
+        // everywhere leaves the production path's disk behaviour exactly as measured in §3.30.
+        ensureSharedWeights(context)
         val start = System.nanoTime()
         val session = env.createSession(src.absolutePath, tune.toOptions().maybeProfile(label))
         return SessionLoad(label, session, verifyNs, extractNs, System.nanoTime() - start, false, src.length())
@@ -286,6 +331,9 @@ class OnnxModels(
     ): SessionLoad {
         val src = File(context.filesDir, name)
         val readStart = System.nanoTime()
+        // The blob first: ORT resolves the graph's external initializers while parsing it, so a graph
+        // extracted without its weights beside it fails the build rather than loading empty.
+        ensureSharedWeights(context)
         if (!src.exists()) extractAsset(context, name, src) // purged on the next launch; see loadOrt
         val readNs = System.nanoTime() - readStart
 
@@ -324,7 +372,19 @@ class OnnxModels(
         // of space part-way through surfaces as an IOException from a write — which the UI reports
         // with the same "direction unavailable" message it uses for a direction that was never
         // exported. The headroom is the asset itself plus the .ort the bake will write from it.
-        val needed = assetLength(context, name) * 2
+        //
+        // Since Phase 13 the graph's own length is no longer a proxy for what the bake will write:
+        // the graph is ~2 MB and its weights are in [sharedWeights], so `graph * 2` would reserve
+        // four megabytes for a bake that emits two hundred. The `.ort` inlines the weights again
+        // (measured — ORT's ORT-format writer ignores the external-initializer keys), so the blob's
+        // length is the right stand-in for the output size. Extracting the blob itself needs only
+        // its own bytes, which is what the `name == sharedWeights` case reserves.
+        val graphLength = assetLength(context, name)
+        val needed = when {
+            name == sharedWeights -> graphLength
+            sharedWeightsLength == 0L -> graphLength * 2 // self-contained graph: the pre-Phase-13 rule
+            else -> graphLength + sharedWeightsLength * 2
+        }
         val free = dest.parentFile?.usableSpace ?: Long.MAX_VALUE
         if (free < needed) {
             throw IOException(
@@ -352,15 +412,56 @@ class OnnxModels(
         context.assets.openFd(name).use { it.length }
 
     /**
+     * Extracts [sharedWeights] once, whichever of the three concurrent bakes gets there first.
+     *
+     * Double-checked around [weightsLock]: the fast path is an `exists()` with no lock at all, which
+     * is what the warm-ish case (one graph stale, two cached) hits. The check inside the lock is not
+     * redundant — without it the two losers of the race re-extract a few hundred MB over a file the
+     * winner just published.
+     */
+    private fun ensureSharedWeights(context: Context) {
+        if (sharedWeightsLength == 0L) return // self-contained graphs; nothing to extract
+        val dest = File(context.filesDir, sharedWeights)
+        if (dest.exists()) return
+        synchronized(weightsLock) {
+            if (dest.exists()) return
+            logDebug(LogTag.MT) { "Extracting shared weights $sharedWeights" }
+            extractAsset(context, sharedWeights, dest)
+        }
+    }
+
+    /**
+     * Removes the previous launch's shared weight blob, and any `.part` left by a killed extraction.
+     *
+     * Called once from [init] before the three loads start. Doing it per-graph inside [purgeLegacy]
+     * would race: on a launch where one graph is cached and two are not, the cached graph's purge can
+     * land after a baking graph has already extracted the blob and delete it out from under the build.
+     */
+    private fun purgeSharedWeights(dir: File) {
+        listOf(sharedWeights, "$sharedWeights.part").forEach { name ->
+            val f = File(dir, name)
+            if (f.exists() && f.delete()) logDebug(LogTag.MT) { "removed obsolete ${f.name}" }
+        }
+    }
+
+    /**
      * The cache key. Any change regenerates the `.ort` model: the app version (graph export or decode
      * changes ship with it), the ONNX Runtime version (optimizer output and the ORT format itself are
      * version-specific), and the source asset's byte length (a re-exported graph is different bytes).
      * Length via a cheap `openFd`, not a content hash — the source is hundreds of MB and hashing it
      * every launch would cost more than the optimization this cache removes; a new export always
      * changes the length.
+     *
+     * **[sharedWeights]'s length is part of the key, and has to be.** Since Phase 13 the graph file
+     * holds structure only — about 2 MB — and every weight lives in the blob. Keying on the graph
+     * alone would let a re-quantized export (per-channel scales, a different calibration) ship
+     * hundreds of MB of new weights under a graph whose length barely moved, and the app would
+     * happily reuse the stale `.ort` built from the old ones. Wrong translations, no error, and a
+     * cache that only clears on reinstall.
      */
     private fun cacheStamp(context: Context, name: String): String =
-        "${BuildConfig.VERSION_CODE}|${env.version}|${assetLength(context, name)}"
+        "${BuildConfig.VERSION_CODE}|${env.version}|${assetLength(context, name)}" +
+            if (sharedWeightsLength == 0L) "" else "|$sharedWeightsLength"
 
     /** ALL_OPT + serialize the result to [ortPath] in ORT format. Shares every other knob via [tune]. */
     private fun bakeOptions(ortPath: String): SessionOptions =
