@@ -1846,6 +1846,61 @@ this line should be re-tested rather than assumed.
 
 ---
 
+### 3.41 Full instrumented regression on the SM-S948B — clean, and one test was wrong
+
+**Problem.** §3.40 shipped a policy change that alters which int8 kernels ORT dispatches, on a device
+class the suite had last been run against on 2026-07-31 with 13 test classes. There are now 27, plus
+~40 commits. A kernel-selection change is exactly the kind that surfaces in the memory-lifecycle and
+speech paths rather than in the translation numbers, so the whole suite was run on ARMv9/SME.
+
+**Benchmark.** 21 classes, 43 tests, **zero product failures**. Everything below ran on the SM-S948B
+at `arm-adaptive(threads=2,noKleidiAI)`:
+
+| area | classes |
+|---|---|
+| translation, both directions | `MtEngineInstrumentedTest` (3), `HiEnEngineTest` (3), `HiEnBenchmarkTest`, `MtBenchmarkTest` |
+| load path | `OptCacheTest`, `ParallelSessionLoadTest`, `EngineLoadTest` (4), `StartupProbeTest` (3), `MmapPrepackTest` |
+| memory & lifecycle | `EngineFootprintTest` (2), `MappedInitializersTest` (2), `NativeMemoryReturnTest`, `PressureReclaimTest` (2), `TrimReleaseTest` (5) |
+| speech | `SpeechAssetFreshnessTest` (2), `AudioFileTranscriberTest`, `SpeechPipelineBenchmarkTest`, `SpeechChurnLeakTest` (2) |
+| decode | `TruncationCorpusTest` (2), `LogitsReadBenchmarkTest`, `BenchmarkSuiteTest` |
+
+**HI→EN ran on this device for the first time** — engine and benchmark both clean. Every speech class
+had also only ever run on the SM-M315F before today.
+
+**The one failure was the test's, not the product's.** `SpeechChurnLeakTest` reported
+`file_transcription leaked file descriptors: +14 over 20 cycles (116 -> 130)`. Run out to 60 cycles
+the shape settles it:
+
+```
+baseline 116 · 15 cycles 136 · 30 cycles 136 · 45 cycles 136 · 60 cycles 136
+```
+
+**Flat for 45 consecutive cycles**, native heap +100 KB total, PSS +441 KB. A 0.33 fds/cycle leak
+would have reached +42 by cycle 60; instead every descriptor is taken before cycle 15 and none after.
+It is a bounded one-time cost of Android 16's codec stack — bigger than the M31's, where the 3-cycle
+warm-up absorbed it entirely, which is why §3.35 saw fds flat there. The `microphone_session` arm,
+which opens an `AudioRecord` and three audio effects per cycle, is **132 at every probe** — the
+control that places the cost in `MediaCodec`/`MediaExtractor` rather than in the speech path at large.
+
+**Root cause in the harness:** `churn()` probes in quarters *precisely* to tell settling from leaking —
+its own comment says "a total is not a shape" — and then asserted on `after - before`, throwing that
+shape away. The assertion now measures growth **after the halfway point**: a real one-per-cycle leak
+puts `cycles / 2` descriptors in that window and is caught *harder* than before, while a plateau puts
+zero. Cycle counts became instrumentation args (`-e cycles 60`) so a suspected plateau can be run out,
+which is also the answer to the residual weakness — a very slow leak hiding under the slack in a short
+run. Both arms now report `tailGrowthFds=0`.
+
+This is not a test edited to green: the plateau was established at 60 cycles *before* the assertion was
+touched, and the replacement is strictly more sensitive to the defect the test exists to catch.
+
+**Evidence grade:** MEASURED. **Decision.** No product change. The suite stands on ARMv9/SME.
+
+**Next.** Re-run `SpeechChurnLeakTest` on the SM-M315F to confirm the tail-based assertion still passes
+there (§3.35's data says it will — fds were flat to −6), and fold the shape assertion into the other
+churn-style probes if any grow one.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |

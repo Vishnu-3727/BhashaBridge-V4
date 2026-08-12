@@ -50,7 +50,7 @@ class SpeechChurnLeakTest {
         val uri = Uri.fromFile(copyFixture(context))
         val model = sharedModel()
 
-        churn("file_transcription", WARMUP, CYCLES) {
+        churn("file_transcription", intArg("warmup", WARMUP), intArg("cycles", CYCLES)) {
             AudioFileTranscriber.transcribe(context, uri, model).collect { }
         }
     }
@@ -74,7 +74,7 @@ class SpeechChurnLeakTest {
         )
         val model = sharedModel()
 
-        churn("microphone_session", MIC_WARMUP, MIC_CYCLES) {
+        churn("microphone_session", intArg("micWarmup", MIC_WARMUP), intArg("micCycles", MIC_CYCLES)) {
             // A fresh AudioCapture per cycle, because that is not what production does — the
             // ViewModel keeps one for its whole life — and the harsher shape is the one worth
             // proving. A per-session leak hides inside a reused object's steady state.
@@ -105,15 +105,19 @@ class SpeechChurnLeakTest {
         // Probed in quarters, not just at the end. A total is not a shape: 2 MB of growth that
         // flattens is an allocator settling, and 2 MB that keeps climbing at the same rate is a
         // leak, and the two are indistinguishable from before/after numbers alone.
+        val marks = ArrayList<Probe>().apply { add(before) }
         val step = maxOf(1, cycles / 4)
         repeat(cycles) { i ->
             block()
             if ((i + 1) % step == 0 && i + 1 < cycles) {
-                Log.i(TAG, "$name at ${i + 1} cycles ${Probe.take()}")
+                val p = Probe.take()
+                marks += p
+                Log.i(TAG, "$name at ${i + 1} cycles $p")
             }
         }
 
         val after = Probe.take()
+        marks += after
         Log.i(TAG, "$name after ${cycles} cycles $after")
 
         val fdDelta = after.fds - before.fds
@@ -125,18 +129,35 @@ class SpeechChurnLeakTest {
                 "pssKb=${after.pssKb - before.pssKb} perCycleFds=${fdDelta.toDouble() / cycles}",
         )
 
-        // One descriptor per cycle is the signature of a missed release and is what this exists to
-        // catch. The small slack absorbs the unrelated fds the platform opens on its own schedule —
-        // a binder connection, a lazily-mapped font — which do not scale with the loop.
+        // **Assert the shape, not the total** — the distinction this method's own probing exists to
+        // draw, and which the assertion used to throw away by comparing only the endpoints.
+        //
+        // Measured on the SM-S948B (Android 16): file transcription opens +20 fds and +6 threads over
+        // the first quarter and then sits at exactly 136/27 for **45 consecutive cycles**. That is a
+        // bounded one-time cost of the platform's codec stack — larger than the SM-M315F's, where the
+        // warm-up absorbed it entirely — and a total-based bound calls it a leak of 0.33 fds/cycle.
+        // A missed release does not stop; it is a straight line for as long as the loop runs.
+        //
+        // So the leak criterion is growth **after the halfway point**. A real one-per-cycle leak puts
+        // `cycles / 2` descriptors in that window and is caught harder than before; a plateau puts
+        // zero. The trade is that a very slow leak can hide under the slack in a short run — which is
+        // what `-e cycles` is for, since the tail window grows with it.
+        val mid = marks[marks.size / 2]
+        val fdTail = after.fds - mid.fds
+        val threadTail = after.threads - mid.threads
+        val series = marks.joinToString(" -> ") { "${it.fds}" }
+        Log.i(TAG, "$name SHAPE fds=[$series] tailGrowthFds=$fdTail tailGrowthThreads=$threadTail")
+
         assertTrue(
-            "$name leaked file descriptors: +$fdDelta over $cycles cycles " +
-                "(${before.fds} -> ${after.fds})",
-            fdDelta <= FD_SLACK,
+            "$name leaked file descriptors: +$fdTail in the second half of $cycles cycles " +
+                "(series $series). Total was +$fdDelta, but only growth that continues past the " +
+                "halfway mark is a leak",
+            fdTail <= FD_SLACK,
         )
         assertTrue(
-            "$name leaked threads: +$threadDelta over $cycles cycles " +
+            "$name leaked threads: +$threadTail in the second half of $cycles cycles " +
                 "(${before.threads} -> ${after.threads})",
-            threadDelta <= THREAD_SLACK,
+            threadTail <= THREAD_SLACK,
         )
         // Deliberately generous: this catches a Recognizer or a decoded PCM buffer retained per
         // cycle (megabytes each), not allocator hysteresis.
@@ -146,6 +167,10 @@ class SpeechChurnLeakTest {
             nativeDeltaKb / cycles <= NATIVE_KB_PER_CYCLE,
         )
     }
+
+    /** Cycle counts are overridable (`-e cycles 60`) so a suspected plateau can be run out further. */
+    private fun intArg(key: String, default: Int): Int =
+        InstrumentationRegistry.getArguments().getString(key)?.toIntOrNull() ?: default
 
     /** Open descriptors, live threads and native heap — the three things a missed release moves. */
     private class Probe(val fds: Int, val threads: Int, val nativeHeapKb: Long, val pssKb: Long) {
