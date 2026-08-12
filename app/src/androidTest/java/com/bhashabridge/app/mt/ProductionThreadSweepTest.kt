@@ -169,6 +169,55 @@ class ProductionThreadSweepTest {
         Log.i(TAG, "KLEIDI_CONTEXT shippingThreads=$shippingThreads i8mm=${caps.i8mm} sme=${caps.sme} sme2=${caps.sme2} dotprod=${caps.dotProduct}")
     }
 
+    /**
+     * Is KleidiAI's regression a property of the kernels, or of what the load path hands them?
+     *
+     * §3.20 measured KleidiAI **on** as faster on this device on 2026-07-31; §3.39 measured it
+     * **slower**, three times, on the same device. Between those sits §3.30, which changed the
+     * weights themselves into one shared blob per direction, and the `.ort` bake that re-inlines it.
+     * Model assets are gitignored, so a source-only bisect cannot revert that half — but this can
+     * separate it without any rebuild: run KleidiAI on/off under **both** load paths at one fixed
+     * thread count.
+     *
+     * - `optCache = true` — production: baked `.ort`, NO_OPT, mmap, shared blob re-inlined.
+     * - `optCache = false` — the source `.onnx` under ALL_OPT, i.e. the graph as exported.
+     *
+     * Absolute latencies are not comparable between the two cache settings and are not meant to be.
+     * The reading is the **KleidiAI delta within each**: if it is negative under both, the kernels
+     * are simply slower here and §3.20 was a bad measurement. If it flips sign with the load path,
+     * the artifact is implicated and the fix is upstream of `disableKleidiAi`.
+     */
+    @Test
+    fun sweepKleidiAiVsCache() {
+        val caps = CpuCapabilities.detect()
+        val base = ExecutionPolicy.current
+        // Entry #9's A/B ran at 4 threads, so 4 is the default for comparability — but that is the
+        // arm where the effect is smallest (§3.39: 3-6% at intra4 against 10-13% at intra2), so
+        // `-e threads 2` puts the question where the signal actually is.
+        val threads = intArg("threads", FIXED_THREADS)
+        fun a(label: String, cache: Boolean, noKleidi: Boolean) =
+            label to base.copy(
+                name = label,
+                intraThreads = threads,
+                intraOpAffinities = null,
+                optCache = cache,
+                disableKleidiAi = noKleidi,
+            )
+        sweep(
+            "KLEIDIxCACHE",
+            listOf(
+                a("cacheON_kleidiON", cache = true, noKleidi = false),
+                a("cacheON_kleidiOFF", cache = true, noKleidi = true),
+                a("cacheOFF_kleidiON", cache = false, noKleidi = false),
+                a("cacheOFF_kleidiOFF", cache = false, noKleidi = true),
+                // Repeat the production pair last: within-run control for the whole comparison.
+                a("cacheON_kleidiON_recheck", cache = true, noKleidi = false),
+                a("cacheON_kleidiOFF_recheck", cache = true, noKleidi = true),
+            ),
+        )
+        Log.i(TAG, "KLEIDIxCACHE_CONTEXT threads=$threads caps=${caps.describe()}")
+    }
+
     // ---------------------------------------------------------------------------------------------
 
     /**
@@ -459,6 +508,8 @@ class ProductionThreadSweepTest {
     private companion object {
         const val TAG = "BB_PROD_SWEEP"
         val DIRECTION = Direction.EN_TO_HI
+        /** Entry #9's KleidiAI A/B ran at 4 threads; matching it keeps the two sessions comparable. */
+        const val FIXED_THREADS = 4
         /** Above this at entry the device is already warm and the run is not a cold-start comparison. */
         const val WARM_START_C = 35.0
     }

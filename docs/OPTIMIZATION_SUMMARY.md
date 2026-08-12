@@ -1901,6 +1901,78 @@ churn-style probes if any grow one.
 
 ---
 
+### 3.42 Why KleidiAI reversed — it is the kernels, not the artifact (and a dead load path found on the way)
+
+**Problem.** §3.40 shipped `disableKleidiAi = caps.sme` on the strength of §3.39, which contradicts
+§3.20's opposite-signed result on the same device. If something between the two sessions changed what
+MLAS is *handed* — §3.30 moved the graphs' weights into a shared external blob, and the `.ort` bake
+re-inlines it — then the right fix would be upstream and the shipped policy would be treating a
+symptom. A commit bisect was the obvious instrument, and it is the wrong one: **the model assets are
+gitignored**, so no source checkout can revert that half of the change.
+
+**Investigation.** A 2×2 instead, on HEAD, no rebuild: KleidiAI on/off under **both** load paths at
+one fixed thread count, with the production pair repeated as a within-run control.
+
+- `optCache = true` — production: baked `.ort`, NO_OPT, mmap, blob re-inlined.
+- `optCache = false` — the source `.onnx` under ALL_OPT, external weights, as exported.
+
+The first attempt at `intra = 4` (entry #9's thread count) could not resolve it: effects of 2.8–4.9%
+against control disagreement of 3.9–6.1% and drift 1.08. That is the arm where the effect is smallest
+(§3.39: 3–6% at `intra4` against 10–13% at `intra2`), so the question moved to where the signal is.
+
+**Benchmark.** `intra = 2`, 30.9 °C, drift 1.06, `sweepKleidiAiVsCache`:
+
+| load path | KleidiAI on | off | Δ |
+|---|---|---|---|
+| baked `.ort` (production) | 94 ms | 85 ms | **−9.6%** |
+| baked `.ort`, recheck | 94 ms | 85 ms | identical to the above |
+| source `.onnx`, ALL_OPT | 93 ms | 85 ms | **−8.6%** |
+
+**Both control pairs returned exactly the same medians** — 94/94 and 85/85 — so the floor is zero and
+a ~9% effect is not in doubt.
+
+**The load path is exonerated.** KleidiAI costs the same whether ORT receives the baked artifact with
+its weights re-inlined or the source graph with §3.30's external data. Neither the bake nor the shared
+blob mediates it.
+
+**So the reversal is not explained by anything in this codebase.** ORT is 1.27.0 in both sessions, the
+ISA is unchanged, and no source commit touches MLAS kernel dispatch. With the artifact and the load
+path ruled out, the parsimonious reading is that **§3.20's measurement was wrong** — which it half
+said about itself: both of its A/B runs were "thermally degraded (stdev 12–25 ms)" and it declined to
+pin the magnitude tighter than 4–9%. The runs here carry stdev 2.4–5.9 ms and zero-disagreement
+controls. **A commit bisect is not justified: there is no candidate mechanism left in our code for it
+to find.** §3.40's predicate stands as the right layer.
+
+**A dead code path found on the way, and it is the more serious finding.** Every `optCache = false`
+arm failed with `IllegalStateException: ONNX session load failed` before running one translation.
+Phase 13 (§3.30) made the source graphs reference their weights externally; `OnnxModels.init` purges
+that blob before any load because the *baked* path only needs it while baking; and
+`loadSourceUncached` — which hands ORT the `.onnx` itself — never restored it. `ensureSharedWeights`
+is called only from the bake.
+
+Not a niche path: **`OrtTuning.optCache` defaults to `false`**, so every directly-constructed tuning
+uses it — all eleven arms of `MtTuningSweepTest` — and `:benchapp` runs
+`ExecutionPolicy.current.copy(optCache = false)` for both its **MT phase and its KleidiAI A/B**
+(`MtWorkload.kt:93`, `:319`) while staging no `weights.bin`. **The phone benchmark's translation phase
+has been broken since §3.30.** It survived undetected because that sweep takes 13 minutes and
+`:benchapp` is driven by hand from the launcher. Fixed in `loadSourceUncached` (`3a34fb2`) rather than
+by keeping the blob alive everywhere, so the production path's disk behaviour stays as §3.30 measured
+it.
+
+**Incidental, and worth knowing:** at steady state the opt-cache buys **no latency** on this device —
+93/85 uncached against 94/85 cached. That is not a regression; §3.10's case for it was always cold
+start, and this simply confirms the win is entirely in load time.
+
+**Evidence grade:** MEASURED. **Decision.** **§3.40 stands unchanged.** §3.20's direction stays
+withdrawn, now with a mechanism ruled out rather than merely outvoted.
+
+**Next.** The one thing that would still move this is a second SME device: everything here says
+"KleidiAI's SME kernels are slower for this workload", and one part cannot distinguish that from
+"slower on this part". Also worth a look now that `optCache = false` works again — `MtTuningSweepTest`
+has been running against a broken load path, so any of its numbers taken since §3.30 are void.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |

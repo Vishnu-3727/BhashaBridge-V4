@@ -1,0 +1,46 @@
+--------- beginning of main
+08-12 12:34:30.797 22980 22994 I BB_PROD_SWEEP: SUITE KLEIDIxCACHE rounds=3 runs=10 arms=6
+08-12 12:34:30.797 22980 22994 I BB_PROD_SWEEP: TOPOLOGY ARMv9 cores=8(perf=8[0, 1, 2, 3, 4, 5, 6, 7],eff=0[]) neon=true fp16=true dotprod=true i8mm=true sve=true sve2=true sme=true sme2=false
+08-12 12:34:30.797 22980 22994 I BB_PROD_SWEEP: PRODUCTION base=arm-adaptive(threads=2,noKleidiAI) intra=2 arena=false optCache=true affinity=OFF
+08-12 12:34:30.797 22980 22994 I BB_PROD_SWEEP: BATTERY_START tempC=30.9 status=not_charging plugged=usb level=79
+08-12 12:34:30.797 22980 22994 I BB_PROD_SWEEP: UNAVAILABLE [battery.energyCounter]
+08-12 12:34:34.206 22980 22994 I BB_PROD_SWEEP: REFERENCE KLEIDIxCACHE longTokens=12 shortTokens=2 out="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ ।"
+08-12 12:34:34.206 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiON r1/3 longMedian=91.00ms tempC=30.9
+08-12 12:34:36.378 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiOFF r1/3 longMedian=80.00ms tempC=30.9
+08-12 12:34:39.277 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheOFF_kleidiON r1/3 longMedian=93.00ms tempC=30.9
+08-12 12:34:42.023 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheOFF_kleidiOFF r1/3 longMedian=84.00ms tempC=30.9
+08-12 12:34:44.646 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiON_recheck r1/3 longMedian=91.00ms tempC=30.9
+08-12 12:34:46.915 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiOFF_recheck r1/3 longMedian=83.00ms tempC=30.9
+08-12 12:34:49.194 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiOFF r2/3 longMedian=85.00ms tempC=30.9
+08-12 12:34:52.278 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheOFF_kleidiON r2/3 longMedian=94.00ms tempC=30.9
+08-12 12:34:55.074 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheOFF_kleidiOFF r2/3 longMedian=87.00ms tempC=30.9
+08-12 12:34:57.751 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiON_recheck r2/3 longMedian=94.00ms tempC=32.6
+08-12 12:35:00.088 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiOFF_recheck r2/3 longMedian=85.00ms tempC=32.6
+08-12 12:35:02.692 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiON r2/3 longMedian=93.00ms tempC=32.6
+08-12 12:35:05.792 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheOFF_kleidiON r3/3 longMedian=94.00ms tempC=32.6
+08-12 12:35:08.636 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheOFF_kleidiOFF r3/3 longMedian=88.00ms tempC=32.6
+08-12 12:35:11.379 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiON_recheck r3/3 longMedian=96.00ms tempC=32.6
+08-12 12:35:13.772 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiOFF_recheck r3/3 longMedian=90.00ms tempC=32.6
+08-12 12:35:16.456 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiON r3/3 longMedian=96.00ms tempC=32.6
+08-12 12:35:18.864 22980 22994 I BB_PROD_SWEEP: ROUND KLEIDIxCACHE cacheON_kleidiOFF r3/3 longMedian=87.00ms tempC=33.8
+08-12 12:35:18.971 22980 22994 I BB_PROD_SWEEP: BATTERY_END tempC=33.8 level=79
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE LONG cacheON_kleidiON {"n":30,"min":89.0,"max":98.0,"mean":93.4,"median":94.0,"p95":97.0,"p99":98.0,"stdev":2.471} tokens=12 tokPerSec=127.66
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE SHORT cacheON_kleidiON {"n":30,"min":24.0,"max":28.0,"mean":25.5,"median":26.0,"p95":27.0,"p99":28.0,"stdev":1.057} tokens=2 tokPerSec=76.92
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: SYS KLEIDIxCACHE cacheON_kleidiON intra=2 inter=null parallel=false affinity=OFF coresBusy=2.43 cpuMsPerTx=152.17 migrations=202 nonvolCtxt=498 perfFreqMHz=[2942, 2769, 2697] tempC=30.9->32.6 pssKb=669087->694777 roundMedians=[91.00, 93.00, 96.00]
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE LONG cacheON_kleidiOFF {"n":30,"min":77.0,"max":105.0,"mean":84.567,"median":85.0,"p95":100.0,"p99":105.0,"stdev":5.875} tokens=12 tokPerSec=141.18
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE SHORT cacheON_kleidiOFF {"n":30,"min":21.0,"max":31.0,"mean":22.867,"median":23.0,"p95":25.0,"p99":31.0,"stdev":1.962} tokens=2 tokPerSec=86.96
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: SYS KLEIDIxCACHE cacheON_kleidiOFF intra=2 inter=null parallel=false affinity=OFF coresBusy=2.45 cpuMsPerTx=139.00 migrations=195 nonvolCtxt=398 perfFreqMHz=[2942, 2769, 2697] tempC=30.9->33.8 pssKb=648616->646141 roundMedians=[80.00, 85.00, 87.00]
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE LONG cacheOFF_kleidiON {"n":30,"min":91.0,"max":102.0,"mean":93.633,"median":93.0,"p95":99.0,"p99":102.0,"stdev":2.401} tokens=12 tokPerSec=129.03
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE SHORT cacheOFF_kleidiON {"n":30,"min":24.0,"max":29.0,"mean":25.467,"median":25.0,"p95":27.0,"p99":29.0,"stdev":0.921} tokens=2 tokPerSec=80.00
+08-12 12:35:18.972 22980 22994 I BB_PROD_SWEEP: SYS KLEIDIxCACHE cacheOFF_kleidiON intra=2 inter=null parallel=false affinity=OFF coresBusy=2.42 cpuMsPerTx=151.50 migrations=187 nonvolCtxt=445 perfFreqMHz=[2856, 2856, 3076] tempC=30.9->32.6 pssKb=535798->569289 roundMedians=[93.00, 94.00, 94.00]
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE LONG cacheOFF_kleidiOFF {"n":30,"min":81.0,"max":91.0,"mean":85.367,"median":85.0,"p95":90.0,"p99":91.0,"stdev":2.881} tokens=12 tokPerSec=141.18
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE SHORT cacheOFF_kleidiOFF {"n":30,"min":22.0,"max":25.0,"mean":22.8,"median":23.0,"p95":25.0,"p99":25.0,"stdev":0.792} tokens=2 tokPerSec=86.96
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: SYS KLEIDIxCACHE cacheOFF_kleidiOFF intra=2 inter=null parallel=false affinity=OFF coresBusy=2.47 cpuMsPerTx=141.67 migrations=160 nonvolCtxt=468 perfFreqMHz=[2856, 2769, 3004] tempC=30.9->32.6 pssKb=509613->505413 roundMedians=[84.00, 87.00, 88.00]
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE LONG cacheON_kleidiON_recheck {"n":30,"min":90.0,"max":106.0,"mean":94.033,"median":94.0,"p95":97.0,"p99":106.0,"stdev":2.983} tokens=12 tokPerSec=127.66
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE SHORT cacheON_kleidiON_recheck {"n":30,"min":24.0,"max":30.0,"mean":26.033,"median":26.0,"p95":28.0,"p99":30.0,"stdev":1.251} tokens=2 tokPerSec=76.92
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: SYS KLEIDIxCACHE cacheON_kleidiON_recheck intra=2 inter=null parallel=false affinity=OFF coresBusy=2.42 cpuMsPerTx=152.83 migrations=205 nonvolCtxt=473 perfFreqMHz=[2856, 2769, 2697] tempC=30.9->32.6 pssKb=719029->703009 roundMedians=[91.00, 94.00, 96.00]
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE LONG cacheON_kleidiOFF_recheck {"n":30,"min":80.0,"max":91.0,"mean":85.867,"median":85.0,"p95":91.0,"p99":91.0,"stdev":2.907} tokens=12 tokPerSec=141.18
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: RESULT KLEIDIxCACHE SHORT cacheON_kleidiOFF_recheck {"n":30,"min":22.0,"max":27.0,"mean":23.633,"median":24.0,"p95":26.0,"p99":27.0,"stdev":1.354} tokens=2 tokPerSec=83.33
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: SYS KLEIDIxCACHE cacheON_kleidiOFF_recheck intra=2 inter=null parallel=false affinity=OFF coresBusy=2.45 cpuMsPerTx=142.00 migrations=203 nonvolCtxt=457 perfFreqMHz=[2856, 2769, 2697] tempC=30.9->32.6 pssKb=649465->647345 roundMedians=[83.00, 85.00, 90.00]
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: DRIFT KLEIDIxCACHE firstRound=87.00ms lastRound=91.83ms ratio=1.06
+08-12 12:35:18.973 22980 22994 I BB_PROD_SWEEP: KLEIDIxCACHE_CONTEXT threads=2 caps=ARMv9 cores=8(perf=8[0, 1, 2, 3, 4, 5, 6, 7],eff=0[]) neon=true fp16=true dotprod=true i8mm=true sve=true sve2=true sme=true sme2=false
