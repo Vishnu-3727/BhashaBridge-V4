@@ -2,9 +2,11 @@
 <!--
   Backup & device-transfer rules (API 31+; see AndroidManifest dataExtractionRules).
 
-  Same reasoning as backup_rules.xml: the model / ORT graph caches (filesDir) and the
+  Same reasoning as backup_rules.xml: the model / graph caches (filesDir) and the
   benchmark + profiling artifacts (app external files) are large and fully regenerable,
-  so exclude them from both cloud backup and device-to-device transfer. User-facing
+  so exclude them from both cloud backup and device-to-device transfer. The device-transfer
+  exclusion is load-bearing since Q21: the baked graphs are ALL_OPT output and ORT considers
+  them environment-specific, so they must never ride a transfer onto different hardware. User-facing
   state (per-app locale, first-run flag) lives in the sharedpref domain and is carried.
 -->
 <data-extraction-rules>

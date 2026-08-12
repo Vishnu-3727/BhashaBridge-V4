@@ -189,14 +189,21 @@ class BenchmarkSuiteTest {
 
     private fun cacheBytes(): Pair<Long, Long> {
         val files = context.filesDir.listFiles() ?: emptyArray()
-        val source = files.filter { it.name.endsWith(".onnx") }.sumOf { it.length() }
-        val ort = files.filter { it.name.endsWith(".ort") }.sumOf { it.length() }
-        return source to ort
+        // Q21 (§3.47): the baked cache is `.opt.onnx` plus the shared `.bin` blob it points at, so
+        // the blob counts as cache -- it is what the graphs need on disk to load at all. A plain
+        // `.onnx` match would now scoop up the baked graphs as if they were source copies.
+        val source = files.filter { it.name.endsWith(".onnx") && !it.name.endsWith(".opt.onnx") }
+            .sumOf { it.length() }
+        val cache = files.filter { it.name.endsWith(".opt.onnx") || it.name.endsWith(".bin") }
+            .sumOf { it.length() }
+        return source to cache
     }
 
     private fun clearCache() {
         (context.filesDir.listFiles() ?: emptyArray()).forEach {
-            if (it.name.endsWith(".ort") || it.name.endsWith(".ort.stamp") || it.name.endsWith(".onnx")) it.delete()
+            if (it.name.endsWith(".ort") || it.name.endsWith(".ort.stamp") ||
+                it.name.endsWith(".opt.stamp") || it.name.endsWith(".onnx") || it.name.endsWith(".bin")
+            ) it.delete()
         }
     }
 

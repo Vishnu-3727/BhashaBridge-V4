@@ -45,6 +45,11 @@ import java.util.concurrent.Executors
  * constructor still blocks until all three exist, so every consumer sees the same fully-built object
  * it always did; only the wall-clock cost of building it changed. Nothing about inference, the cache
  * contract, or session ownership moved.
+ *
+ * Q21 (§3.47) changed **what the cache is**, not how it works: the bake writes optimized ONNX that
+ * still points at the one shared weight blob, instead of an ORT flatbuffer that re-inlined those
+ * weights into each graph. Same bake-once-load-NO_OPT design, 267 MB on disk instead of 473 MB. The
+ * blob is consequently permanent rather than bake scratch — see [purgeWeightPart].
  */
 class OnnxModels(
     context: Context,
@@ -57,18 +62,6 @@ class OnnxModels(
     private val encoder: OrtSession
     private val decoderInit: OrtSession
     private val decoderStep: OrtSession
-
-    /**
-     * The file mappings backing the sessions when [OrtTuning.mappedInitializers] is on; empty
-     * otherwise. Held for exactly as long as the sessions are — see [createMappedSession].
-     *
-     * **Declared above the `init` block on purpose.** Kotlin runs property initializers in
-     * declaration order, interleaved with `init`, so a list declared further down would still be
-     * null when [createMappedSession] runs during session load. Synchronised because the three
-     * graphs load on three threads.
-     */
-    private val mappedModels =
-        java.util.Collections.synchronizedList(ArrayList<java.nio.ByteBuffer>(3))
 
     /**
      * The decoder_step graph's `past_key_values.*` input names, in graph order, which is exactly the
@@ -113,11 +106,13 @@ class OnnxModels(
         runCatching { context.assets.openFd(sharedWeights).use { it.length } }.getOrDefault(0L)
 
     init {
-        // Before any load starts, so nothing can be mid-bake when it runs. The blob is only needed
-        // while a graph is being baked; the warm path reads `.ort` files that already inline their
-        // weights. Deleting it here rather than after the bake matches how the source `.onnx` copies
-        // are handled, and for the same reason — ORT may hold the file mapped for the session's life.
-        purgeSharedWeights(context.filesDir)
+        // The blob is now **permanent**, not bake scratch (Q21, §3.47). The baked graphs are ~1 MB of
+        // structure that reference it by name, resolved relative to the model file, so it has to be on
+        // disk beside them for every load — not just while baking. Extracted here, once, before the
+        // three loads start: doing it on the loader threads would have all three race for the same
+        // 264 MB copy, and [ensureSharedWeights] is an `exists()` check on every launch after the first.
+        purgeWeightPart(context.filesDir)
+        ensureSharedWeights(context)
 
         val (encAsset, initAsset, stepAsset) = when (direction) {
             // Phase 6D: the verified INT8 cached graphs (Phase 6C), kept as the production path —
@@ -189,8 +184,6 @@ class OnnxModels(
         encoder.close()
         decoderInit.close()
         decoderStep.close()
-        // After the sessions, never before: ORT reads these bytes for the session's whole life.
-        mappedModels.clear()
     }
 
     /**
@@ -252,7 +245,7 @@ class OnnxModels(
         // cache. Everyone else keeps the pre-Phase-2A behaviour verbatim: extract the source .onnx to
         // filesDir on demand, then a path-based createSession with this config's options.
         if (!tune.optCache) return loadSourceUncached(context, name, label)
-        return loadOrt(context, name, label)
+        return loadCached(context, name, label)
     }
 
     /**
@@ -279,97 +272,93 @@ class OnnxModels(
             extractAsset(context, name, src)
             extractNs = System.nanoTime() - extractStart
         }
-        // Phase 13 made the source graphs reference their weights externally, and [init] purges that
-        // blob before any load because the *baked* path only needs it while baking. This path is not
-        // the baked path: it hands ORT the `.onnx` itself, so the external data has to be on disk or
-        // the session fails to load at all. Restoring it here rather than keeping the blob alive
-        // everywhere leaves the production path's disk behaviour exactly as measured in §3.30.
-        ensureSharedWeights(context)
+        // The shared blob this graph references is extracted by [init], before any load starts.
         val start = System.nanoTime()
         val session = env.createSession(src.absolutePath, tune.toOptions().maybeProfile(label))
         return SessionLoad(label, session, verifyNs, extractNs, System.nanoTime() - start, false, src.length())
     }
 
     /**
-     * Production load (Phase 2B). Reuses a previously baked ORT-format graph when the cache is valid,
-     * loaded via memory-mapped I/O with graph optimization off, so ORT's optimizers run once per
-     * install instead of every launch and the `.ort` weights are mmapped rather than read into a heap
-     * buffer. On a miss the ALL-optimized graph is written to disk in ORT format as a *side effect* of
-     * the session that already serves this launch (`setOptimizedModelFilePath` + save-format ORT).
+     * Production load. Reuses a previously baked **optimized ONNX** graph when the cache is valid,
+     * loaded NO_OPT from its path, so ORT's optimizers run once per install instead of every launch.
+     * On a miss the ALL-optimized graph is written to disk as a *side effect* of the session that
+     * already serves this launch (`setOptimizedModelFilePath`).
      *
-     * The source `.onnx` is extracted to filesDir only for that one-time bake (ORT mmaps it, so baking
-     * stays low-heap even with three graphs building concurrently) and is purged on the next launch —
-     * the warm path never needs it, so steady-state storage is the `.ort` files alone.
+     * **Why this format and not the `.ort` flatbuffer it replaced (Q21, §3.47).** ORT's optimized-ONNX
+     * writer preserves the source graph's external-data references, so the three baked graphs are ~1 MB
+     * each and all point at the one shared blob (§3.30). The ORT-format writer instead re-inlines every
+     * weight into each graph, which duplicated the decoder weights on disk and cost 473 MB against this
+     * layout's 267 MB. §3.46 measured both through the real engine: load, first inference and
+     * steady-state latency all tie, and this side is −193 MB of storage and −333 MB of PSS.
      *
-     * A corrupt cache or a failed mmap is deleted and regenerated; any failure degrades to an uncached
-     * session built from the source, so the cache can never break startup.
+     * The source `.onnx` is extracted to filesDir only for that one-time bake and is purged on the next
+     * launch. The blob is **not** scratch — it backs the baked graphs for the life of the install.
+     *
+     * A corrupt cache is deleted and regenerated; any failure degrades to an uncached session built
+     * from the source, so the cache can never break startup.
      */
-    private fun loadOrt(context: Context, name: String, label: String): SessionLoad {
-        purgeLegacy(context.filesDir, name) // remove Phase 2A .opt.onnx / .opt.stamp and the source copy
-        val ort = File(context.filesDir, ortName(name))
+    private fun loadCached(context: Context, name: String, label: String): SessionLoad {
+        purgeLegacy(context.filesDir, name) // remove the superseded .ort cache and the source copy
+        val opt = File(context.filesDir, optName(name))
         val stamp = File(context.filesDir, stampName(name))
 
         val verifyStart = System.nanoTime()
         val expected = cacheStamp(context, name)
-        val hit = ort.exists() && stamp.readTextOrNull() == expected
+        val hit = opt.exists() && stamp.readTextOrNull() == expected
         val verifyNs = System.nanoTime() - verifyStart
 
         if (hit) {
             val start = System.nanoTime()
             try {
-                val session = if (tune.mappedInitializers) {
-                    createMappedSession(ort, label)
-                } else {
-                    env.createSession(ort.absolutePath, loadOptions().maybeProfile(label))
-                }
+                val session = env.createSession(opt.absolutePath, loadOptions().maybeProfile(label))
                 val ms = (System.nanoTime() - start) / 1_000_000
-                logDebug(LogTag.MT) { "ORT-cache HIT $label: memory-mapped load ${ort.name} in $ms ms, graph optimization skipped" }
-                return SessionLoad(label, session, verifyNs, 0L, System.nanoTime() - start, false, ort.length())
+                logDebug(LogTag.MT) { "opt-cache HIT $label: loaded ${opt.name} in $ms ms, graph optimization skipped" }
+                return SessionLoad(label, session, verifyNs, 0L, System.nanoTime() - start, false, opt.length())
             } catch (e: OrtException) {
-                logWarn(LogTag.MT, "ORT-cache load failed for $label; regenerating", e)
-                ort.delete(); stamp.delete()
+                logWarn(LogTag.MT, "opt-cache load failed for $label; regenerating", e)
+                opt.delete(); stamp.delete()
             }
         }
 
-        logDebug(LogTag.MT) { "ORT-cache invalidated $label: rebuilding because ${bakeReason(ort, stamp)}" }
-        return bakeOrt(context, name, ort, stamp, expected, label, verifyNs)
+        logDebug(LogTag.MT) { "opt-cache invalidated $label: rebuilding because ${bakeReason(opt, stamp)}" }
+        return bake(context, name, opt, stamp, expected, label, verifyNs)
     }
 
     /**
-     * Extracts [name]'s source once and builds [ort] (ORT format) from its file path — ORT mmaps the
-     * source, so three concurrent bakes stay low-heap. Returns the session that produced it. If the
-     * build fails (e.g. no disk space to write [ort]), falls back to an uncached session from the same
+     * Extracts [name]'s source once and builds [opt] (optimized ONNX) from its file path — ORT mmaps
+     * the source, so three concurrent bakes stay low-heap. Returns the session that produced it. If the
+     * build fails (e.g. no disk space to write [opt]), falls back to an uncached session from the same
      * source, so functionality is preserved even when caching is impossible.
      */
-    private fun bakeOrt(
-        context: Context, name: String, ort: File, stamp: File, expected: String, label: String, verifyNs: Long,
+    private fun bake(
+        context: Context, name: String, opt: File, stamp: File, expected: String, label: String, verifyNs: Long,
     ): SessionLoad {
         val src = File(context.filesDir, name)
         val readStart = System.nanoTime()
-        // The blob first: ORT resolves the graph's external initializers while parsing it, so a graph
-        // extracted without its weights beside it fails the build rather than loading empty.
-        ensureSharedWeights(context)
-        if (!src.exists()) extractAsset(context, name, src) // purged on the next launch; see loadOrt
+        // The blob is already on disk — [init] extracts it before any load, because both the source
+        // graph being read here and the optimized graph being written resolve their initializers
+        // against it. A graph without its weights beside it fails the build rather than loading empty.
+        if (!src.exists()) extractAsset(context, name, src) // purged on the next launch; see loadCached
         val readNs = System.nanoTime() - readStart
 
         val start = System.nanoTime()
         val session = try {
-            logDebug(LogTag.MT) { "Building ORT model $label from $name" }
-            env.createSession(src.absolutePath, bakeOptions(ort.absolutePath).maybeProfile(label))
+            logDebug(LogTag.MT) { "Building optimized model $label from $name" }
+            env.createSession(src.absolutePath, bakeOptions(opt.absolutePath).maybeProfile(label))
         } catch (e: OrtException) {
-            logWarn(LogTag.MT, "ORT build failed for $label; loading source uncached", e)
-            runCatching { ort.delete(); stamp.delete() }
+            logWarn(LogTag.MT, "optimized build failed for $label; loading source uncached", e)
+            runCatching { opt.delete(); stamp.delete() }
             val fbStart = System.nanoTime()
             val fallback = env.createSession(src.absolutePath, tune.toOptions().maybeProfile(label))
             return SessionLoad(label, fallback, verifyNs, readNs, System.nanoTime() - fbStart, false, src.length())
         }
         val ms = (System.nanoTime() - start) / 1_000_000
-        // Stamp written only after a successful build, so a valid stamp always implies a valid .ort.
+        // Stamp written only after a successful build, so a valid stamp always implies a valid graph.
         // A stamp-write failure is non-fatal: the session is good, next launch just regenerates.
         runCatching { stamp.writeText(expected) }
-            .onFailure { logWarn(LogTag.MT, "ORT-cache stamp write failed for $label; will regenerate next launch", it) }
-        logDebug(LogTag.MT) { "ORT model GENERATED $label in $ms ms -> ${ort.name}" }
-        return SessionLoad(label, session, verifyNs, readNs, System.nanoTime() - start, true, ort.length())
+            .onFailure { logWarn(LogTag.MT, "opt-cache stamp write failed for $label; will regenerate next launch", it) }
+        logDebug(LogTag.MT) { "optimized model GENERATED $label in $ms ms -> ${opt.name}" }
+        return SessionLoad(label, session, verifyNs, readNs, System.nanoTime() - start, true, opt.length())
     }
 
     /**
@@ -386,20 +375,17 @@ class OnnxModels(
         // opaque: three graphs are extracted concurrently, each a few hundred MB, and running out
         // of space part-way through surfaces as an IOException from a write — which the UI reports
         // with the same "direction unavailable" message it uses for a direction that was never
-        // exported. The headroom is the asset itself plus the .ort the bake will write from it.
+        // exported. The headroom is the asset itself plus the optimized graph the bake writes from it.
         //
-        // Since Phase 13 the graph's own length is no longer a proxy for what the bake will write:
-        // the graph is ~2 MB and its weights are in [sharedWeights], so `graph * 2` would reserve
-        // four megabytes for a bake that emits two hundred. The `.ort` inlines the weights again
-        // (measured — ORT's ORT-format writer ignores the external-initializer keys), so the blob's
-        // length is the right stand-in for the output size. Extracting the blob itself needs only
-        // its own bytes, which is what the `name == sharedWeights` case reserves.
+        // Since Q21 (§3.47) the bake emits **optimized ONNX that keeps pointing at [sharedWeights]**,
+        // so its output is about the size of the source graph — not the hundreds of megabytes the
+        // `.ort` writer produced by re-inlining every weight. `graph * 2` is therefore the right
+        // reservation again for a graph, and the blob is reserved on its own extraction, which is
+        // what the `name == sharedWeights` case covers. The blob is not double-counted here because
+        // [init] extracts it before any graph is touched, so by the time this runs for a graph the
+        // blob's bytes are already spent, not pending.
         val graphLength = assetLength(context, name)
-        val needed = when {
-            name == sharedWeights -> graphLength
-            sharedWeightsLength == 0L -> graphLength * 2 // self-contained graph: the pre-Phase-13 rule
-            else -> graphLength + sharedWeightsLength * 2
-        }
+        val needed = if (name == sharedWeights) graphLength else graphLength * 2
         val free = dest.parentFile?.usableSpace ?: Long.MAX_VALUE
         if (free < needed) {
             throw IOException(
@@ -446,23 +432,24 @@ class OnnxModels(
     }
 
     /**
-     * Removes the previous launch's shared weight blob, and any `.part` left by a killed extraction.
+     * Removes a `.part` left behind by an extraction that was killed mid-copy. Nothing else knows that
+     * name, so without this it is a few hundred MB of dead file until the app is uninstalled.
      *
-     * Called once from [init] before the three loads start. Doing it per-graph inside [purgeLegacy]
-     * would race: on a launch where one graph is cached and two are not, the cached graph's purge can
-     * land after a baking graph has already extracted the blob and delete it out from under the build.
+     * **It does not touch [sharedWeights] itself, and that is the Q21 change.** Before §3.47 the blob
+     * was bake scratch and was deleted at the start of every launch; the baked `.ort` had re-inlined
+     * the weights, so nothing needed it afterwards. The optimized-ONNX graphs the bake writes now
+     * reference it by name for the life of the install — deleting it would break every subsequent
+     * load, not free space.
      */
-    private fun purgeSharedWeights(dir: File) {
-        listOf(sharedWeights, "$sharedWeights.part").forEach { name ->
-            val f = File(dir, name)
-            if (f.exists() && f.delete()) logDebug(LogTag.MT) { "removed obsolete ${f.name}" }
-        }
+    private fun purgeWeightPart(dir: File) {
+        val f = File(dir, "$sharedWeights.part")
+        if (f.exists() && f.delete()) logDebug(LogTag.MT) { "removed obsolete ${f.name}" }
     }
 
     /**
-     * The cache key. Any change regenerates the `.ort` model: the app version (graph export or decode
-     * changes ship with it), the ONNX Runtime version (optimizer output and the ORT format itself are
-     * version-specific), and the source asset's byte length (a re-exported graph is different bytes).
+     * The cache key. Any change regenerates the baked model: the cache **format** (see below), the app
+     * version (graph export or decode changes ship with it), the ONNX Runtime version (optimizer output
+     * is version-specific), and the source asset's byte length (a re-exported graph is different bytes).
      * Length via a cheap `openFd`, not a content hash — the source is hundreds of MB and hashing it
      * every launch would cost more than the optimization this cache removes; a new export always
      * changes the length.
@@ -471,82 +458,63 @@ class OnnxModels(
      * holds structure only — about 2 MB — and every weight lives in the blob. Keying on the graph
      * alone would let a re-quantized export (per-channel scales, a different calibration) ship
      * hundreds of MB of new weights under a graph whose length barely moved, and the app would
-     * happily reuse the stale `.ort` built from the old ones. Wrong translations, no error, and a
+     * happily reuse the stale graph built from the old ones. Wrong translations, no error, and a
      * cache that only clears on reinstall.
+     *
+     * **[CACHE_FORMAT] leads the key** so the Q21 switch invalidates itself. The previous cache used
+     * the same `.opt.onnx` / `.opt.stamp` names as the abandoned Phase 2A one, and a stale artifact
+     * that merely *looks* current is the failure mode this whole key exists to prevent. Bumping the
+     * token is also how any future format change forces a rebake.
      */
     private fun cacheStamp(context: Context, name: String): String =
-        "${BuildConfig.VERSION_CODE}|${env.version}|${assetLength(context, name)}" +
+        "$CACHE_FORMAT|${BuildConfig.VERSION_CODE}|${env.version}|${assetLength(context, name)}" +
             if (sharedWeightsLength == 0L) "" else "|$sharedWeightsLength"
 
-    /** ALL_OPT + serialize the result to [ortPath] in ORT format. Shares every other knob via [tune]. */
-    private fun bakeOptions(ortPath: String): SessionOptions =
+    /**
+     * ALL_OPT + serialize the result to [optPath] as optimized ONNX. Shares every other knob via [tune].
+     *
+     * No `session.save_model_format` and no external-initializer keys, and both omissions are the point
+     * (§3.47): ORT's ONNX writer **preserves the source's external-data references**, so the output is
+     * ~1 MB of structure still pointing at [sharedWeights]. Asking for ORT format re-inlines every
+     * weight per graph (473 MB), and asking for its own external file writes one blob per graph
+     * (471 MB); leaving both alone keeps the single shared blob (§3.30) and lands at 267 MB.
+     */
+    private fun bakeOptions(optPath: String): SessionOptions =
         tune.toOptions().apply {
             setOptimizationLevel(OptLevel.ALL_OPT)
-            addConfigEntry("session.save_model_format", "ORT")
-            setOptimizedModelFilePath(ortPath)
+            setOptimizedModelFilePath(optPath)
         }
 
-    /**
-     * Q14: build a session from a **file mapping** of [ort] instead of from its path.
-     *
-     * `FileChannel.map` returns a direct `MappedByteBuffer`, which is the one thing ORT's
-     * `createSession(ByteBuffer, …)` overload accepts, and `use_ort_model_bytes_directly` tells ORT
-     * to read the flatbuffer in place rather than copying it in.
-     * `use_ort_model_bytes_for_initializers` is the half that matters: without it ORT copies every
-     * constant tensor into the session allocator, which is what leaves ~559 MB of anonymous heap
-     * behind on the path-based load.
-     *
-     * **The buffer must outlive the session.** ORT holds pointers into these bytes for the life of
-     * the session, so the reference is retained in [mappedModels] and dropped only in [release];
-     * letting it be collected would unmap memory ORT is still reading. There is no explicit unmap in
-     * the JDK — clearing the reference is the whole contract.
-     */
-    private fun createMappedSession(ort: File, label: String): OrtSession {
-        val buffer = java.io.RandomAccessFile(ort, "r").use { raf ->
-            raf.channel.use { channel ->
-                channel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, 0, channel.size())
-            }
-        }
-        mappedModels += buffer
-        val options = tune.toOptions().apply {
-            setOptimizationLevel(OptLevel.NO_OPT)
-            addConfigEntry("session.use_ort_model_bytes_directly", "1")
-            addConfigEntry("session.use_ort_model_bytes_for_initializers", "1")
-        }.maybeProfile(label)
-        return env.createSession(buffer, options)
-    }
-
-    /** NO_OPT + mmap the ORT-format file: the graph on disk is already optimized, so skip optimizers. */
+    /** NO_OPT: the graph on disk is already optimized, so skip the optimizers on every later launch. */
     private fun loadOptions(): SessionOptions =
-        tune.toOptions().apply {
-            setOptimizationLevel(OptLevel.NO_OPT)
-            addConfigEntry("session.load_model_format", "ORT")
-            addConfigEntry("session.use_memory_mapped_ort_model", "1")
-        }
+        tune.toOptions().apply { setOptimizationLevel(OptLevel.NO_OPT) }
 
-    private fun bakeReason(ort: File, stamp: File): String = when {
-        !ort.exists() -> "no .ort model exists"
+    private fun bakeReason(opt: File, stamp: File): String = when {
+        !opt.exists() -> "no optimized model exists"
         !stamp.exists() -> "cache stamp missing"
-        else -> "app / ONNX Runtime / model version changed"
+        else -> "cache format / app / ONNX Runtime / model version changed"
     }
 
     /**
-     * Deletes the Phase 2A cache and the filesDir source copy for [name]; each is now obsolete.
+     * Deletes the superseded caches and the filesDir source copy for [name]; each is now obsolete.
      *
-     * `$name.part` is on the list because a process killed mid-[extractAsset] leaves one behind, and
-     * nothing else knows the name: several hundred MB of dead file that would otherwise sit in
-     * filesDir until the app is uninstalled.
+     * The `.ort` pair is on the list because Q21 (§3.47) replaced that format, and an install upgrading
+     * across the change would otherwise keep **473 MB** of flatbuffer that nothing will ever open again
+     * — the storage this change exists to save, silently not saved.
+     *
+     * `$name.part` is here because a process killed mid-[extractAsset] leaves one behind and nothing
+     * else knows the name.
      */
     private fun purgeLegacy(dir: File, name: String) {
         val base = name.removeSuffix(".onnx")
-        listOf(name, "$name.part", "$base.opt.onnx", "$base.opt.stamp").forEach { legacy ->
+        listOf(name, "$name.part", "$base.ort", "$base.ort.stamp").forEach { legacy ->
             val f = File(dir, legacy)
             if (f.exists() && f.delete()) logDebug(LogTag.MT) { "cache invalidated: removed obsolete ${f.name}" }
         }
     }
 
-    private fun ortName(name: String) = name.removeSuffix(".onnx") + ".ort"
-    private fun stampName(name: String) = name.removeSuffix(".onnx") + ".ort.stamp"
+    private fun optName(name: String) = name.removeSuffix(".onnx") + ".opt.onnx"
+    private fun stampName(name: String) = name.removeSuffix(".onnx") + ".opt.stamp"
     private fun File.readTextOrNull(): String? = runCatching { if (exists()) readText() else null }.getOrNull()
 
     /**
@@ -579,6 +547,13 @@ class OnnxModels(
 
     private companion object {
         val NON_CACHE_STEP_INPUTS = setOf("decoder_input_ids", "encoder_attention_mask")
+
+        /**
+         * Cache-format token, first field of [cacheStamp]. `onnx1` is Q21's optimized-ONNX layout
+         * (§3.47). Bump it whenever the baked artifact changes shape, so existing installs rebake
+         * instead of loading something built by different rules.
+         */
+        const val CACHE_FORMAT = "onnx1"
     }
 }
 
@@ -637,26 +612,6 @@ data class OrtTuning(
      * flag is a measurement instrument and a REVERT, never a tuning option.
      */
     val disablePrepacking: Boolean = false,
-    /**
-     * Load the `.ort` graph through a **file-mapped `ByteBuffer`** instead of a file path, with
-     * `session.use_ort_model_bytes_directly` and `session.use_ort_model_bytes_for_initializers`, so
-     * ORT's initializers point into the mapped file rather than into copies on the native heap.
-     *
-     * **On since Q18 (§3.44)** — [ExecutionPolicy.select] sets it for every device. It was Q14's
-     * memory experiment and stayed off while its load-time effect was unmeasurable; rotating the arms
-     * separated it from the page cache and it is worth **550 ms of `sessions:parallel`** on the
-     * SM-M315F, because a path-based load copies ~200 MB of initializers per decoder graph into the
-     * session allocator and this one does not. The default here stays `false` so every benchmark that
-     * asks for a bare [OrtTuning] still measures the pre-Q18 path.
-     *
-     * Q14, and the reason it exists: on the path-based load ORT maps 451 MB while building the
-     * sessions and then drops the mapping, leaving the weights as ~559 MB of anonymous heap
-     * (§3.25/§3.26). Anonymous pages must be swapped or killed under pressure; clean file-backed
-     * pages can simply be dropped and re-read. `session.use_memory_mapped_ort_model` is *ignored*
-     * for buffer loads (ORT says so in its own strings), which is why the mapping is done here
-     * rather than asked for.
-     */
-    val mappedInitializers: Boolean = false,
     /**
      * P8 operator profiling. When non-null, ONNX Runtime's built-in profiler is enabled on every
      * session, writing one Chrome-trace JSON per graph under this directory (see

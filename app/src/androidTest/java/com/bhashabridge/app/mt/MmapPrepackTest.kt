@@ -97,7 +97,9 @@ class MmapPrepackTest {
         var bytes = 0L
         var count = 0
         File("/proc/self/maps").forEachLine { line ->
-            if (line.contains("/com.bhashabridge") && (line.contains(".ort") || line.contains(".onnx"))) {
+            if (line.contains("/com.bhashabridge") &&
+                (line.contains(".ort") || line.contains(".onnx") || line.contains(".bin"))
+            ) {
                 val range = line.substringBefore(' ')
                 val start = range.substringBefore('-').toLong(16)
                 val end = range.substringAfter('-').substringBefore(' ').toLong(16)

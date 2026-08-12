@@ -98,7 +98,7 @@ class NativeMemoryReturnTest {
         var bytes = 0L
         var count = 0
         File("/proc/self/maps").forEachLine { line ->
-            if (line.endsWith(".ort") || line.endsWith(".onnx")) {
+            if (line.endsWith(".ort") || line.endsWith(".onnx") || line.endsWith(".bin")) {
                 val range = line.substringBefore(' ')
                 val start = range.substringBefore('-').toLong(16)
                 val end = range.substringAfter('-').substringBefore(' ').toLong(16)

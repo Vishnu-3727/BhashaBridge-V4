@@ -90,9 +90,11 @@ class GraphFormatMatrixTest {
             Arm("opt_inline", File(work, "opt"), production.copy(graphDir = File(work, "opt").path, optLevel = OptLevel.NO_OPT)),
             Arm("opt_ext", File(work, "ext"), production.copy(graphDir = File(work, "ext").path, optLevel = OptLevel.NO_OPT)),
             Arm("opt_ext_pp", File(work, "extpp"), production.copy(graphDir = File(work, "extpp").path, optLevel = OptLevel.NO_OPT)),
-            // The ORT flatbuffer, by both of its load paths. `ort_mapped` is what ships (§3.44).
-            Arm("ort_path", app.filesDir, production.copy(mappedInitializers = false)),
-            Arm("ort_mapped", app.filesDir, production),
+            // Whatever the production policy currently bakes and loads from filesDir. Q21 (§3.47)
+            // made that `opt_inline`'s layout, so this arm and that one now measure the same shape by
+            // different routes — the `ort_path` / `ort_mapped` arms this list used to carry are gone
+            // with the format they loaded. Their numbers are in §3.46 and are not re-derivable here.
+            Arm("shipping", app.filesDir, production),
         )
         arms.forEach { Log.i(TAG, "SIZE ${it.label} bytes=${it.artifactBytes()}") }
 
@@ -195,14 +197,19 @@ class GraphFormatMatrixTest {
 
     private inner class Arm(val label: String, val dir: File, val tune: OrtTuning) {
         /**
-         * Every byte this arm needs on disk. For the `.ort` arms that is the three baked flatbuffers
-         * in `filesDir` — which also holds the HI→EN trio, hence the prefix match. For the rest it is
-         * the whole directory, because the shared weight blob and the external initializer files are
-         * as much part of the artifact as the graph that points at them.
+         * Every byte this arm needs on disk. The blob and any external initializer files count — a
+         * graph that cannot resolve its initializers does not load, so they are part of the artifact,
+         * not overhead beside it.
+         *
+         * The `shipping` arm reads `filesDir`, which also holds the HI→EN trio and the Vosk models, so
+         * it is narrowed to this direction's baked graphs plus its blob rather than the whole
+         * directory; every other arm owns its directory outright.
          */
-        fun artifactBytes(): Long = if (label.startsWith("ort")) {
+        fun artifactBytes(): Long = if (label == "shipping") {
             dir.listFiles().orEmpty()
-                .filter { f -> f.name.endsWith(".ort") && sources.any { f.name.startsWith(it.removeSuffix(".onnx")) } }
+                .filter { f ->
+                    f.name == BLOB || sources.any { f.name.startsWith(it.removeSuffix(".onnx")) && !f.name.endsWith(".stamp") }
+                }
                 .sumOf { it.length() }
         } else {
             dir.listFiles().orEmpty().sumOf { it.length() }

@@ -4,8 +4,14 @@
 
   Everything the app writes to internal storage (filesDir) and app-specific external
   storage is a regenerable cache, not user data:
-    - filesDir  : the baked .ort graphs + .ort.stamp, and the one-shot extracted .onnx
-                  source (purged next launch). Rebuilt automatically on next launch.
+    - filesDir  : the baked .opt.onnx graphs + .opt.stamp, the shared weights.bin blob they
+                  reference, and the one-shot extracted .onnx source (purged next launch).
+                  Rebuilt automatically on next launch.
+
+  Excluding filesDir is also what keeps the Q21 bake safe. ORT warns that an ALL_OPT graph
+  "should only be used in the same environment the model was optimized in" -- it is baked
+  per install, on the device that will run it, and these rules stop a cloud restore or a
+  device-to-device transfer from carrying one phone's optimized graphs onto another's CPU.
     - external  : benchmark JSON reports (files/bench) and ORT profiling traces
                   (files/ort-profile). Developer artifacts, re-measured on demand.
 

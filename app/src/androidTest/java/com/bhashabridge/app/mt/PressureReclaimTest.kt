@@ -20,7 +20,7 @@ import java.io.File
  * *compress-and-decompress in zram*, and which one costs more when the pages are needed again.
  *
  * The test applies real pressure — touched direct allocations, in 128 MB steps — and watches, per
- * step: how much of the `.ort` mapping is still resident, what the system has left, how much has
+ * step: how much of the model mapping is still resident, what the system has left, how much has
  * gone to swap, and what a translation costs at that moment.
  *
  * Each arm runs in its own process (one `am instrument` invocation per test method), because the
@@ -33,12 +33,15 @@ class PressureReclaimTest {
 
     private val app get() = ApplicationProvider.getApplicationContext<BhashaBridgeApp>()
 
+    /**
+     * The shipping configuration under pressure. Q21 (§3.47) collapsed this test's original two arms
+     * into one: the A/B was ORT-format initializer-copying against a mapped buffer, and neither exists
+     * now — the baked artifact is optimized ONNX whose weights ORT maps from the shared blob, so every
+     * install is the file-backed arm. What is still worth watching is unchanged, and is what this
+     * measures: how much stays resident, what goes to swap, and what a translation costs while it does.
+     */
     @Test
-    fun pathLoadUnderPressure() = runArm("path", ExecutionPolicy.current)
-
-    @Test
-    fun mappedInitializersUnderPressure() =
-        runArm("mapped", ExecutionPolicy.current.copy(mappedInitializers = true))
+    fun shippingConfigUnderPressure() = runArm("shipping", ExecutionPolicy.current)
 
     private fun runArm(label: String, tune: OrtTuning) {
         val engine = MtEngine(app, Direction.EN_TO_HI, tune = tune)
@@ -113,7 +116,11 @@ class PressureReclaimTest {
     }
 
     /**
-     * Resident kilobytes of the `.ort` mappings, from `/proc/self/smaps`.
+     * Resident kilobytes of the model mappings, from `/proc/self/smaps`.
+     *
+     * Q21 (§3.47) changed which file that is: the weights now live in the shared `weights.bin` blob
+     * the optimized graphs point at, not in a `.ort` flatbuffer, so the match covers both and the
+     * measurement means the same thing across the change.
      *
      * This is the number the whole question turns on: mapped bytes are address space, resident bytes
      * are what the kernel would have to reclaim. If file-backed pages are being dropped under
@@ -126,7 +133,8 @@ class PressureReclaimTest {
             when {
                 line.contains("-") && line.contains(" ") && line.count { it == ' ' } >= 5 &&
                     !line.startsWith("Rss") && line.substringBefore('-').length >= 8 -> {
-                    inOrtMapping = line.contains(".ort") && line.contains("/com.bhashabridge")
+                    inOrtMapping = line.contains("/com.bhashabridge") &&
+                        (line.contains(".ort") || line.contains(".onnx") || line.contains(".bin"))
                 }
                 inOrtMapping && line.startsWith("Rss:") -> {
                     total += line.filter { it.isDigit() }.toLongOrNull() ?: 0L
