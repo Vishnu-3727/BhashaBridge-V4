@@ -2049,6 +2049,84 @@ why this corpus is the right one for the comparison.
 
 ---
 
+### 3.44 Where the 2.15 s of session load goes (Q18) — KEEP, and Q14's knob is the answer
+
+**Problem.** `sessions:parallel` is 2.15 s of a ~6 s cold start and had never been broken down. The
+queue asked for a faster session startup without knowing which part of it was expensive.
+
+**Investigation.** Three cold launches of the real app first, for the shape (SM-M315F, `.ort` cache
+warm, 34.2 °C): encoder `create` 0.87–1.09 s / 75 MB against decoder_init 2.07–2.17 s / 204 MB and
+decoder_step 2.07–2.21 s / 194 MB, all three concurrent. **The critical path is one decoder-sized
+load and the encoder is free**, so only the decoders are worth attacking.
+
+Then `OrtLoadProbeTest` (new): the same three `.ort` files, production options as the baseline, 7 arms
+× 3 **rotated** rounds, sessions closed immediately so only construction is timed. The rotation is the
+whole design — §3.27's "−61% load time" was the page cache, and this probe exists to not repeat that.
+
+| arm | median ms | vs baseline |
+|---|---|---|
+| serial load | 3733 | +69% |
+| baseline (path, NO_OPT, mmapped `.ort`) | 2205 | — |
+| `session.use_device_allocator_for_initializers=1` | 2108 | −4%, inside the spread |
+| `session.intra_op.allow_spinning=0` | 1917 | −13%, spreads overlap |
+| `intraThreads=1` | 1908 | −13%, not shippable (§3.37) |
+| **mapped initializers** | **1477** | **−33%** |
+| `session.disable_prepacking=1` (diagnostic) | 1414 | −36% |
+
+**Reading all 473 MB off storage took 335 ms**, so the load is not I/O-bound at all. The arms split
+the 2205 ms into roughly **790 ms of MLAS prepacking** (not removable — §3.26 priced inference at 4.6×
+without it), **730 ms of copying initializers into the session allocator** (removable), and ~690 ms of
+flatbuffer and graph residual.
+
+Rejected on the numbers: `use_device_allocator_for_initializers` (nothing beyond drift),
+`intra_op.allow_spinning=0` (overlapping spreads at n=3 — the loaders' spin-waiting is not the cost),
+and serialising the loads, which is 69% worse and re-confirms Phase 11C on the warm path. Note the
+direction, because it looks like a contradiction of §3.29 and is not: **removing** a fourth
+CPU-bound thread helped there, while these three loads are the same work split up, not a new
+competitor for the same cores.
+
+**Implementation.** One line: `ExecutionPolicy.select` now sets `mappedInitializers = true`. The
+mechanism is Q14's, already in `OnnxModels.createMappedSession` since §3.27 and shipped off —
+`FileChannel.map` plus `session.use_ort_model_bytes_directly` and
+`session.use_ort_model_bytes_for_initializers`, so initializers point into the mapped `.ort` instead
+of being copied. `OrtTuning`'s own default stays `false`, so every existing benchmark still measures
+the old path.
+
+**Verification.** `MtEngineInstrumentedTest` 3/3, JVM suite green, `BenchmarkSuiteTest` output
+`पानी ।` — parity exact. Sustained median 617 ms, long-sentence median 630 ms, 73.3 tok/s at 34.8 °C.
+
+**Benchmark (the one that decides it).** Real app, cold launch, **arms interleaved** path/mapped ×3,
+battery temperature flat at 34.7–34.8 °C:
+
+| median | path load | mapped initializers |
+|---|---|---|
+| `sessions:parallel` | 2183 ms | **1633 ms** |
+| `engine_init` total | 6190 ms | **5589 ms** |
+| decoder_init `create` | 2006 ms | 1477 ms |
+| encoder `create` | 881 ms | 708 ms |
+
+**−550 ms of session load (−25.2%), −601 ms of cold start (−9.7%)**, ranges non-overlapping in both
+arms. `MappedInitializersTest` re-run in both orderings agrees and adds the memory picture: native
+heap 559 → 408 MB, native PSS 656/530 → 382/363 MB, translate median 628/615 → 619/620 ms (neutral),
+**total PSS 744/612 → 787/768 MB**.
+
+**Evidence grade:** MEASURED — real app, cold, interleaved arms, one device.
+
+**Decision.** **KEEP.** The trade is explicit: ~550 ms of startup for a resident-pages accounting
+cost. The weights become clean file-backed pages the kernel can drop, instead of anonymous heap it can
+only swap or kill for, which is the direction §3.24b/§3.28 already wanted.
+
+**Next.** Two things this opens. (1) **Total PSS is now the honest worry**, not native heap: re-run
+`PressureReclaimTest` (Q15) with the flip in place — that measurement decides whether file-backed
+weights survive pressure better, and it is now the shipping configuration rather than an experiment.
+(2) **What is left is ~790 ms of prepacking, and decoder_init and decoder_step prepack byte-identical
+weights** (§3.30 proved the tensors identical). ORT shares prepacked weights across sessions through
+`PrepackedWeightsContainer`, which the Java API does not expose; `addConfigEntry` does reach
+`session.save_external_prepacked_constant_initializers`, so that is the cheaper thing to try first, at
+bake time.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -2213,6 +2291,7 @@ Three consequences worth stating once:
 
 | # | Experiment | Hypothesis | Measurement that closes it | Expected size |
 |---|---|---|---|---|
+| **Q19** | **Bake the prepacked weights, so the two decoders stop packing the same bytes twice** | §3.44 leaves ~790 ms of MLAS prepacking as the largest remaining piece of session load, and §3.30 proved decoder_init and decoder_step hold **byte-identical** tensors — so half of that work is duplicated. ORT's `PrepackedWeightsContainer` shares it across sessions but is **not reachable from the Java API**; `session.save_external_prepacked_constant_initializers` is, and moves the packing to bake time | Set it in `bakeOptions`, then the §3.44 probe again: `sessions:parallel` in the real app, cold, interleaved. Watch `.ort` size and `filesDir` — prepacked layouts are larger on disk, and Q17 is already fighting for that space. Parity before anything | Up to ~790 ms of a 1.6 s session load, if it transfers at all |
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
 | ~~Q1~~ | ~~Slice the last position inside `decoder_init`~~ | — | **CLOSED — NO GAIN (§3.31).** Done, gate 7/7, and worth nothing: greedy seeds a one-token prefix, so `decoder_init` only ever runs at `dec_len = 1` and `decoder_init` measured 49.6 ms against a 49.0 ms control. The "largest remaining inference lever" was true of the graph and never exercised by the workload. Held for Q6 | done |
 | **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes — 62.8 MB each in EN→HI, so four copies across the decoder pair. Content-addressing cannot catch it (§3.30); it needs an export-side change so one copy serves both the gather and the projection | Re-export → `verify_cache.py` 7/7 → APK size → `MtBenchmarkTest` on the M31, since a runtime transpose would trade size for latency | Up to ~125 MB EN→HI, ~33 MB HI→EN |
@@ -2231,8 +2310,9 @@ Three consequences worth stating once:
 | ~~Q10~~ | ~~Price the single-engine eviction~~ | — | **CLOSED 2026-08-06** — swap peak −511.7 MB (−36.7%), post-swap −392.9 MB, reload 3.5 s not 10 s (§3.24b) | done |
 | ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |
 | ~~Q13~~ | ~~Is prepacking what unmaps the model?~~ | — | **CLOSED 2026-08-06** — refuted. 451 MB *is* mapped during load and unmapped after, with or without prepacking. Disabling prepacking is 4.6× slower and uses 2× the heap: a REVERT (§3.26) | done |
-| ~~Q14~~ | ~~Can the weights stay file-backed?~~ | — | **CLOSED 2026-08-06** — yes: 451 MB stays mapped, anonymous heap −151 MB, native PSS −230–300 MB, output identical. Total PSS rises 30–86 MB; the load and latency claims died to a page-cache confound (§3.27). Kept OFF by default | done |
-| ~~Q15~~ | ~~Is file-backed actually a better OOM victim?~~ | — | **CLOSED 2026-08-06** — reclaim proven (319 MB dropped under pressure, app keeps working, ~2× latency spike); survival **not** proven (kills 1/6 mapped vs 2/6 path, both arms killed). Default stays OFF (§3.28) | done |**Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
+| ~~Q14~~ | ~~Can the weights stay file-backed?~~ | — | **CLOSED 2026-08-06** — yes: 451 MB stays mapped, anonymous heap −151 MB, native PSS −230–300 MB, output identical. Total PSS rises 30–86 MB; the load and latency claims died to a page-cache confound (§3.27). Kept OFF by default — **until §3.44 rotated the arms and priced the load claim it could not make: it now ships ON** | done |
+| ~~Q15~~ | ~~Is file-backed actually a better OOM victim?~~ | — | **CLOSED 2026-08-06** — reclaim proven (319 MB dropped under pressure, app keeps working, ~2× latency spike); survival **not** proven (kills 1/6 mapped vs 2/6 path, both arms killed). Default stays OFF (§3.28). **Re-opened in effect by §3.44**: mapped initializers now ship, so this A/B should be re-run with the arms the other way round — the question is no longer whether to enable it but whether the shipping config survives pressure | done, re-run queued |
+| ~~Q18~~ | ~~Break down the 2.15 s of session load~~ | — | **CLOSED 2026-08-12 — KEEP (§3.44).** Not I/O (473 MB reads in 335 ms): ~790 ms prepacking, ~730 ms initializer copying, ~690 ms residual, per-decoder. Q14's `mappedInitializers` removes the copy — **`sessions:parallel` 2183 → 1633 ms, cold start 6190 → 5589 ms**, real app, interleaved arms, parity exact. `use_device_allocator_for_initializers`, `intra_op.allow_spinning=0` and serial loading all measured no better or worse | done |**Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
 NO EFFECT. Deleting a row because it turned out not to work is how a ledger starts lying.
 
 ---

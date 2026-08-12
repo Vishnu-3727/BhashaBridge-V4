@@ -627,6 +627,13 @@ data class OrtTuning(
      * `session.use_ort_model_bytes_directly` and `session.use_ort_model_bytes_for_initializers`, so
      * ORT's initializers point into the mapped file rather than into copies on the native heap.
      *
+     * **On since Q18 (§3.44)** — [ExecutionPolicy.select] sets it for every device. It was Q14's
+     * memory experiment and stayed off while its load-time effect was unmeasurable; rotating the arms
+     * separated it from the page cache and it is worth **550 ms of `sessions:parallel`** on the
+     * SM-M315F, because a path-based load copies ~200 MB of initializers per decoder graph into the
+     * session allocator and this one does not. The default here stays `false` so every benchmark that
+     * asks for a bare [OrtTuning] still measures the pre-Q18 path.
+     *
      * Q14, and the reason it exists: on the path-based load ORT maps 451 MB while building the
      * sessions and then drops the mapping, leaving the weights as ~559 MB of anonymous heap
      * (§3.25/§3.26). Anonymous pages must be swapped or killed under pressure; clean file-backed

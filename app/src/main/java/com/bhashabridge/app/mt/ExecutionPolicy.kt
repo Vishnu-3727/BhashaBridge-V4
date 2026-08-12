@@ -39,6 +39,14 @@ object ExecutionPolicy {
      * - **Memory:** the CPU arena is disabled. Phase 7 measured it as pure overhead for this steady,
      *   one-translation-at-a-time workload (−37% process memory, no latency cost) — a property of the
      *   workload, not the device, so it holds across the Arm ecosystem.
+     * - **Initializers stay in the mapped `.ort` file** ([OrtTuning.mappedInitializers]). A path-based
+     *   load copies every constant tensor into the session allocator; on the warm path that copy is
+     *   ~200 MB per decoder graph and it is pure startup cost. Measured on the SM-M315F in the real
+     *   app, cold, arms interleaved across six launches at a flat 34.7 °C: `sessions:parallel`
+     *   2,183 → **1,633 ms** and `engine_init` 6,190 → **5,589 ms**, ranges non-overlapping. Translate
+     *   latency is unchanged (§3.44) and the weights become clean file-backed pages instead of
+     *   ~151 MB of anonymous heap. The cost is that those pages are resident and counted, so total PSS
+     *   rises; see §3.27/§3.44 for that trade.
      * - **Int8 acceleration is automatic.** ORT's MLAS kernels dispatch on HWCAP at runtime, so the
      *   same int8 graphs use plain NEON on an Armv8.0 core and SDOT/i8mm/SME on capable cores with no
      *   config here. The policy therefore does not (and cannot, from Java SessionOptions) toggle ISA
@@ -74,6 +82,9 @@ object ExecutionPolicy {
             // Phase 2A: the production path bakes a fully-optimized graph once per install and loads
             // it NO_OPT thereafter, so graph optimization is off every startup after the first.
             optCache = true,
+            // Q18: initializers point into the mapped `.ort` instead of being copied into the session
+            // allocator. Device-independent — it removes a memcpy of the weights, not an ISA feature.
+            mappedInitializers = true,
             // Phase 3: pin ORT's intra-op workers to the big cluster (null when there is nothing to pin).
             intraOpAffinities = affinity,
         )
