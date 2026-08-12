@@ -197,14 +197,16 @@ class ProductionThreadSweepTest {
                     // translations are outside, so the CPU-time and frequency deltas describe the
                     // measured work and nothing else.
                     val pre = SystemStats.capture(context, "$label-r$round-pre")
+                    val schedPre = schedTotals()
                     val roundLong = ArrayList<Long>(runsPerRound)
                     repeat(runsPerRound) {
                         roundLong += timeMs { engine.translate(probe) }
                         a.short += timeMs { engine.translate(short) }
                     }
+                    val schedPost = schedTotals()
                     val post = SystemStats.capture(context, "$label-r$round-post")
                     a.long += roundLong
-                    a.record(pre, post, caps, Stats.of(roundLong).median)
+                    a.record(pre, post, caps, Stats.of(roundLong).median, schedPost - schedPre)
 
                     val outLong = engine.translate(probe)
                     val tokLong = counter.lastGenerated
@@ -292,7 +294,13 @@ class ProductionThreadSweepTest {
         var pssFirst: Long? = null
         var pssLast: Long? = null
 
-        fun record(pre: SystemStats, post: SystemStats, caps: CpuCapabilities, roundMedian: Double) {
+        fun record(
+            pre: SystemStats,
+            post: SystemStats,
+            caps: CpuCapabilities,
+            roundMedian: Double,
+            sched: Sched,
+        ) {
             roundMedians += roundMedian
             wallMs += post.elapsedRealtimeMs - pre.elapsedRealtimeMs
 
@@ -301,13 +309,8 @@ class ProductionThreadSweepTest {
             if (t0 != null && t1 != null) cpuTicks += t1 - t0
             pre.clockTicksPerSec?.let { clockTicksPerSec = it }
 
-            val m0 = pre.nrMigrations
-            val m1 = post.nrMigrations
-            if (m0 != null && m1 != null) migrations += m1 - m0
-
-            val c0 = pre.nonvoluntaryCtxt
-            val c1 = post.nonvoluntaryCtxt
-            if (c0 != null && c1 != null) nonvolCtxt += c1 - c0
+            migrations += sched.migrations
+            nonvolCtxt += sched.involuntarySwitches
 
             // `post` is read microseconds after the last translation, so this is an in-load
             // frequency; `pre` is an idle read between arms and is not worth keeping.
@@ -338,6 +341,46 @@ class ProductionThreadSweepTest {
         fun cpuSeconds(): Double =
             if (clockTicksPerSec > 0L) cpuTicks.toDouble() / clockTicksPerSec else 0.0
     }
+
+    /** Scheduler counters, summed over every thread in the process. */
+    private data class Sched(val migrations: Long, val involuntarySwitches: Long) {
+        operator fun minus(other: Sched) =
+            Sched(migrations - other.migrations, involuntarySwitches - other.involuntarySwitches)
+    }
+
+    /**
+     * Sums `nr_migrations` and `nr_involuntary_switches` across `/proc/self/task/&#42;/sched`.
+     *
+     * `SystemStats` reads `/proc/self/sched` and `/proc/self/status`, and both of those describe the
+     * **thread-group leader** — the app's idle main thread, which neither translates nor belongs to
+     * ORT's intra-op pool. That reported exactly 0 for every arm: a plausible-looking zero, which is
+     * worse than no number. Affinity's entire claim is that pinning suppresses migrations, so the
+     * counter has to cover the threads doing the work.
+     *
+     * Read outside the timed blocks. A delta can in principle go negative if a thread exits inside
+     * the window; the engine is fully constructed before the window opens, so its pool is stable.
+     */
+    private fun schedTotals(): Sched {
+        var migrations = 0L
+        var involuntary = 0L
+        java.io.File("/proc/self/task").listFiles()?.forEach { task ->
+            runCatching {
+                java.io.File(task, "sched").forEachLine { line ->
+                    // Match the key exactly: the file also carries se.statistics.nr_migrations_cold,
+                    // which a substring match would fold in.
+                    when (line.substringBefore(':').trim()) {
+                        "se.nr_migrations" -> migrations += schedValue(line)
+                        "nr_involuntary_switches" -> involuntary += schedValue(line)
+                    }
+                }
+            }
+        }
+        return Sched(migrations, involuntary)
+    }
+
+    /** `se.nr_migrations                             :                    12` */
+    private fun schedValue(line: String): Long =
+        line.substringAfter(':').trim().substringBefore('.').toLongOrNull() ?: 0L
 
     private inline fun timeMs(block: () -> Unit): Long {
         val t = System.nanoTime(); block(); return (System.nanoTime() - t) / 1_000_000
