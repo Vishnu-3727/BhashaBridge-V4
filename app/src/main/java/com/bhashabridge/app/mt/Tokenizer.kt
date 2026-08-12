@@ -14,6 +14,89 @@ import java.io.InputStreamReader
 import java.io.Reader
 
 /**
+ * id → piece over the packed vocabulary image, decoding a `String` only when one is asked for
+ * (C1, §3.56).
+ *
+ * **Why this exists.** `decode` is the only reader of the target vocabulary and it performs about
+ * twelve lookups per translation. Expanding all 122,672 entries into `String` objects at startup to
+ * serve twelve was the largest single piece of work left in engine construction — 745 ms of a 1036 ms
+ * tokenizer stage. The bytes are already on disk in exactly the right layout, so this keeps them and
+ * indexes them.
+ *
+ * [slots] packs offset and length into one `Long` per id — high 32 bits offset, low 32 length — so the
+ * index is one array rather than two. `0L` marks an id the vocabulary does not define: offset 0 is
+ * inside the header and can never begin a piece, so it is a safe sentinel rather than a reserved value.
+ *
+ * The image is retained for the tokenizer's life, which is the trade: ~2.5 MB of bytes plus ~1 MB of
+ * index against ~6.8 MB of `String` objects, so it is also the smaller of the two.
+ */
+internal class TargetVocabulary private constructor(
+    private val image: ByteArray,
+    private val slots: LongArray,
+) {
+
+    /** The piece for [id], or null when the vocabulary does not define it. */
+    fun pieceAt(id: Int): String? {
+        if (id < 0 || id >= slots.size) return null
+        val slot = slots[id]
+        if (slot == 0L) return null
+        return String(image, (slot ushr 32).toInt(), (slot and 0xFFFFFFFFL).toInt(), Charsets.UTF_8)
+    }
+
+    /** Number of ids the index can address — the highest defined id plus one. */
+    val size: Int get() = slots.size
+
+    companion object {
+        /**
+         * Indexes a validated image. Grows by doubling rather than from a constant, for the reason
+         * §3.48 records: a hard bound would silently truncate a larger export, and a dropped piece
+         * decodes to nothing — a wrong translation with no error attached.
+         */
+        fun index(image: ByteArray): TargetVocabulary {
+            var slots = LongArray(1 shl 17)
+            var highest = -1
+            var p = VOCAB_HEADER_BYTES
+            while (p + 6 <= image.size) {
+                val id = readInt(image, p)
+                val len = ((image[p + 4].toInt() and 0xFF) shl 8) or (image[p + 5].toInt() and 0xFF)
+                val start = p + 6
+                if (id >= 0) {
+                    if (id >= slots.size) {
+                        var size = slots.size
+                        while (size <= id) size = size shl 1
+                        slots = slots.copyOf(size)
+                    }
+                    slots[id] = (start.toLong() shl 32) or len.toLong()
+                    if (id > highest) highest = id
+                }
+                p = start + len
+            }
+            return TargetVocabulary(image, slots.copyOf(highest + 1))
+        }
+
+        /** Test/benchmark helper: packs `id to piece` pairs into the same layout the loader uses. */
+        fun of(vararg pairs: Pair<Int, String>): TargetVocabulary {
+            val out = java.io.ByteArrayOutputStream()
+            repeat(VOCAB_HEADER_BYTES) { out.write(0) }
+            for ((id, piece) in pairs) {
+                val bytes = piece.toByteArray(Charsets.UTF_8)
+                out.write(id ushr 24); out.write(id ushr 16); out.write(id ushr 8); out.write(id)
+                out.write(bytes.size ushr 8); out.write(bytes.size)
+                out.write(bytes)
+            }
+            return index(out.toByteArray())
+        }
+
+        private fun readInt(b: ByteArray, p: Int): Int =
+            ((b[p].toInt() and 0xFF) shl 24) or ((b[p + 1].toInt() and 0xFF) shl 16) or
+                ((b[p + 2].toInt() and 0xFF) shl 8) or (b[p + 3].toInt() and 0xFF)
+
+        /** Mirrors `Tokenizer.VOCAB_HEADER_BYTES`; both describe the same on-disk layout. */
+        private const val VOCAB_HEADER_BYTES = 20
+    }
+}
+
+/**
  * Purpose:  Converts text to the token-id sequence IndicTrans2's ONNX graphs expect, and decoder
  *           output ids back to text. A from-scratch dict-driven SentencePiece-style matcher — NOT a
  *           wrapper around Google's SentencePiece. It reads only the `dict.*.json` piece→id maps;
@@ -29,14 +112,15 @@ import java.io.Reader
 class Tokenizer internal constructor(
     private val srcPieceToId: Map<String, Int>,
     /**
-     * id → piece, as a **flat array indexed by token id**, not a map (Q4, §3.48).
+     * id → piece, as an index over the packed vocabulary image — **no `String` is built until one is
+     * asked for** (C1, §3.56).
      *
-     * The ids are dense and small (0 … ~122,700), which is exactly what an array is for. The map this
-     * replaced was built by inverting the target vocabulary after parsing it — 122,672 `Pair`s, 122,672
-     * boxed `Integer`s and a second hash table, measured at **516 ms of every cold start** for a
-     * structure an array addresses in one instruction.
+     * §3.48 made this a flat `Array<String?>` indexed by token id, which removed the 516 ms inversion.
+     * What it left was 122,672 `String` objects constructed at every cold start to serve the ~12
+     * lookups a translation performs. [TargetVocabulary] keeps the bytes and an offset table instead
+     * and decodes on demand.
      */
-    private val tgtIdToPiece: Array<String?>,
+    private val tgtIdToPiece: TargetVocabulary,
     private val srcLangId: Long,
     private val tgtLangId: Long,
 ) {
@@ -89,7 +173,7 @@ class Tokenizer internal constructor(
     fun decode(ids: LongArray): String =
         ids.asSequence()
             .filter { it !in SPECIAL }
-            .mapNotNull { tgtIdToPiece.getOrNull(it.toInt()) }
+            .mapNotNull { tgtIdToPiece.pieceAt(it.toInt()) }
             .filter { !LANG_TAG.matches(it) }
             .joinToString("")
             .replace(MARK, " ")
@@ -146,22 +230,16 @@ class Tokenizer internal constructor(
             }
             // Phase 11A: two marks, so the report can separate the two vocabularies. Inline and
             // debug-gated — release builds are unchanged.
+            //
+            // Both vocabularies come out of the same packed image (§3.49) and differ only in how they
+            // are indexed, which is the whole of C1: `encode` looks pieces up **by string** and needs a
+            // hash map, `decode` looks them up **by id** and does not need the strings at all.
             val src = HashMap<String, Int>(1 shl 16)
-            loadVocab(context, srcDict) { piece, id -> src[piece] = id }
-            Metrics.stage("tokenizer:src_dict")
-            // The target vocabulary is only ever read as id → piece, so it goes straight into an
-            // id-indexed array (Q4, §3.48) rather than into a map that then has to be inverted.
-            var tgt = arrayOfNulls<String>(1 shl 17)
-            loadVocab(context, tgtDict) { piece, id ->
-                if (id >= 0) {
-                    if (id >= tgt.size) {
-                        var size = tgt.size
-                        while (size <= id) size = size shl 1
-                        tgt = tgt.copyOf(size)
-                    }
-                    tgt[id] = piece
-                }
+            forEachEntry(vocabImage(context, srcDict)) { b, off, len, id ->
+                src[String(b, off, len, Charsets.UTF_8)] = id
             }
+            Metrics.stage("tokenizer:src_dict")
+            val tgt = TargetVocabulary.index(vocabImage(context, tgtDict))
             Metrics.stage("tokenizer:tgt_dict")
             val (srcLang, tgtLang) = langIds(direction, src)
             return Tokenizer(src, tgt, srcLang, tgtLang)
@@ -192,20 +270,20 @@ class Tokenizer internal constructor(
          * cache is written to a `.part` and renamed, so a process killed mid-write cannot leave a
          * half-file that looks complete — the same rule [OnnxModels] uses for extracted assets.
          */
-        private inline fun loadVocab(context: Context, asset: String, crossinline emit: (String, Int) -> Unit) {
+        private fun vocabImage(context: Context, asset: String): ByteArray {
             val cache = File(context.filesDir, "$asset$VOCAB_SUFFIX")
             val sourceLength = dictStamp(context, asset)
-            if (readVocabCache(cache, sourceLength, emit)) return
+            readVocabCache(cache, sourceLength)?.let { return it }
 
-            // Miss. Parse the JSON, and build the cache image in the same pass — a second pass over
-            // the entries would cost more than the write does.
+            // Miss. Parse the JSON into the same layout the cache uses, then hand it back — the caller
+            // indexes the image, so the parse and the cache write share one representation instead of
+            // the parse emitting entries a second way.
             val packed = ByteArrayOutputStream(1 shl 22).apply {
                 writeInt(VOCAB_MAGIC); writeInt(VOCAB_VERSION); writeLong(sourceLength); writeInt(0)
             }
             var written = 0
             openDict(context, asset).use { input ->
                 parseEntries(bufferedUtf8(input)) { piece, id ->
-                    emit(piece, id)
                     val bytes = piece.toByteArray(Charsets.UTF_8)
                     if (bytes.size <= MAX_PIECE_BYTES) {
                         packed.writeInt(id)
@@ -220,6 +298,24 @@ class Tokenizer internal constructor(
             val image = packed.toByteArray()
             writeIntAt(image, VOCAB_COUNT_OFFSET, written)
             writeVocabCache(cache, image)
+            return image
+        }
+
+        /**
+         * Walks a validated image, handing each entry over as `(buffer, offset, length, id)`.
+         *
+         * The bytes are passed rather than a `String` because that is the entire point of C1: the
+         * target vocabulary never needs them decoded, and the source vocabulary decodes them once into
+         * a map key. `inline` so neither consumer pays a call per entry across 155,000 entries.
+         */
+        private inline fun forEachEntry(image: ByteArray, emit: (ByteArray, Int, Int, Int) -> Unit) {
+            var p = VOCAB_HEADER_BYTES
+            while (p + 6 <= image.size) {
+                val id = readInt(image, p)
+                val len = ((image[p + 4].toInt() and 0xFF) shl 8) or (image[p + 5].toInt() and 0xFF)
+                emit(image, p + 6, len, id)
+                p += 6 + len
+            }
         }
 
         /**
@@ -230,29 +326,25 @@ class Tokenizer internal constructor(
          * Bounds are checked before every read rather than trusted: this file is regenerable, so a
          * truncated one must degrade to a re-parse, never to an exception on a user's launch.
          */
-        private inline fun readVocabCache(
-            cache: File,
-            sourceLength: Long,
-            crossinline emit: (String, Int) -> Unit,
-        ): Boolean {
-            if (!cache.exists()) return false
+        private fun readVocabCache(cache: File, sourceLength: Long): ByteArray? {
+            if (!cache.exists()) return null
             return try {
                 val b = cache.readBytes()
-                if (b.size < VOCAB_HEADER_BYTES) return false
-                if (readInt(b, 0) != VOCAB_MAGIC || readInt(b, 4) != VOCAB_VERSION) return false
-                if (readLong(b, 8) != sourceLength) return false
+                if (b.size < VOCAB_HEADER_BYTES) return null
+                if (readInt(b, 0) != VOCAB_MAGIC || readInt(b, 4) != VOCAB_VERSION) return null
+                if (readLong(b, 8) != sourceLength) return null
                 val expected = readInt(b, VOCAB_COUNT_OFFSET)
 
-                // Pass 1 validates without emitting: bounds, the entry count, and that the last entry
-                // ends exactly at the end of the file. Two passes because a partial emit followed by a
-                // rejection would leave the caller holding half a vocabulary, and because the scan
-                // itself is pointer arithmetic — no String is built until the file is known good.
+                // Validated before the caller sees a byte of it: bounds, the entry count, and that
+                // the last entry ends exactly at the end of the file. The scan is pointer arithmetic —
+                // §3.54's bug was a boundary-aligned truncation being accepted as complete, which the
+                // count is what catches.
                 var p = VOCAB_HEADER_BYTES
                 var seen = 0
                 while (p + 6 <= b.size) {
                     val len = ((b[p + 4].toInt() and 0xFF) shl 8) or (b[p + 5].toInt() and 0xFF)
                     val start = p + 6
-                    if (start + len > b.size) return false
+                    if (start + len > b.size) return null
                     p = start + len
                     seen++
                 }
@@ -263,21 +355,12 @@ class Tokenizer internal constructor(
                             "$p of ${b.size} bytes — re-parsing the JSON",
                         null,
                     )
-                    return false
+                    return null
                 }
-
-                p = VOCAB_HEADER_BYTES
-                while (p + 6 <= b.size) {
-                    val id = readInt(b, p)
-                    val len = ((b[p + 4].toInt() and 0xFF) shl 8) or (b[p + 5].toInt() and 0xFF)
-                    val start = p + 6
-                    emit(String(b, start, len, Charsets.UTF_8), id)
-                    p = start + len
-                }
-                true
+                b
             } catch (e: Throwable) {
                 logWarn(LogTag.MT, "vocabulary cache unreadable (${cache.name}); re-parsing the JSON", e)
-                false
+                null
             }
         }
 
@@ -388,36 +471,7 @@ class Tokenizer internal constructor(
         }
 
         /**
-         * The same parse, straight into an **array indexed by id** — the shape the target vocabulary
-         * is actually used in (Q4, §3.48).
-         *
-         * Building a `Map<String, Int>` and inverting it afterwards produced the same information via
-         * two hash tables, 122,672 `Pair`s and two rounds of `Integer` boxing, and threw the first
-         * table away. The ids are dense, so the array is both smaller and O(1) without hashing.
-         *
-         * The array grows by doubling rather than being sized from a constant: the vocabulary's
-         * highest id is a property of the export, and a hard-coded bound would silently truncate the
-         * tail of a larger one — dropped pieces decode as nothing, which is a wrong translation with
-         * no error attached. Negative ids cannot index an array and are skipped; the JSON shape does
-         * not produce them, and a corrupt file should not crash the tokenizer.
-         */
-        internal fun parseIdToPiece(reader: Reader): Array<String?> {
-            var out = arrayOfNulls<String>(1 shl 17)
-            parseEntries(reader) { piece, id ->
-                if (id >= 0) {
-                    if (id >= out.size) {
-                        var size = out.size
-                        while (size <= id) size = size shl 1
-                        out = out.copyOf(size)
-                    }
-                    out[id] = piece
-                }
-            }
-            return out
-        }
-
-        /**
-         * The character-level state machine, shared by [parseFlatIntDict] and [parseIdToPiece].
+         * The character-level state machine, used by [parseFlatIntDict] and [vocabImage].
          *
          * `inline` so [emit] is compiled into the loop body: this runs once per vocabulary entry —
          * 122,672 times for the target dictionary — and a megamorphic call there would cost more than

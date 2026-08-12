@@ -2881,6 +2881,63 @@ is decode latency, not the memory.
 
 ---
 
+### 3.56 The target vocabulary never needed to be strings (C1) — KEEP, −562 ms of tokenizer
+
+**Problem.** `docs/CODE_SIMPLIFICATION_AUDIT.md` found one P1 candidate in the whole codebase. §3.48
+made the target vocabulary an `Array<String?>` indexed by id, which removed the 516 ms inversion; what
+it left behind was **122,672 `String` objects constructed at every cold start**. `decode` is the only
+reader and performs **about twelve lookups per translation**. The app was building 122,672 strings to
+serve twelve.
+
+**Implementation.** `TargetVocabulary` keeps the packed `.vocab` image (§3.49) and an index of one
+`Long` per id — offset in the high 32 bits, length in the low 32 — and decodes a `String` only inside
+`pieceAt`. The layout on disk was already right; the change is to **stop expanding it**.
+
+`loadVocab` became `vocabImage`, which returns the validated image instead of emitting entries, and
+`readVocabCache` returns the image rather than a boolean. Both vocabularies now come from one function
+and differ only in how they are indexed: `encode` looks up **by string** and still needs its hash map,
+`decode` looks up **by id** and needs no strings at all. `parseIdToPiece` is deleted — it was the
+§3.48 path and had no production caller left.
+
+**Benchmark (SM-M315F, cold launches of the real app, 32.3–32.4 °C — marginally cooler than the
+32.7 °C baseline, so not flattered by heat).** Medians of three steady-state launches:
+
+| stage | before | after |
+|---|---|---|
+| `tokenizer:tgt_dict` | 745 ms | **186 ms** (−75%) |
+| `tokenizer:src_dict` | 327 ms | 324 ms (untouched by design) |
+| **tokenizer total** | **1036 ms** | **474 ms** (−562 ms, −54%) |
+| **`engine_init` total** | **2736 ms** | **2304 ms** (−432 ms, −16%) |
+| `sessions:parallel` | 1657 ms | 1683 ms (unchanged) |
+
+`BenchmarkSuiteTest`: warm tokenizer **252 → 102 ms**, hot **295 → 87 ms**, `engine_init` warm
+1817 → 1799 ms. Inference is untouched — **73.006 tok/s against 72.811**, sustained median 616 ms
+against 618, `पानी ।` and the long sentence byte-identical.
+
+**Memory: NOT MEASURED.** The image is retained (~2.5 MB) where ~6.8 MB of `String` objects were not,
+so the direction should be favourable, but process PSS varies by ±30 MB across suite runs on this
+device and the effect is not separable from that noise. No claim is made.
+
+**Verification.** 57 JVM tests, `MtEngineInstrumentedTest` 3/3, `HiEnEngineTest` 3/3, `VocabCacheTest`
+1/1 (including its boundary-truncation case), `OptCacheTest` 1/1, `BenchmarkSuiteTest` parity exact.
+
+The §3.48 regression guard moved with the code rather than being dropped: `TokenizerTest` now checks
+`TargetVocabulary` for gaps, negative and out-of-range ids, the doubling path past the initial 128 K,
+and the **real 122,672-entry dictionary entry-for-entry against the map**. That last assertion is the
+one §3.54 argued for — a two-sentence parity check cannot see a partial or shifted table, and packing
+offset and length into one `Long` makes a shift error return a *neighbouring piece* rather than an
+error.
+
+**Evidence grade:** MEASURED. **Decision.** **KEEP.**
+
+**Next.** The audit's remaining candidates are all more expensive than this one: the source vocabulary
+could take the same treatment (~324 ms, but `encode` looks up by string, so it needs a searchable
+packed layout rather than an index), and everything larger — the merged decoder (§3.55, ~152 MB) and
+the tied-embedding dedup (§3.53, 79.3 MB) — is an export change that cannot be quality-gated before
+the submission deadline.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
