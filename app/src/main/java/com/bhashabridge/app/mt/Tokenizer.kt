@@ -200,8 +200,9 @@ class Tokenizer internal constructor(
             // Miss. Parse the JSON, and build the cache image in the same pass — a second pass over
             // the entries would cost more than the write does.
             val packed = ByteArrayOutputStream(1 shl 22).apply {
-                writeInt(VOCAB_MAGIC); writeInt(VOCAB_VERSION); writeLong(sourceLength)
+                writeInt(VOCAB_MAGIC); writeInt(VOCAB_VERSION); writeLong(sourceLength); writeInt(0)
             }
+            var written = 0
             openDict(context, asset).use { input ->
                 parseEntries(bufferedUtf8(input)) { piece, id ->
                     emit(piece, id)
@@ -210,10 +211,15 @@ class Tokenizer internal constructor(
                         packed.writeInt(id)
                         packed.write(bytes.size ushr 8); packed.write(bytes.size)
                         packed.write(bytes)
+                        written++
                     }
                 }
             }
-            writeVocabCache(cache, packed.toByteArray())
+            // The count is only known once the parse ends, so it is patched into the reserved slot
+            // rather than streamed. It is what makes a truncation detectable — see [readVocabCache].
+            val image = packed.toByteArray()
+            writeIntAt(image, VOCAB_COUNT_OFFSET, written)
+            writeVocabCache(cache, image)
         }
 
         /**
@@ -235,12 +241,36 @@ class Tokenizer internal constructor(
                 if (b.size < VOCAB_HEADER_BYTES) return false
                 if (readInt(b, 0) != VOCAB_MAGIC || readInt(b, 4) != VOCAB_VERSION) return false
                 if (readLong(b, 8) != sourceLength) return false
+                val expected = readInt(b, VOCAB_COUNT_OFFSET)
+
+                // Pass 1 validates without emitting: bounds, the entry count, and that the last entry
+                // ends exactly at the end of the file. Two passes because a partial emit followed by a
+                // rejection would leave the caller holding half a vocabulary, and because the scan
+                // itself is pointer arithmetic — no String is built until the file is known good.
                 var p = VOCAB_HEADER_BYTES
+                var seen = 0
+                while (p + 6 <= b.size) {
+                    val len = ((b[p + 4].toInt() and 0xFF) shl 8) or (b[p + 5].toInt() and 0xFF)
+                    val start = p + 6
+                    if (start + len > b.size) return false
+                    p = start + len
+                    seen++
+                }
+                if (p != b.size || seen != expected) {
+                    logWarn(
+                        LogTag.MT,
+                        "vocabulary cache ${cache.name} is short: $seen of $expected entries, " +
+                            "$p of ${b.size} bytes — re-parsing the JSON",
+                        null,
+                    )
+                    return false
+                }
+
+                p = VOCAB_HEADER_BYTES
                 while (p + 6 <= b.size) {
                     val id = readInt(b, p)
                     val len = ((b[p + 4].toInt() and 0xFF) shl 8) or (b[p + 5].toInt() and 0xFF)
                     val start = p + 6
-                    if (start + len > b.size) return false // truncated: re-parse rather than guess
                     emit(String(b, start, len, Charsets.UTF_8), id)
                     p = start + len
                 }
@@ -298,6 +328,11 @@ class Tokenizer internal constructor(
             writeInt((v ushr 32).toInt()); writeInt(v.toInt())
         }
 
+        private fun writeIntAt(b: ByteArray, p: Int, v: Int) {
+            b[p] = (v ushr 24).toByte(); b[p + 1] = (v ushr 16).toByte()
+            b[p + 2] = (v ushr 8).toByte(); b[p + 3] = v.toByte()
+        }
+
         private fun readInt(b: ByteArray, p: Int): Int =
             ((b[p].toInt() and 0xFF) shl 24) or ((b[p + 1].toInt() and 0xFF) shl 16) or
                 ((b[p + 2].toInt() and 0xFF) shl 8) or (b[p + 3].toInt() and 0xFF)
@@ -307,8 +342,16 @@ class Tokenizer internal constructor(
 
         /** `"BBV"` + format generation. Bump [VOCAB_VERSION] and every existing cache is rebuilt. */
         private const val VOCAB_MAGIC = 0x42425600
-        private const val VOCAB_VERSION = 1
-        private const val VOCAB_HEADER_BYTES = 16
+        /**
+         * **2, not 1.** Version 1 had no entry count, so a cache truncated *on an entry boundary*
+         * walked to the end of the buffer and was accepted as complete — a silently partial
+         * vocabulary. `VocabCacheTest` truncated a file to exactly one third, that third landed on a
+         * boundary, and the resulting 840 KB target vocabulary was then used by the launches that
+         * produced §3.49's timings. Bumping this rebuilds every existing cache.
+         */
+        private const val VOCAB_VERSION = 2
+        private const val VOCAB_COUNT_OFFSET = 16
+        private const val VOCAB_HEADER_BYTES = 20
         private const val VOCAB_SUFFIX = ".vocab"
 
         /**

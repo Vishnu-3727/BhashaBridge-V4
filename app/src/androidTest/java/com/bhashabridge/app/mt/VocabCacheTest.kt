@@ -49,11 +49,39 @@ class VocabCacheTest {
         assertEquals("decode must not change", cold.decoded, warm.decoded)
         assertTrue("warm load (${warmMs}ms) must beat the JSON parse (${coldMs}ms)", warmMs < coldMs)
 
-        // 1. Truncated mid-entry — the case a process killed during the write would leave if the
-        //    rename were not atomic. Must be detected by the bounds check, not by an exception.
-        val truncated = caches[1].readBytes().copyOf(caches[1].length().toInt() / 3)
-        caches[1].writeBytes(truncated)
-        assertEquals("a truncated cache must fall back to the JSON", cold.decoded, load().decoded)
+        // 1. Truncated. The first version of this check cut the file to a third and asserted only on
+        //    the decoded output — which passed, because the cut happened to land on an entry boundary
+        //    and the reader walked cleanly to the end of a file that held a third of the vocabulary.
+        //    Nothing detected it, the sentences under test used low ids, and the partial cache was
+        //    then used by the launches that produced §3.49's numbers. The assertion is now on the
+        //    ENTRY COUNT, which is what a boundary-aligned truncation actually changes.
+        val full = caches[1].readBytes()
+        caches[1].writeBytes(full.copyOf(full.size / 3))
+        val afterTruncation = load()
+        assertEquals("a truncated cache must fall back to the JSON", cold.decoded, afterTruncation.decoded)
+        assertEquals(
+            "a truncated cache must be rebuilt to its full length, not accepted short",
+            full.size.toLong(),
+            caches[1].length(),
+        )
+
+        // 1b. Truncated on an exact entry boundary — the case that slipped through. Walk the entries
+        //     to find a real boundary rather than hoping a fraction lands on one.
+        var p = HEADER_BYTES
+        var cut = p
+        repeat(500) {
+            if (p + 6 > full.size) return@repeat
+            val len = ((full[p + 4].toInt() and 0xFF) shl 8) or (full[p + 5].toInt() and 0xFF)
+            p += 6 + len
+            cut = p
+        }
+        caches[1].writeBytes(full.copyOf(cut))
+        assertEquals("boundary-aligned truncation must still fall back", cold.decoded, load().decoded)
+        assertEquals(
+            "and must be rebuilt to full length",
+            full.size.toLong(),
+            caches[1].length(),
+        )
 
         // 2. Wrong magic — a foreign or garbage file under the cache's name.
         caches[0].writeBytes(ByteArray(64) { 0x7A })
@@ -90,6 +118,8 @@ class VocabCacheTest {
 
     private companion object {
         const val TAG = "BB.Q4B"
+        /** magic + version + stamp + count; see Tokenizer.VOCAB_HEADER_BYTES. */
+        const val HEADER_BYTES = 20
         const val SENTENCE = "The weather is very nice today and I want to go outside."
     }
 }

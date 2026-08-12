@@ -101,15 +101,25 @@ android {
     }
 
     // Carried from v3.4.1 (aaptOptions -> androidResources in AGP 9).
-    // ONNX Runtime mmaps model files from disk; a compressed asset cannot be mmapped and
-    // would force a full decompress-to-memory on every load.
     androidResources {
         // NOT `json`. The vocabularies ship DEFLATE-compressed (3.39 MB → 1.19 MB) and storing them
         // uncompressed looked like free speed on the tokenizer load. Measured on the SM-M315F, three
         // fresh processes each: 2,605 ms uncompressed against 2,622 ms compressed — no effect. The
         // cost is the parser, not the inflate (§3.29). Left compressed; the 2.6 MB is not worth an
         // unmeasurable change.
-        noCompress += setOf("onnx", "bin", "pb")
+        //
+        // NOT `bin` either, since Q23 (§3.54). This read `onnx, bin, pb`, and the reason given was
+        // that ONNX Runtime mmaps model files from disk, which a compressed asset cannot do. That was
+        // true when ORT loaded out of the APK, and stopped being true at Phase 2B:
+        // `OnnxModels.extractAsset` copies every asset into filesDir and ORT loads from *there*, so
+        // compression costs one inflate during the first-launch extraction and nothing after it. The
+        // weight blobs are ~78% compressible, measured exactly — 506.5 MB stored against 397.4 MB
+        // deflated — so storing them was costing 109 MB of every download.
+        //
+        // `onnx` stays stored on purpose. Those are the six graph files, ~9 MB in total since Phase 13
+        // moved the weights out of them, and `AssetManager.openFd` — which the cache stamp reads —
+        // works only on stored entries. Keeping them stored keeps that path exact for nothing.
+        noCompress += setOf("onnx", "pb")
     }
 
     // Carried from v3.4.1. Universal APK disabled: a single APK carrying both ABIs plus

@@ -2395,18 +2395,27 @@ a format token to avoid. Written `.part`-then-rename, like every other derived f
 
 **Benchmark (SM-M315F, real app, cold launches, 34.2 °C — *warmer* than the 33.6 °C baseline).**
 
-| | before Q4 | after §3.48 | after §3.49 |
-|---|---|---|---|
-| `tokenizer:src_dict` | 1806 ms | 1644 ms | **318 ms** |
-| `tokenizer:tgt_dict` | 738 ms | 854 ms | **225 ms** |
-| `tokenizer:reverse_index` | 516 ms | — | — |
-| **tokenizer total** | **3086 ms** | 2560 ms | **514 ms** |
-| **`engine_init` total** | **4812 ms** | 4612 ms | **2264 ms** |
-| `sessions:parallel` | 1705 ms | 1688 ms | 1668 ms |
+> ### ⚠ The numbers first published in this entry were wrong. Corrected in §3.54.
+>
+> They were measured against a **partial** target vocabulary: `VocabCacheTest` had truncated the cache
+> to a third, that cut landed on an entry boundary, and version 1 of the format had no entry count, so
+> the reader walked to the end of a short file and accepted it. The launches then read 840 KB instead
+> of 2.52 MB. The table below is the **corrected** measurement; the originally published figures were
+> tokenizer 514 ms and `engine_init` 2264 ms.
 
-**Cold start −2548 ms (−53%).** `BenchmarkSuiteTest` warm: tokenizer 1255 → **125 ms**, `engine_init`
-2768 → **1712 ms**. In isolation (`VocabCacheTest`) the same load is **2566 ms from JSON against 386 ms
-from the cache, −85%**.
+| | before Q4 | after §3.48 | after §3.49 (corrected) |
+|---|---|---|---|
+| `tokenizer:src_dict` | 1806 ms | 1644 ms | **327 ms** |
+| `tokenizer:tgt_dict` | 738 ms | 854 ms | **745 ms** |
+| `tokenizer:reverse_index` | 516 ms | — | — |
+| **tokenizer total** | **3086 ms** | 2560 ms | **1036 ms** |
+| **`engine_init` total** | **4812 ms** | 4612 ms | **2736 ms** |
+| `sessions:parallel` | 1705 ms | 1688 ms | 1657 ms |
+
+**Cold start −2076 ms (−43%); the tokenizer itself −2050 ms (−66%).** `BenchmarkSuiteTest` warm:
+tokenizer 1255 → **252 ms**, `engine_init` 2768 → **1817 ms**. In isolation (`VocabCacheTest`, warm
+in-process) the same load is **2428 ms from JSON against 361 ms from the cache**; the real cold-launch
+figure is higher because that first call pays a cold JIT and a cold page cache.
 
 Inference is untouched — 73.433 tok/s against 73.283, sustained median 614 ms against 616, `पानी ।`
 unchanged. The cache is also **smaller than the JSON it replaces**: 2.88 MB against 3.94 MB
@@ -2735,6 +2744,76 @@ corpus comparison and not just `पानी ।`.
 
 ---
 
+### 3.54 Compress the weight blobs in the APK (Q23) — KEEP, −97 MiB; and §3.49's numbers were wrong
+
+**Problem.** §3.53 sized the footprint and found `noCompress` carrying `bin` for a reason that expired
+at Phase 2B. Worth 109 MB on paper.
+
+**Implementation.** `bin` leaves `noCompress`; `onnx` and `pb` stay. `onnx` stays **on purpose**: those
+six graph files are ~9 MB since Phase 13 moved the weights out, and `AssetManager.openFd` — which the
+cache stamp reads — works only on stored entries, so keeping them stored keeps that path exact for
+nothing. `assetLength` gains a fallback to `AssetInputStream.available()`, which reports the
+uncompressed length of a DEFLATE'd entry.
+
+**That fallback is the whole risk, and the previous one-liner would have bricked the app.** It was
+`runCatching { openFd(...) }.getOrDefault(0L)`, and `0` is the documented signal for "this build ships
+self-contained graphs, there is no blob to extract". Compressing the blob makes `openFd` throw, the
+`0` would have disabled extraction entirely, and every launch would have failed to load a graph. The
+same trap as §3.49's stamp, hours earlier, in a different file.
+
+**Benchmark (SM-M315F).**
+
+| | before | after |
+|---|---|---|
+| **APK, arm64** | 617.3 MiB | **520.3 MiB** (−97.0 MiB) |
+| first launch after install | 8.4 s | 10.9 s (one-time: inflate + extract + bake) |
+| `sessions:parallel`, warm | 1668 ms | 1657 ms |
+| extracted `weights.bin` | 276,385,792 B | **276,385,792 B** — byte-identical |
+| throughput | 73.4 tok/s | 72.8 tok/s |
+| sustained median | 614 ms | 618 ms |
+
+Verified the way the entry demanded: **`pm clear` then a cold launch**, because the failure mode is
+extraction rather than compression. `MtEngineInstrumentedTest` 3/3, `HiEnEngineTest` 3/3, `OptCacheTest`
+1/1, `BenchmarkSuiteTest` output `पानी ।`. Steady-state load is unchanged because the blob is extracted
+once and every later launch reads the uncompressed copy in `filesDir`.
+
+**Evidence grade:** MEASURED. **Decision.** **KEEP** — 97 MiB off every download for a one-time 2.5 s
+on first launch and no steady-state cost.
+
+---
+
+**And the same run found that §3.49's headline was wrong, which matters more than the 97 MiB.**
+
+Re-measuring the tokenizer after `pm clear` gave **1036 ms**, not the **514 ms** published. The cause
+was not the compression: it was a **partial vocabulary cache being read as a complete one**.
+
+`VocabCacheTest` truncates a cache to a third to prove the reader rejects it. Version 1 of the format
+had a header of magic, version and stamp — **no entry count** — and the reader looped
+`while (p + 6 <= size)`, checking only that each entry fitted. A truncation that lands *on an entry
+boundary* therefore walks cleanly to the end of a short file and returns success. That third landed on
+a boundary. The 840,061-byte file was accepted as a complete 122,672-entry vocabulary, was never
+rewritten, and was still there when the §3.49 launches ran — which is why they read 840 KB instead of
+2.52 MB and looked 522 ms faster than the truth.
+
+It survived because the sentences under test use low ids: `पानी ।` and the long sentence decode
+identically from a third of the table. **A parity check on two sentences cannot detect a partial
+vocabulary**, which is the lesson worth keeping.
+
+**Fixed:** the header carries an entry count (`VOCAB_VERSION` 2, so every existing cache rebuilds), and
+validation is a **non-emitting first pass** that requires the entry count to match *and* the last entry
+to end exactly at end-of-file — a partial emit followed by a rejection would otherwise leave the caller
+holding half a vocabulary. `VocabCacheTest` now truncates **on a real entry boundary**, found by
+walking the entries, and asserts the file is rebuilt to full length rather than asserting only on
+decoded output.
+
+**§3.49 stands as a KEEP** — the tokenizer is still 3086 → 1036 ms and cold start 4812 → 2736 ms — but
+its numbers are restated above and its original figures should not be quoted.
+
+**Next.** Q16 is the remaining no-UX-cost lever (79.3 MB), and its gate is a **quality** check on a
+corpus, not a parity check on two sentences. This entry is why that distinction is written down.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -2902,7 +2981,7 @@ Three consequences worth stating once:
 | ~~Q19~~ | ~~Bake the prepacked weights~~ | — | **CLOSED 2026-08-12 — NO GAIN (§3.45).** ORT refuses the flag in ORT format outright ("not supported. Ignoring the flag.") and the `ortpp` artifacts are byte-identical to `ort`. On optimized ONNX + external initializers, where it *is* supported, it writes +324 MB (+69%) to buy 70 ms — on a path already 7% slower than the shipping `.ort` mapped load. Also refutes Q17's 204 MB: each graph writes its own external file, so `ext` is 471 MB against `.ort`'s 473 MB | done |
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
 | ~~Q1~~ | ~~Slice the last position inside `decoder_init`~~ | — | **CLOSED — NO GAIN (§3.31).** Done, gate 7/7, and worth nothing: greedy seeds a one-token prefix, so `decoder_init` only ever runs at `dec_len = 1` and `decoder_init` measured 49.6 ms against a 49.0 ms control. The "largest remaining inference lever" was true of the graph and never exercised by the workload. Held for Q6 | done |
-| **Q23** | **Let the APK compress the weight blobs** | `noCompress` excludes `bin`/`onnx` because "ORT mmaps model files" — untrue since Phase 2B, which extracts every asset to `filesDir` and loads from there. Measured DEFLATE: 506.5 → 397.4 MB, **−109.1 MB** (§3.53) | Drop `bin` from `noCompress`, then replace the two `openFd` call sites — `assetLength` and `sharedWeightsLength` — because **`openFd` throws on compressed assets** and the `0` fallback disables blob extraction entirely, bricking launch. Accept on a cold launch with a wiped `filesDir`, not on the APK size | **109.1 MB**, no UX change |
+| ~~Q23~~ | ~~Let the APK compress the weight blobs~~ | — | **CLOSED 2026-08-12 — KEEP (§3.54).** APK **617.3 → 520.3 MiB (−97.0 MiB)**; steady-state load unchanged (1657 vs 1668 ms), blob extracts byte-identical, one-time +2.5 s on first launch. The `openFd` trap was real: the old `getOrDefault(0L)` would have disabled blob extraction entirely. The same run also exposed §3.49's partial-cache bug | done |
 | **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes. **Confirmed by reading the initializer table (§3.53)**, and the `decoder_step` copies are already shared with `decoder_init`, so §3.30 is working — this is the one case it cannot catch | Export both uses from one scheme and orientation so `dedup_weights.py` content-addresses them; runtime `Transpose` on the gathered row is ~12 lookups per translation. Gate is a **quality** check, not just parity, since re-quantizing may move the output | **79.3 MB** (62.8 EN→HI + 16.5 HI→EN) — **not** the ~158 MB previously recorded, which counted both copies of a matrix still needed once |
 | ~~Q21~~ | ~~Ship the optimized-ONNX + shared-blob artifact~~ | — | **CLOSED 2026-08-12 — KEEP (§3.47).** Shipped. Storage 473 → 280 MB (−193 MB), PSS 783 → 460 MB (−324 MB), inference unchanged (73.28 vs 73.26 tok/s), startup neutral. Upgrade path verified on a device holding the old `.ort` cache | done |
 | ~~Q20~~ | ~~Raw vs optimized ONNX vs ORT format~~ | — | **CLOSED 2026-08-12 — OPEN candidate (§3.46).** Graph optimization is worth ~20% of steady inference (773 vs 618 ms) and **the format is worth none of it** — all six optimized arms tie. Biggest file (`opt_ext_pp`, 797 MB) has the worst first inference (1000–1517 ms). `ort_path` is dominated on every axis. Winner on footprint is `opt_inline` → Q21 | done |

@@ -28,8 +28,8 @@ purpose, because the numbers bound the design space and stop the same idea being
 
 | Metric | Start of day | End of day | Change |
 |---|---|---|---|
-| **Cold start (`engine_init`)** | 6190 ms | **2264 ms** | **−3.93 s (−63%)** |
-| Tokenizer load | 3086 ms | **514 ms** | **−2.57 s (−83%)** |
+| **Cold start (`engine_init`)** | 6190 ms | **2736 ms** | **−3.45 s (−56%)** |
+| Tokenizer load | 3086 ms | **1036 ms** | **−2.05 s (−66%)** |
 | Session load (`sessions:parallel`) | 2183 ms | 1668 ms | **−0.52 s (−24%)** |
 | Model cache on disk (EN→HI) | 472.9 MB | **279.8 MB** | **−193.1 MB (−41%)** |
 | Process memory (PSS, after 60 translations) | 783.2 MB | **459.6 MB** | **−323.6 MB (−41%)** |
@@ -251,15 +251,20 @@ replaces (2.88 MB against 3.94 MB uncompressed).
 
 | | before Q4 | after §3.48 | after §3.49 |
 |---|---|---|---|
-| `tokenizer:src_dict` | 1806 ms | 1644 ms | **318 ms** |
-| `tokenizer:tgt_dict` | 738 ms | 854 ms | **225 ms** |
+| `tokenizer:src_dict` | 1806 ms | 1644 ms | **327 ms** |
+| `tokenizer:tgt_dict` | 738 ms | 854 ms | **745 ms** |
 | `tokenizer:reverse_index` | 516 ms | — | — |
-| **tokenizer total** | **3086 ms** | 2560 ms | **514 ms** |
-| **`engine_init` total** | **4812 ms** | 4612 ms | **2264 ms** |
+| **tokenizer total** | **3086 ms** | 2560 ms | **1036 ms** |
+| **`engine_init` total** | **4812 ms** | 4612 ms | **2736 ms** |
 
-Measured at 34.2 °C, *warmer* than the 33.6 °C baseline, so temperature is not flattering the result.
-In isolation the same load is **2566 ms from JSON against 386 ms from the cache (−85%)**. Inference is
-untouched: 73.433 tok/s against 73.283, sustained median 614 ms against 616, output unchanged.
+Measured at 32.7 °C. Inference is untouched: 72.8 tok/s, sustained median 618 ms, output unchanged.
+
+> **These figures are the corrected ones.** The first version of this report published tokenizer
+> 514 ms and cold start 2264 ms. Those were measured against a target vocabulary cache that
+> `VocabCacheTest` had truncated to a third — the cut landed on an entry boundary, and version 1 of the
+> format carried no entry count, so the reader walked to the end of a short file and accepted it. The
+> two test sentences decode identically from a third of the table, so parity did not catch it. The
+> format now carries an entry count and the test truncates on a real boundary. See §3.54.
 
 ### 6.3 The bug the test caught before it shipped
 

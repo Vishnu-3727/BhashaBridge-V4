@@ -102,8 +102,7 @@ class OnnxModels(
      * is the difference between a bad export being a rebuild and being a bricked launch. `0` disables
      * the extraction and drops out of the cache stamp, so the old layout behaves exactly as it did.
      */
-    private val sharedWeightsLength: Long =
-        runCatching { context.assets.openFd(sharedWeights).use { it.length } }.getOrDefault(0L)
+    private val sharedWeightsLength: Long = assetLength(context, sharedWeights)
 
     init {
         // The blob is now **permanent**, not bake scratch (Q21, §3.47). The baked graphs are ~1 MB of
@@ -409,8 +408,26 @@ class OnnxModels(
         }
     }
 
+    /**
+     * Uncompressed length of asset [name], or `0` when this build does not ship it.
+     *
+     * **`openFd` alone is a trap, and Q23 (§3.54) walked into the same one twice in a day.** It works
+     * only on *stored* zip entries and throws `FileNotFoundException` for a DEFLATE'd one. When the
+     * weight blobs became compressed to save 109 MB of download, the previous one-liner —
+     * `runCatching { openFd(...) }.getOrDefault(0L)` — turned that throw into a `0`, and `0` is the
+     * documented signal for "this build ships self-contained graphs, there is no blob to extract".
+     * The blob would never have been extracted and every launch would have failed to load a graph.
+     * §3.49 is the same bug in the vocabulary cache's stamp, found hours earlier.
+     *
+     * So the throw is *recovered from* rather than swallowed: `AssetInputStream.available()` reports
+     * the uncompressed length of a compressed entry, which is the number every caller here wants —
+     * the storage pre-check reserves real bytes on disk, and the cache stamp needs a value that moves
+     * when the asset does. `0` is returned only when the asset genuinely is not in the APK.
+     */
     private fun assetLength(context: Context, name: String): Long =
-        context.assets.openFd(name).use { it.length }
+        runCatching { context.assets.openFd(name).use { it.length } }          // stored: exact, no I/O
+            .recoverCatching { context.assets.open(name).use { it.available().toLong() } } // deflated
+            .getOrDefault(0L)
 
     /**
      * Extracts [sharedWeights] once, whichever of the three concurrent bakes gets there first.
