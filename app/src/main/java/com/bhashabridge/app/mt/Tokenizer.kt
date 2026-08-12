@@ -2,8 +2,12 @@ package com.bhashabridge.app.mt
 
 import android.content.Context
 import com.bhashabridge.app.Direction
+import com.bhashabridge.app.LogTag
 import com.bhashabridge.app.bench.Metrics
+import com.bhashabridge.app.logDebug
+import com.bhashabridge.app.logWarn
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -140,18 +144,179 @@ class Tokenizer internal constructor(
                 Direction.EN_TO_HI -> "dict.SRC.json" to "dict.TGT.json"
                 Direction.HI_TO_EN -> "dict.SRC_HI.json" to "dict.TGT_EN.json"
             }
-            // Phase 11A: three marks, so the report can separate parsing the two vocabularies from
-            // building the reverse index. Inline and debug-gated — release builds are unchanged.
-            val src = openDict(context, srcDict).use { parseFlatIntDict(bufferedUtf8(it)) }
+            // Phase 11A: two marks, so the report can separate the two vocabularies. Inline and
+            // debug-gated — release builds are unchanged.
+            val src = HashMap<String, Int>(1 shl 16)
+            loadVocab(context, srcDict) { piece, id -> src[piece] = id }
             Metrics.stage("tokenizer:src_dict")
-            // Straight into the id-indexed array (Q4, §3.48). The target vocabulary is only ever read
-            // as id → piece, so the map-then-invert this replaced built two structures to end up with
-            // neither: the map was discarded and the inversion cost 516 ms on its own.
-            val tgt = openDict(context, tgtDict).use { parseIdToPiece(bufferedUtf8(it)) }
+            // The target vocabulary is only ever read as id → piece, so it goes straight into an
+            // id-indexed array (Q4, §3.48) rather than into a map that then has to be inverted.
+            var tgt = arrayOfNulls<String>(1 shl 17)
+            loadVocab(context, tgtDict) { piece, id ->
+                if (id >= 0) {
+                    if (id >= tgt.size) {
+                        var size = tgt.size
+                        while (size <= id) size = size shl 1
+                        tgt = tgt.copyOf(size)
+                    }
+                    tgt[id] = piece
+                }
+            }
             Metrics.stage("tokenizer:tgt_dict")
             val (srcLang, tgtLang) = langIds(direction, src)
             return Tokenizer(src, tgt, srcLang, tgtLang)
         }
+
+        /**
+         * Emits every `piece → id` of dictionary [asset], from a **packed binary cache** when one is
+         * valid and from the JSON when it is not — writing the cache on the way past (Q4b, §3.49).
+         *
+         * Why a cache and not a faster parser. `dict.SRC.json` is 0.62 MB and cost **1644 ms**, while
+         * `dict.TGT.json` is 3.23 MB and cost 854 ms — five times the bytes in half the time. The
+         * difference is not the parsing: it is the ~1.5 s the *first* caller pays running
+         * [parseEntries] interpreted, before the JIT compiles a state machine that branches once per
+         * character across 4 million characters. No amount of tuning that loop removes a cost that is
+         * paid for *having* the loop, and this build cannot AOT it — ART declines to compile a
+         * `debuggable` app (§3.29). Reading a packed file is ~157,000 iterations instead of 4,000,000,
+         * over a loop simple enough that interpreting it is affordable.
+         *
+         * Format, deliberately dull: a 16-byte header (magic, version, source length) then entries of
+         * `id:int, utf8Length:uint16, bytes` until EOF. **The stamp lives in the header**, not in a
+         * companion file, so validity is one atomic artifact — a stamp that can disagree with its data
+         * is the failure §3.47 had to add a format token to avoid. A re-exported dictionary changes its
+         * length and invalidates the cache; [VOCAB_VERSION] invalidates every cache when this layout
+         * changes.
+         *
+         * Every failure path falls back to the JSON, which is always present in the APK: a corrupt,
+         * truncated or unreadable cache costs the launch that hits it a re-parse and nothing else. The
+         * cache is written to a `.part` and renamed, so a process killed mid-write cannot leave a
+         * half-file that looks complete — the same rule [OnnxModels] uses for extracted assets.
+         */
+        private inline fun loadVocab(context: Context, asset: String, crossinline emit: (String, Int) -> Unit) {
+            val cache = File(context.filesDir, "$asset$VOCAB_SUFFIX")
+            val sourceLength = dictStamp(context, asset)
+            if (readVocabCache(cache, sourceLength, emit)) return
+
+            // Miss. Parse the JSON, and build the cache image in the same pass — a second pass over
+            // the entries would cost more than the write does.
+            val packed = ByteArrayOutputStream(1 shl 22).apply {
+                writeInt(VOCAB_MAGIC); writeInt(VOCAB_VERSION); writeLong(sourceLength)
+            }
+            openDict(context, asset).use { input ->
+                parseEntries(bufferedUtf8(input)) { piece, id ->
+                    emit(piece, id)
+                    val bytes = piece.toByteArray(Charsets.UTF_8)
+                    if (bytes.size <= MAX_PIECE_BYTES) {
+                        packed.writeInt(id)
+                        packed.write(bytes.size ushr 8); packed.write(bytes.size)
+                        packed.write(bytes)
+                    }
+                }
+            }
+            writeVocabCache(cache, packed.toByteArray())
+        }
+
+        /**
+         * Reads [cache] and emits its entries, or returns `false` if it is absent, stale or damaged.
+         *
+         * The whole file is read into one array and walked by index — `DataInputStream` would charge
+         * several virtual calls per field, 157,000 times, which is the cost this cache exists to avoid.
+         * Bounds are checked before every read rather than trusted: this file is regenerable, so a
+         * truncated one must degrade to a re-parse, never to an exception on a user's launch.
+         */
+        private inline fun readVocabCache(
+            cache: File,
+            sourceLength: Long,
+            crossinline emit: (String, Int) -> Unit,
+        ): Boolean {
+            if (!cache.exists()) return false
+            return try {
+                val b = cache.readBytes()
+                if (b.size < VOCAB_HEADER_BYTES) return false
+                if (readInt(b, 0) != VOCAB_MAGIC || readInt(b, 4) != VOCAB_VERSION) return false
+                if (readLong(b, 8) != sourceLength) return false
+                var p = VOCAB_HEADER_BYTES
+                while (p + 6 <= b.size) {
+                    val id = readInt(b, p)
+                    val len = ((b[p + 4].toInt() and 0xFF) shl 8) or (b[p + 5].toInt() and 0xFF)
+                    val start = p + 6
+                    if (start + len > b.size) return false // truncated: re-parse rather than guess
+                    emit(String(b, start, len, Charsets.UTF_8), id)
+                    p = start + len
+                }
+                true
+            } catch (e: Throwable) {
+                logWarn(LogTag.MT, "vocabulary cache unreadable (${cache.name}); re-parsing the JSON", e)
+                false
+            }
+        }
+
+        /** Writes [image] to [cache] via a `.part` rename. A failure only costs the next launch a re-parse. */
+        private fun writeVocabCache(cache: File, image: ByteArray) {
+            val part = File(cache.parentFile, "${cache.name}.part")
+            runCatching {
+                part.writeBytes(image)
+                cache.delete()
+                if (!part.renameTo(cache)) throw java.io.IOException("could not publish ${cache.name}")
+                logDebug(LogTag.MT) { "vocabulary cache written: ${cache.name} (${image.size / 1024} KB)" }
+            }.onFailure {
+                part.delete()
+                logWarn(LogTag.MT, "vocabulary cache write failed (${cache.name}); will re-parse next launch", it)
+            }
+        }
+
+        /**
+         * What the cache is stamped against: it has to change whenever the bytes [openDict] would
+         * return change, and it has to be readable without decompressing anything.
+         *
+         * **Not the asset's length.** `AssetManager.openFd` only works on *stored* entries, and these
+         * dictionaries ship DEFLATE-compressed (§3.29 measured `noCompress` on them as NO EFFECT and
+         * reverted it), so it throws for every one of them. The first version of this cache called it
+         * inside a `runCatching` and therefore stamped every dictionary `-1` — a cache that could never
+         * go stale, which is the exact failure §3.47 added a format token to prevent. `VocabCacheTest`
+         * caught it before it shipped.
+         *
+         * Install time is the right stamp instead: the vocabularies are packaged assets, so the only
+         * way their bytes change is a new APK, and `lastUpdateTime` moves on every install and update.
+         * A staged dictionary ([openDict]'s benchapp path) is a real file and is stamped by its own
+         * length, in the order [openDict] resolves, so a sideloaded vocabulary is never served from a
+         * cache built for the packaged one.
+         */
+        private fun dictStamp(context: Context, name: String): Long {
+            val staged = File(context.filesDir, name)
+            if (staged.exists() && staged.length() > 0L) return staged.length()
+            return runCatching {
+                context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+            }.getOrDefault(-1L)
+        }
+
+        private fun ByteArrayOutputStream.writeInt(v: Int) {
+            write(v ushr 24); write(v ushr 16); write(v ushr 8); write(v)
+        }
+
+        private fun ByteArrayOutputStream.writeLong(v: Long) {
+            writeInt((v ushr 32).toInt()); writeInt(v.toInt())
+        }
+
+        private fun readInt(b: ByteArray, p: Int): Int =
+            ((b[p].toInt() and 0xFF) shl 24) or ((b[p + 1].toInt() and 0xFF) shl 16) or
+                ((b[p + 2].toInt() and 0xFF) shl 8) or (b[p + 3].toInt() and 0xFF)
+
+        private fun readLong(b: ByteArray, p: Int): Long =
+            (readInt(b, p).toLong() and 0xFFFFFFFFL shl 32) or (readInt(b, p + 4).toLong() and 0xFFFFFFFFL)
+
+        /** `"BBV"` + format generation. Bump [VOCAB_VERSION] and every existing cache is rebuilt. */
+        private const val VOCAB_MAGIC = 0x42425600
+        private const val VOCAB_VERSION = 1
+        private const val VOCAB_HEADER_BYTES = 16
+        private const val VOCAB_SUFFIX = ".vocab"
+
+        /**
+         * Longest piece the two-byte length field can describe. The largest piece in these
+         * vocabularies is a few dozen bytes, so this only bounds a corrupt export — and such an entry
+         * is dropped from the *cache* rather than from the map, so the JSON path stays authoritative.
+         */
+        private const val MAX_PIECE_BYTES = 0xFFFF
 
         // Language-tag ids come from IndicTrans2's tokenizer config; fallbacks apply only if the
         // dictionary lacks the exact key. Values differ by vocab file (EN→HI hin_Deva=15,
