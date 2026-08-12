@@ -181,11 +181,23 @@ which is why the defect survived the entire life of both codebases.
 | EN→HI models | 267 MB | 453 MB |
 | HI→EN models | 223 MB | 318 MB |
 | Vosk models (en-in + hi) | 134 MB | 134 MB |
-| **Total assets** | **~638 MB** | **909 MB** |
-| APK | ~577 MB debug | 561 MB per-ABI release (EN→HI only; larger bidirectional) |
+| **Total assets** | **~638 MB** | **909 MB** → **619 MB** (see below) |
+| APK | ~577 MB debug | 894 MB debug → **617 MB** measured, both directions |
 
-**+283 MB of storage is what bought the 2.11× decode and the linear cost curve.** Neither version is
-distributable through Play without asset delivery or a first-run download.
+**The +283 MB was not the price of the cache. It was an export defect, and it is now measured and
+fixed.** Hashing the raw tensor bytes showed `decoder_step` holds **no unique tensor data at all** —
+every byte of it already exists in `decoder_init`, because `torch.onnx.export` materialises a full
+copy of the decoder's weights into each graph. Pointing both at one content-addressed blob took the
+debug APK from **893.97 MB to 617.23 MB (−31%)** with translation output bit-identical and latency
+unchanged on the M31 (`OPTIMIZATION_SUMMARY.md` §3.30).
+
+So the honest current line: **V4 ships a bidirectional model in less space than v3.4.1 used for the
+same two directions**, and the KV-cache's real cost was never the 283 MB it was charged for. What
+remains true is that neither version is distributable through Play without asset delivery or a
+first-run download.
+
+One caveat this table cannot hide: the saving is in the APK and the download. Device steady-state
+storage is unchanged, because ORT's `.ort` bake re-inlines the weights — measured, not assumed.
 
 Also still open in V4, and no better than v3.4.1: R8 disabled, no release signing config, no
 landscape layout (V4 enforces portrait rather than degrading), speech WER unmeasured, TTS latency

@@ -15,9 +15,10 @@
         <item name="android:statusBarColor">@color/status_bar</item>
         <item name="android:windowLightStatusBar">false</item>
 
-        <!-- Navigation bar -->
+        <!-- Navigation bar. windowLightNavigationBar is not set: it is API 27+ against a minSdk of
+             24, and `false` — light icons on a dark bar — is the platform default on every level,
+             so the attribute only bought a NewApi error. -->
         <item name="android:navigationBarColor">@color/bg_primary</item>
-        <item name="android:windowLightNavigationBar">false</item>
 
         <!-- Accent / primary colours -->
         <item name="colorPrimary">@color/accent</item>

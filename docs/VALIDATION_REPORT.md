@@ -1,5 +1,17 @@
 # Validation Report (Phase 10)
 
+> **This is a point-in-time record of Phase 10 and is deliberately not updated as the project moves.**
+> Two items in §6 have since been closed and are listed here rather than edited in place, so the
+> report stays an honest snapshot of what was true when it was written:
+>
+> | §6 item | Status now |
+> |---|---|
+> | 1. "Hindi → English is not available" | **Closed.** Phase 12 exported and verified the HI→EN cached INT8 graphs from the named `ai4bharat/indictrans2-indic-en-dist-200M` checkpoint. Measured 23.8 / 43.2 / 76.7 ms at 2/6/12 tokens — `OPTIMIZATION_SUMMARY.md` §3.19, `bench/results/cross-device/S26U_EXPERIMENTS.md` §4b |
+> | 2. "27 s to first translation" | **Closed.** ~5,134 ms cold-launch `engine_init` median on this device, via the tokenizer parse, parallel session load, and the ORT-format cache — `OPTIMIZATION_SUMMARY.md` §3.10–§3.14, §3.29 |
+> | 8. "One device" | **Superseded.** Nine devices, Armv8.0 → Armv9 — `bench/results/cross-device/CROSS_DEVICE_REPORT.md` |
+>
+> Items 3–7, 9 and 10 stand. For current figures see [`SUBMISSION.md`](../SUBMISSION.md).
+
 Every number and verdict here was produced on the **SM-M315F** (Samsung Galaxy M31, Exynos 9611,
 4×Cortex-A73 + 4×Cortex-A53, Armv8.0-A, 6 GB RAM, Android 12) — the same device as every benchmark
 in this repository. Nothing is estimated. Where something could not be measured, it says so.
@@ -107,13 +119,37 @@ plus a signed `release` build for the release-path checks in §5.
 | 58 | Rotation does not reload models | PASS (measured before the fix in §1.8) | No `Loading MT engine`; PSS 670 → 672 MB |
 | 59 | Rotation preserves input and output | PASS | Text survived both rotations |
 | 60 | Background → foreground keeps the process | PASS | PSS 641 → 646 MB, no reload |
-| 61 | `onTrimMemory(COMPLETE)` releases the engine | PASS | `Trim level 80 — releasing 1 engine(s)`; PSS **630 → 453 MB** |
+| 61 | `onTrimMemory` releases the engine | PASS **on this device only** — see note below | `Trim level 80 — releasing 1 engine(s)`; PSS **630 → 453 MB** |
 | 62 | Vosk models released only if loaded | PASS | No speech-release line when the mic was never used |
 | 63 | App recovers after a trim release | PASS | Next translation transparently reloaded and returned 275 ms |
 | 64 | Process restart is clean | PASS | Force-stop → relaunch → models reload, no crash |
 | — | Low-memory kill / restore | **N/A** | Not reproducible on a 6 GB device without synthetic pressure |
 | — | Multi-window / split screen | **N/A** | Portrait-locked after §1.8 |
 | — | Foreground service behaviour | **N/A** | The app runs no services |
+
+> **Note on check 61 — why a genuine PASS hid a real defect.** The trigger was gated on
+> `TRIM_MEMORY_COMPLETE`, and Android stopped delivering that level to apps targeting API 34+. This
+> device runs **Android 12 (API 31)**, where it is still delivered, so the release genuinely fired
+> and the 630 → 453 MB drop is a real measurement. It is also the reason the defect survived
+> validation: the one device every number in this repo comes from is the wrong side of the change.
+> On the Android 15 and 16 phones in `bench/results/cross-device/` the branch could never be taken
+> and ~600 MB was held for the life of the process. The gate is now `TRIM_MEMORY_BACKGROUND`
+> (see ARCHITECTURE_RULES R4.6). **This check needs re-running on an API 34+ device**; the number
+> above is not evidence for those devices, and is not claimed to be.
+>
+> Re-measured on the SM-M315F after the fix, with the levels driven explicitly
+> (`adb shell am send-trim-memory <pid> <LEVEL>`), app backgrounded, EN→HI engine resident:
+>
+> | Level sent | TOTAL PSS after | Release line in `BB.App` |
+> |---|---|---|
+> | `HIDDEN` (UI_HIDDEN, 20) | 1,176,909 KB — unchanged | none, as intended |
+> | `BACKGROUND` (40) | **893,101 KB** | `Releasing 1 engine(s)` |
+>
+> `HIDDEN` deliberately holding is as load-bearing as `BACKGROUND` releasing: it is what stops every
+> home-press from charging the user a reload. Note also that no trim arrived *spontaneously* while
+> the app sat backgrounded for 40 s on this 6 GB device — the OS sends these only under real
+> pressure or LRU movement, which is why the levels are driven explicitly here and why the
+> instrumented `TrimReleaseTest` asserts on the callback rather than on observed memory.
 
 ### 1.8 Defect found and fixed
 
@@ -192,7 +228,7 @@ component is not instrumented.
 | After background → foreground | 646 MB | — |
 | With Vosk English also resident (**peak observed**) | **743 MB** | — |
 | Release build, same workload | 656 MB | — |
-| After `onTrimMemory(COMPLETE)` | **454 MB** | — |
+| After `onTrimMemory` release (API 31 device — see the note in §1.7) | **454 MB** | — |
 
 Memory is flat under sustained use: 90 translations left the process *lower* than it started, so the
 per-translation KV cache is being released as designed. Rotation and backgrounding add nothing. On a

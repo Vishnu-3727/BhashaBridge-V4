@@ -50,6 +50,10 @@
     <string name="language_message">इंटरफ़ेस भाषा चुनें</string>
 
     <string name="about_title">मॉडल और डिवाइस</string>
+    <!-- Component names (IndicTrans2, INT8, ONNX Runtime, Vosk) stay in Latin script: they are
+         identifiers the user may look up, not words. Only the surrounding prose is translated. -->
+    <string name="about_model">अनुवाद: IndicTrans2 distilled 200M, INT8, KV-cached\nEncoder + decoder_init + decoder_step, ONNX Runtime पर</string>
+    <string name="about_speech">वाक् पहचान: Vosk (अंग्रेज़ी, हिंदी), डिवाइस पर\nटेक्स्ट-टू-स्पीच: Android की सिस्टम आवाज़ें</string>
     <string name="about_offline">सब कुछ ऑफ़लाइन चलता है। ऐप कोई नेटवर्क अनुमति नहीं माँगता।</string>
 
     <string name="btn_emergency">🆘  आपातकालीन वाक्य</string>

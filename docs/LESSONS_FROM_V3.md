@@ -245,6 +245,36 @@ six documents describing a codebase that no longer resembles them.
 
 ---
 
+## L14 — The release call site existed, and the platform stopped calling it
+
+**Not a v3.4.1 lesson.** This one is V4's own, found by a leak audit after the fact, and it belongs
+here because it is L2 wearing a third disguise.
+
+**Problem.** `BhashaBridgeApp.onTrimMemory` returned early unless the level was at least
+`TRIM_MEMORY_COMPLETE`. Android stopped delivering that level — along with `MODERATE` and all three
+`RUNNING_*` levels — to apps targeting API 34 and above. `targetSdk` is 36. So from that bump
+onward the release branch was unreachable and ~600 MB of models was held until the process died, on
+every Android 14+ device including the two flagships in `bench/results/cross-device/`.
+
+**Cause.** L2 was "a `release()` with no call site". R4.5 fixed that, and this code satisfies R4.5
+completely: the method has a caller, the caller is correct, and it reads as safe in review. What
+neither the rule nor the review covered is that the *caller* is the platform, and the platform's
+contract changed underneath a `targetSdk` bump that was made for unrelated reasons. Validation did
+not catch it either, for a reason worth stating plainly: every number in this repo comes from one
+Android 12 device, where the level is still delivered — the check genuinely passed, on the one phone
+where the bug does not exist.
+
+**Rule adopted.** R4.6: a trigger owned by the platform needs evidence that it *fires* — a log line,
+a test, a measurement — not just code that would be correct if it did. And R5.4a, the other half:
+release only when nothing is mid-use, because the fix to a retention bug is a use-after-free if the
+window is not defined.
+
+**The general shape.** Three times now the same defect: the cleanup code was never the problem. V3.4.1
+had a method with no caller; V4 had a caller the OS no longer invokes. "Teardown exists" has never
+once been the same claim as "teardown runs".
+
+---
+
 ## Summary
 
 | # | Lesson | Primary rule |
@@ -262,6 +292,7 @@ six documents describing a codebase that no longer resembles them.
 | L11 | Direction not propagated | shared `Direction` type |
 | L12 | Bottleneck outside the app | `model_pipeline/`, Phase 3 first |
 | L13 | Unenforceable architecture | this rule set |
+| L14 | Release call site correct, platform stopped calling it (V4's own) | **R4.6**, R5.4a |
 
 Nothing here was incompetence. V3.4.1 works, ships, and produced a real measured baseline. It
 accumulated these defects the way every codebase does: one reasonable decision at a time, with

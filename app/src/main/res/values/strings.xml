@@ -9,7 +9,7 @@
 
     <!-- Launcher label. v3.4.1 shipped "BhashaBridge V3.4"; the version is build metadata, not
          part of the product name, so it does not belong on the user's home screen. -->
-    <string name="app_name">BhashaBridge</string>
+    <string name="app_name" translatable="false">BhashaBridge</string>
     <string name="app_tagline">Offline Speech Translation</string>
 
     <!-- Language bar / section labels -->
@@ -50,20 +50,26 @@
     <string name="tts_voice_missing">Hindi voice not installed — tap to fix</string>
     <string name="asr_heard">Heard: %1$s</string>
 
-    <!-- First run. Bilingual by design: the app does not know the user's language yet. -->
-    <string name="welcome_get_started">Get Started →</string>
-    <string name="welcome_choose_language">Choose your language</string>
-    <string name="welcome_choose_language_hi">अपनी भाषा चुनें</string>
-    <string name="welcome_change_later">You can change this later in the menu\nआप इसे बाद में मेनू में बदल सकते हैं</string>
-    <string name="welcome_speak">Speak in English or Hindi</string>
-    <string name="welcome_speak_hi">अंग्रेज़ी या हिंदी में बोलें</string>
-    <string name="welcome_speak_body">Tap the mic and speak naturally</string>
-    <string name="welcome_offline">Instant offline translation</string>
-    <string name="welcome_offline_hi">तुरंत ऑफ़लाइन अनुवाद</string>
-    <string name="welcome_offline_body">Works without internet, anywhere</string>
-    <string name="welcome_emergency">Emergency phrases ready</string>
-    <string name="welcome_emergency_hi">आपातकालीन वाक्य तैयार</string>
-    <string name="welcome_emergency_body">Medical, safety and location phrases one tap away</string>
+    <!--
+      First run. Bilingual by design: the app does not know the user's language yet, so every step
+      renders its English and Hindi text together (item_welcome_step's stepTitle + stepTitleHindi).
+      translatable="false" states that: a values-hi/ override would replace the English half of a
+      pair whose whole purpose is showing both, and the `_hi` entries are already Hindi. Without the
+      flag these read as 14 missing translations, and lint says so.
+    -->
+    <string name="welcome_get_started" translatable="false">Get Started →</string>
+    <string name="welcome_choose_language" translatable="false">Choose your language</string>
+    <string name="welcome_choose_language_hi" translatable="false">अपनी भाषा चुनें</string>
+    <string name="welcome_change_later" translatable="false">You can change this later in the menu\nआप इसे बाद में मेनू में बदल सकते हैं</string>
+    <string name="welcome_speak" translatable="false">Speak in English or Hindi</string>
+    <string name="welcome_speak_hi" translatable="false">अंग्रेज़ी या हिंदी में बोलें</string>
+    <string name="welcome_speak_body" translatable="false">Tap the mic and speak naturally</string>
+    <string name="welcome_offline" translatable="false">Instant offline translation</string>
+    <string name="welcome_offline_hi" translatable="false">तुरंत ऑफ़लाइन अनुवाद</string>
+    <string name="welcome_offline_body" translatable="false">Works without internet, anywhere</string>
+    <string name="welcome_emergency" translatable="false">Emergency phrases ready</string>
+    <string name="welcome_emergency_hi" translatable="false">आपातकालीन वाक्य तैयार</string>
+    <string name="welcome_emergency_body" translatable="false">Medical, safety and location phrases one tap away</string>
 
     <!-- Navigation drawer -->
     <string name="cd_menu">Menu</string>
@@ -81,8 +87,9 @@
     <!-- App language. Applied with per-app locales, so the whole UI follows in one call. -->
     <string name="language_title">App language</string>
     <string name="language_message">Choose the interface language</string>
-    <string name="language_english">English</string>
-    <string name="language_hindi">हिंदी</string>
+    <!-- Endonyms: a language is offered in its own language, in every locale. Never translated. -->
+    <string name="language_english" translatable="false">English</string>
+    <string name="language_hindi" translatable="false">हिंदी</string>
 
     <!-- Model &amp; device. Factual build/runtime information, read from the live runtime rather
          than hard-coded, so it cannot go stale. -->
@@ -90,9 +97,11 @@
     <string name="about_model">Translation: IndicTrans2 distilled 200M, INT8, KV-cached\nEncoder + decoder_init + decoder_step, on ONNX Runtime</string>
     <string name="about_speech">Speech: Vosk (English, Hindi), on-device\nText-to-speech: Android system voices</string>
     <string name="about_offline">Everything runs offline. The app requests no network permission.</string>
-    <string name="about_cpu">CPU: %1$s</string>
-    <string name="about_policy">ORT policy: %1$s (intra-op %2$d, CPU arena %3$s)</string>
-    <string name="about_debug_header">Debug build</string>
+    <!-- Debug-build diagnostics (MainActivity gates them on BuildConfig.DEBUG) — never shipped to
+         a user, so never translated. -->
+    <string name="about_cpu" translatable="false">CPU: %1$s</string>
+    <string name="about_policy" translatable="false">ORT policy: %1$s (intra-op %2$d, CPU arena %3$s)</string>
+    <string name="about_debug_header" translatable="false">Debug build</string>
 
     <!-- Emergency phrases. Curated pairs, no model involved — see ui/EmergencyPhrases.kt. -->
     <string name="btn_emergency">🆘  EMERGENCY PHRASES</string>

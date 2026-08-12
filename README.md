@@ -61,12 +61,15 @@ export JAVA_HOME="/path/to/Android Studio/jbr"
 
 Requires Android SDK 36, JDK 17, and a device or emulator on API 24+.
 
-**Model assets are not in git** (909 MB). `app/src/main/assets/` must contain:
+**Model assets are not in git** (619 MB). `app/src/main/assets/` must contain — note that the graphs
+carry structure only and their weights live in one shared blob per direction, produced by
+`model_pipeline/dedup_weights.py`; a graph without its blob beside it will not load:
 
 | Asset | Source |
 |---|---|
 | `encoder_int8.onnx`, `decoder_init_int8.onnx`, `decoder_step_int8.onnx` | EN→HI — produced by `model_pipeline/cached_export.py` + `quantize_cached.py` |
 | `hi_en_encoder_int8.onnx`, `hi_en_decoder_init_int8.onnx`, `hi_en_decoder_step_int8.onnx` | HI→EN — same pipeline, from `ai4bharat/indictrans2-indic-en-dist-200M` |
+| `weights.bin`, `hi_en_weights.bin` | the shared weight blob for each direction — `dedup_weights.py` |
 | `dict.SRC.json`, `dict.TGT.json`, `dict.SRC_HI.json`, `dict.TGT_EN.json` | IndicTrans2 vocabularies |
 | `model/`, `model-hi/` | Vosk small English (Indian) and Hindi models |
 
@@ -111,8 +114,9 @@ release trigger. The rules are written down and enforced, not assumed —
 
 ## Known limitations
 
-- **909 MB of assets.** Too large for Play without asset delivery or a first-run download; side-load
-  works today. This limits reach more than any technical factor here.
+- **619 MB of assets** (down from 909 MB — the two decoders used to ship the same weights twice).
+  Still too large for Play without asset delivery or a first-run download; side-load works today.
+  This limits reach more than any technical factor here.
 - **~5 s from launch to first translation** — the tokenizer parse and three ONNX sessions, behind a
   progress screen. Down from 27 s, still the worst user-facing number in the project.
 - **Release builds cannot ship.** Signed with the SDK debug key, R8 disabled, `versionCode` never

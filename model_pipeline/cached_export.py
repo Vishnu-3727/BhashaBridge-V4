@@ -170,6 +170,18 @@ class DecoderInitWrapper(torch.nn.Module):
     plus the freshly built present_key_values (self-attn K/V for the primed
     tokens, cross-attn K/V for the whole encoder sequence). Flattened output:
     (logits, *present).
+
+    **The hidden state is sliced to its last position before `lm_head`** (§9 Q1).
+    Greedy decoding only ever reads the last row, but the unsliced graph ran the
+    122,672-wide output projection over *every* prefix position and returned a
+    `[1, dec_len, vocab]` tensor the runtime immediately threw away — ORT
+    allocating and filling `dec_len x 122,672` floats to have one row read. The
+    slice moves that discard from the runtime into the graph, where it also
+    shrinks ORT's own allocation rather than only our copy of it.
+
+    Only the logits are sliced. `past_key_values` must still cover every prefix
+    position or the self-attention cache would be short its earlier keys, so
+    `out.past_key_values` is passed through untouched.
     """
 
     def __init__(self, model):
@@ -184,7 +196,9 @@ class DecoderInitWrapper(torch.nn.Module):
             encoder_attention_mask=encoder_attention_mask,
             use_cache=True,
         )
-        logits = self.lm_head(out.last_hidden_state)
+        # [:, -1:, :] not [:, -1, :] — keeps the rank at 3, so the output contract
+        # stays [batch, 1, vocab] and every consumer's indexing is unchanged.
+        logits = self.lm_head(out.last_hidden_state[:, -1:, :])
         return (logits, *flatten_cache(out.past_key_values))
 
 
@@ -229,12 +243,20 @@ class DecoderStepWrapper(torch.nn.Module):
 # Export driver                                                               #
 # --------------------------------------------------------------------------- #
 
-def export(direction: str, out_dir: str, opset: int = 14) -> None:
+GRAPH_NAMES = ("encoder", "decoder_init", "decoder_step")
+
+
+def export(direction: str, out_dir: str, opset: int = 14,
+           graphs: tuple[str, ...] = GRAPH_NAMES) -> None:
     """Export encoder.onnx, decoder_init.onnx, decoder_step.onnx for `direction`.
 
     Uses tiny dummy inputs only to trace shapes; every real dimension is dynamic.
     opset 14 (v3 used 13) — cache-heavy graphs want the newer shape ops; bump
     only if an op is missing, and record it in EXPORT_WITH_CACHE.md.
+
+    `graphs` restricts the run to a subset. The three exports share only the
+    loaded checkpoint, so re-exporting one after a wrapper change does not
+    require spending twenty minutes rewriting the two that did not change.
     """
     import os
 
@@ -251,9 +273,17 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
     mask = torch.ones((1, enc_len), dtype=torch.long)
     dummy_hidden = torch.ones((1, enc_len, hidden), dtype=torch.float)
 
+    def emit(name, *args, **kwargs):
+        """Export `name` only if it was asked for, so a one-graph change is cheap."""
+        if name not in graphs:
+            print(f"Skipping {name}.onnx (not selected)")
+            return
+        print(f"Exporting {name}.onnx ...")
+        torch.onnx.export(*args, **kwargs)
+
     # --- encoder -----------------------------------------------------------
-    print("Exporting encoder.onnx ...")
-    torch.onnx.export(
+    emit(
+        "encoder",
         EncoderWrapper(model), (ids, mask),
         os.path.join(out_dir, "encoder.onnx"),
         input_names=["input_ids", "attention_mask"],
@@ -267,7 +297,6 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
     )
 
     # --- decoder_init ------------------------------------------------------
-    print("Exporting decoder_init.onnx ...")
     dec_ids = torch.ones((1, 1), dtype=torch.long)
     present_names = cache_names("present", num_layers)
     # decoder self-attn cache axis 2 grows; cross-attn cache axis 2 is src_len.
@@ -277,7 +306,8 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
         present_axes[f"present.{i}.decoder.value"] = {0: "batch", 2: "past_len"}
         present_axes[f"present.{i}.encoder.key"] = {0: "batch", 2: "src_len"}
         present_axes[f"present.{i}.encoder.value"] = {0: "batch", 2: "src_len"}
-    torch.onnx.export(
+    emit(
+        "decoder_init",
         DecoderInitWrapper(model), (dec_ids, dummy_hidden, mask),
         os.path.join(out_dir, "decoder_init.onnx"),
         input_names=["decoder_input_ids", "encoder_hidden_states",
@@ -287,14 +317,16 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
             "decoder_input_ids": {0: "batch", 1: "dec_len"},
             "encoder_hidden_states": {0: "batch", 1: "src_len"},
             "encoder_attention_mask": {0: "batch", 1: "src_len"},
-            "logits": {0: "batch", 1: "dec_len"},
+            # No `1: "dec_len"`: the wrapper slices to the last position, so this
+            # axis is 1 whatever the prefix length. Declaring it dynamic would let
+            # ORT keep a symbolic dim it can never need.
+            "logits": {0: "batch"},
             **present_axes,
         },
         opset_version=opset,
     )
 
     # --- decoder_step ------------------------------------------------------
-    print("Exporting decoder_step.onnx ...")
     past_names = cache_names("past_key_values", num_layers)
     # Build a dummy past: self len 1, cross len enc_len.
     dummy_past = []
@@ -313,7 +345,8 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
     # the step graph's inputs (output is independent of it when past is present),
     # so the real decoder_step.onnx inputs are decoder_input_ids +
     # encoder_attention_mask + past. See DecoderStepWrapper docstring.
-    torch.onnx.export(
+    emit(
+        "decoder_step",
         DecoderStepWrapper(model, num_layers),
         (torch.ones((1, 1), dtype=torch.long), dummy_hidden, mask, *dummy_past),
         os.path.join(out_dir, "decoder_step.onnx"),
@@ -330,7 +363,7 @@ def export(direction: str, out_dir: str, opset: int = 14) -> None:
         },
         opset_version=opset,
     )
-    print(f"Done. Wrote encoder.onnx, decoder_init.onnx, decoder_step.onnx to {out_dir}")
+    print(f"Done. Wrote {', '.join(g + '.onnx' for g in graphs)} to {out_dir}")
 
 
 def main() -> None:
@@ -338,8 +371,10 @@ def main() -> None:
     ap.add_argument("--direction", choices=MODEL_NAMES, default="en_hi")
     ap.add_argument("--out", default="onnx_cached")
     ap.add_argument("--opset", type=int, default=14)
+    ap.add_argument("--graphs", nargs="+", choices=GRAPH_NAMES, default=list(GRAPH_NAMES),
+                    help="subset to export; the rest are left as they are on disk")
     args = ap.parse_args()
-    export(args.direction, args.out, args.opset)
+    export(args.direction, args.out, args.opset, tuple(args.graphs))
 
 
 if __name__ == "__main__":

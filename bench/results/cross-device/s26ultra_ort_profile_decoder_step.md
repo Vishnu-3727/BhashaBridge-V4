@@ -4,7 +4,7 @@
 - Distinct op types: **26**
 - Total kernel time (sum of node `dur`): **6267.9 ms**
 - Total `model_run` wall time: **7937.8 ms** (ORT overhead outside kernels ≈ 1669.9 ms, 21.0%)
-- Execution provider(s): **CPUExecutionProvider** ← all CPU/MLAS, no EP fallback
+- Execution provider(s): **CPUExecutionProvid1r** ← all CPU/MLAS, no EP fallback
 
 All of the above is **MEASURED** from the trace.
 

@@ -43,9 +43,14 @@ return memory, but **asynchronously** — allocated native heap drops 557.8 → 
 the allocator hands pages back to the OS over roughly ten seconds (§3.25, which corrects an earlier
 wrong conclusion in this same repo).
 
-**Cost, stated plainly.** The KV-cache splits each decoder into `decoder_init` + `decoder_step`,
-duplicating weights. Total assets went from ~638 MB in v3.4.1 to **909 MB**. That +283 MB is what
-bought the 2.11× decode and the linear cost curve. See `docs/V3_VS_V4_COMPARISON.md` §6.
+**The cost that turned out not to be one.** Splitting the decoder into `decoder_init` +
+`decoder_step` took assets from ~638 MB in v3.4.1 to 909 MB, and that +283 MB was charged to the
+KV-cache for months. It was an export defect: hashing the raw tensor bytes showed `decoder_step`
+holds **no unique tensor data at all** — every byte already exists in `decoder_init`, because
+`torch.onnx.export` writes a full copy of the weights into each graph. Pointing both at one
+content-addressed blob took the debug APK **893.97 → 617.23 MB (−31%)**, output bit-identical,
+latency unchanged on the M31 (§3.30). The saving is in the APK and the download; device steady-state
+storage is unchanged, because ORT's `.ort` bake re-inlines the weights — measured, not assumed.
 
 ---
 
@@ -244,9 +249,9 @@ work — and it is named here as a next step rather than passed over in silence.
 
 Ordered by how much they matter.
 
-1. **909 MB of assets.** Per-ABI release APK exceeds Play's limits; side-loading works today, and
-   shipping through Play needs Play Asset Delivery or a first-run download. Distribution limits reach
-   more than any technical factor here.
+1. **619 MB of assets**, down from 909 MB. Still exceeds Play's limits per-ABI; side-loading works
+   today, and shipping through Play needs Play Asset Delivery or a first-run download. Distribution
+   limits reach more than any technical factor here.
 2. **Release engineering is unfinished.** R8 is disabled, the release build is signed with the SDK
    debug key, and `versionCode` has never been incremented — which also feeds the ORT cache stamp.
    `AUDIT_2026-08-06.md` H4. Nothing ships until this is done.

@@ -115,6 +115,13 @@ owner was.
 **R4.5** — Any `release()`/`close()`/`shutdown()` method must have a call site in the same commit
 that introduces it. A cleanup method with no caller is dead code that reads as safety.
 
+**R4.6** — A call site is not enough; the platform must still be calling it. `onTrimMemory` was gated
+on `TRIM_MEMORY_COMPLETE`, which Android stopped delivering to apps targeting API 34+ — so from the
+`targetSdk` bump onward the release path was unreachable and V4 held ~600 MB for the life of every
+process on a modern device, with a call site that looked correct in review. Any trigger owned by the
+platform (a trim level, a lifecycle callback, a broadcast) needs a test or a log line that proves it
+*fires*, not just code that would run if it did. This is R4.5's blind spot, found by audit.
+
 ---
 
 ## 5. Lifecycle
@@ -133,8 +140,18 @@ to recreate, or holds native memory.
 **R5.3** — Rotation must reload nothing and lose nothing. This is a testable exit criterion, not an
 aspiration: rotate during an active translation, confirm the result still arrives.
 
-**R5.4** — Process-lifetime native resources are released on `onTrimMemory(TRIM_MEMORY_COMPLETE)`.
+**R5.4** — Process-lifetime native resources are released on `onTrimMemory(TRIM_MEMORY_BACKGROUND)`.
 Returning ~639 MB when the OS asks is not optional at this footprint.
+
+`BACKGROUND`, not `COMPLETE`: of the seven trim levels only `BACKGROUND` and `UI_HIDDEN` are still
+delivered on API 34+, and `BACKGROUND` is the one that means what this rule intends — the process is
+on the background LRU list and a kill candidate. `UI_HIDDEN` fires on every home-press and would
+charge a ~27 s reload to a user who is coming straight back. See R4.6.
+
+**R5.4a** — A release may only run when nothing is using the resource. `BhashaBridgeApp` keeps a
+borrower count; a trim arriving during a translation or a recording session sets a "release when
+idle" flag rather than closing a session out from under a live caller. Ownership says *who* frees,
+this says *when* it is safe to — without it, the correct fix to R5.4 is a native use-after-free.
 
 **R5.5** — Every release trigger and every idle timeout is a **named constant with a comment giving
 its unit and the reason for its value**. These are device-dependent tuning knobs, not truths. A

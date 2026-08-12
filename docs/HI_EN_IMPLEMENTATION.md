@@ -207,7 +207,7 @@ new code.
 ### Ownership and lifecycle
 
 Unchanged: `BhashaBridgeApp` already keyed engines by `Direction`, so a swap constructs the second
-engine on first use and both are released together at `TRIM_MEMORY_COMPLETE`. The memory consequence
+engine on first use and both are released together at `TRIM_MEMORY_BACKGROUND`. The memory consequence
 of *both* being resident is real and measured in §5.3.
 
 ---
@@ -349,7 +349,7 @@ found and fixed).
 
 1. **Both-directions footprint ≈ 1.09 GB PSS.** Swapping keeps both engines resident by design
    (Phase 4's process-scoped ownership, which is what killed the v3.4.1 rotation leak). Nothing here
-   is leaked — `onTrimMemory(TRIM_MEMORY_COMPLETE)` releases both — but on a 2–3 GB device the
+   is leaked — `onTrimMemory(TRIM_MEMORY_BACKGROUND)` releases both — but on a 2–3 GB device the
    background-kill risk after a swap is real. The obvious fix is to evict the non-active engine on
    swap, trading ~10 s of reload for ~500 MB. **Not implemented:** it changes engine lifecycle, which
    this brief puts on the do-not-modify list.
