@@ -36,9 +36,13 @@ class PressureReclaimTest {
     /**
      * The shipping configuration under pressure. Q21 (§3.47) collapsed this test's original two arms
      * into one: the A/B was ORT-format initializer-copying against a mapped buffer, and neither exists
-     * now — the baked artifact is optimized ONNX whose weights ORT maps from the shared blob, so every
-     * install is the file-backed arm. What is still worth watching is unchanged, and is what this
-     * measures: how much stays resident, what goes to swap, and what a translation costs while it does.
+     * now.
+     *
+     * **It is not the file-backed arm either, which §3.50 had to measure to discover.** ORT maps
+     * `weights.bin`, reads the initializers out into the session allocator and never touches the
+     * mapping again — 138.7 MB of address space at **RSS 0**, with the weights sitting in ~420 MB of
+     * anonymous memory. So this measures the anonymous layout: how little is reclaimed, what the
+     * kernel does instead, and what a translation costs while it does it.
      */
     @Test
     fun shippingConfigUnderPressure() = runArm("shipping", ExecutionPolicy.current)
@@ -50,8 +54,10 @@ class PressureReclaimTest {
 
         val hogs = ArrayList<android.os.MemoryFile>()
         try {
+            val ceiling = androidx.test.platform.app.InstrumentationRegistry.getArguments()
+                .getString("pressureMb")?.toIntOrNull() ?: MAX_PRESSURE_MB
             var allocatedMb = 0
-            while (allocatedMb < MAX_PRESSURE_MB) {
+            while (allocatedMb < ceiling) {
                 try {
                     hogs += anonymousPressure(CHUNK_MB)
                     allocatedMb += CHUNK_MB
@@ -98,22 +104,78 @@ class PressureReclaimTest {
         return file
     }
 
-    /** One line per observation: what is still resident, what the system has, what a translation costs. */
+    /**
+     * One line per observation: what is still resident, what the system has, what a translation costs
+     * — and **what kind of fault it paid to get there**, which is the question the earlier runs left
+     * open (§3.28: reclaim proven, mechanism not).
+     *
+     * The counters are chosen to separate the two ways a page can come back, because per-process
+     * `majflt` alone cannot: on Linux a swap-in **is** a major fault, so a file re-read and a zram
+     * decompression are indistinguishable in that number. Global `/proc/vmstat` breaks the tie —
+     * `pswpin` counts pages read back from swap, `pgmajfault` counts major faults overall, so file
+     * re-reads are the difference between them. `RssFile` / `RssAnon` / `VmSwap` then say which kind
+     * of page the process is actually holding.
+     *
+     * All fault numbers are reported as **deltas since the previous sample**, which is what makes them
+     * readable: the absolute counts are dominated by process startup.
+     */
     private fun sample(label: String, stage: String, engine: MtEngine) {
         val ortRss = ortMappingRssKb()
         val mem = meminfo()
+        val status = procStatus()
+        val faults = procFaults()
+        val vm = vmstat()
+
         val t = System.nanoTime()
         val ok = runCatching { engine.translate(SENTENCE) }.isSuccess
         val translateMs = (System.nanoTime() - t) / 1_000_000
+
+        // Faults charged *by the translation itself* — sampled again after it, so the delta is the
+        // cost of touching the weights at this pressure level rather than of everything since boot.
+        val faultsAfter = procFaults()
+        val vmAfter = vmstat()
+
         Log.i(
             TAG,
             "REPORT $label $stage ort_rss_kb=$ortRss" +
+                " rss_file_kb=${status["RssFile"]} rss_anon_kb=${status["RssAnon"]}" +
+                " vm_swap_kb=${status["VmSwap"]}" +
                 " mem_available_kb=${mem["MemAvailable"]}" +
-                " swap_free_kb=${mem["SwapFree"]}" +
                 " swap_used_kb=${(mem["SwapTotal"] ?: 0) - (mem["SwapFree"] ?: 0)}" +
+                " d_minflt=${faults.second - lastFaults.second}" +
+                " d_majflt=${faults.first - lastFaults.first}" +
+                " translate_minflt=${faultsAfter.second - faults.second}" +
+                " translate_majflt=${faultsAfter.first - faults.first}" +
+                " translate_pswpin=${(vmAfter["pswpin"] ?: 0) - (vm["pswpin"] ?: 0)}" +
+                " translate_pgmajfault=${(vmAfter["pgmajfault"] ?: 0) - (vm["pgmajfault"] ?: 0)}" +
                 " translate_ms=$translateMs ok=$ok",
         )
+        lastFaults = faultsAfter
     }
+
+    private var lastFaults = 0L to 0L
+
+    /** `majflt to minflt` from `/proc/self/stat` — fields 12 and 10, 1-indexed, after the comm field. */
+    private fun procFaults(): Pair<Long, Long> = runCatching {
+        // The comm field is parenthesised and may contain spaces, so split after its closing brace.
+        val stat = File("/proc/self/stat").readText()
+        val fields = stat.substring(stat.lastIndexOf(')') + 2).split(' ')
+        // After comm, field 3 is state; stat field 10 (minflt) is index 7 here, field 12 (majflt) is 9.
+        (fields[9].toLong()) to (fields[7].toLong())
+    }.getOrDefault(0L to 0L)
+
+    private fun procStatus(): Map<String, Long> = runCatching {
+        File("/proc/self/status").readLines().associate { line ->
+            line.substringBefore(':').trim() to (line.filter { it.isDigit() }.toLongOrNull() ?: 0L)
+        }
+    }.getOrDefault(emptyMap())
+
+    private fun vmstat(): Map<String, Long> = runCatching {
+        File("/proc/vmstat").readLines().associate { line ->
+            val parts = line.split(' ')
+            parts[0] to (parts.getOrNull(1)?.toLongOrNull() ?: 0L)
+        }
+    }.getOrDefault(emptyMap())
 
     /**
      * Resident kilobytes of the model mappings, from `/proc/self/smaps`.
@@ -157,7 +219,14 @@ class PressureReclaimTest {
         const val SENTENCE = "The weather is very nice today and I want to go outside."
         const val CHUNK_MB = 128
         const val SAMPLE_EVERY_MB = 512
-        /** Bounded: enough to force reclaim on a 5.7 GB device with 2.2 GB available, not enough to wedge it. */
+        /**
+         * Bounded: enough to force reclaim on a 5.7 GB device, not enough to wedge it.
+         *
+         * Overridable with `-e pressureMb N` because the two interesting ceilings are different
+         * experiments: 3072 MB gets the process killed by the LMK (a survival result, but it loses the
+         * recovery samples with it), while ~2048 MB stays under the kill threshold and answers what a
+         * translation costs *after* the pressure is released.
+         */
         const val MAX_PRESSURE_MB = 3_072
     }
 }

@@ -2323,10 +2323,12 @@ cannot coexist in one APK, which is how §3.44 controlled its own comparison).
 ~1 GB app that also carries the Vosk models, 193 MB is the largest single storage lever the project has
 found, and the PSS drop moves the app well clear of the two-engine pressure that §3.24b was about.
 
-**Next.** Three things this opens. (1) **Q15's re-run is now cheap and more meaningful** — the shipping
-config is the file-backed one, `PressureReclaimTest` is already collapsed to a single arm, and the
-question is whether 276 MB of clean blob pages survive pressure better than 559 MB of anonymous heap
-did. (2) **`allowBackup` is now load-bearing**: the bake is ALL_OPT and ORT calls its output
+**Next.** Three things this opens. (1) **Q15's re-run is now cheap and more meaningful** —
+`PressureReclaimTest` is already collapsed to a single arm. *(Corrected by §3.50: the premise written
+here, that "the shipping config is the file-backed one", is **wrong**. `weights.bin` is mapped but
+never resident — ORT copies the initializers out and the mapping sits at RSS 0. The shipping weights
+are ~410 MB of **anonymous** memory. The PSS win in this entry is real; the reason given for it was
+not.)* (2) **`allowBackup` is now load-bearing**: the bake is ALL_OPT and ORT calls its output
 environment-specific, so the existing `filesDir` exclusions in `backup_rules.xml` /
 `data_extraction_rules.xml` are what stop a restore from carrying one phone's graphs onto another's CPU.
 Both files now say so. (3) The startup pole is still the **~2.9 s tokenizer parse** (Q4), untouched by
@@ -2431,6 +2433,77 @@ shared from Java, ~690 ms of graph residual). The tokenizer is no longer worth a
 cold and 125 ms warm it is smaller than the noise on a model load. The next real lever is the H4
 release build — it would let ART AOT-compile the app, which is the other half of what §3.29 identified
 and the only remaining way to attack the residual interpretation cost.
+
+---
+
+### 3.50 Why the mapped weights never paid a reclaim cost (Q15 re-run) — the answer is that they were never mapped-resident
+
+**Problem.** Two questions were still open about `mappedInitializers`: why the file-backed arm showed a
+re-read latency penalty under pressure (§3.28), and whether the current shipping config inherits it.
+The second turned out to answer the first.
+
+**The flag no longer exists.** §3.47 deleted `mappedInitializers` with `createMappedSession` — the
+`use_ort_model_bytes_for_initializers` trick is ORT-format-only and the bake now writes optimized ONNX.
+So "should we ship it" is closed by removal, not by measurement. What remained worth knowing is what
+the *replacement* does under the same pressure.
+
+**Investigation, and it starts with a correction.** §3.47's "Next" asserted that the shipping config is
+now the file-backed one. **It is not.** `/proc/self/smaps` on a running app:
+
+| mapping | address space | RSS | private dirty |
+|---|---|---|---|
+| `weights.bin` (`rw-p`, 2 mappings) | **138.7 MB** | **0.0 MB** | 0.0 MB |
+
+ORT maps the external-data file, reads the initializers **out** of it into the session allocator, and
+never touches the mapping again. Process-wide: `RssAnon` **410–442 MB**, `RssFile` 75–114 MB (the APK,
+the `.so`s, the baked graphs — not the weights). The weights are anonymous memory. The PSS win in
+§3.46/§3.47 is real and reproduces; the *reason* recorded for it was wrong.
+
+**Benchmark (SM-M315F, 34.0 °C, `PressureReclaimTest`, ashmem pressure in 128 MB steps).** The counters
+separate the two ways a page can come back: a swap-in **is** a major fault on Linux, so per-process
+`majflt` cannot distinguish flash re-read from zram decompression — global `pswpin` breaks the tie.
+
+| stage | RssAnon | model-mapping RSS | translate | majflt | pswpin |
+|---|---|---|---|---|---|
+| baseline | 442 MB | 3.9 MB | 633 ms | 0 | 0 |
+| +512 MB | 416 MB | 3.9 MB | 718 ms | 0 | 0 |
+| +1024 MB | 423 MB | 3.9 MB | 683 ms | 0 | 0 |
+| +1536 MB | 423 MB | 3.9 MB | 750 ms | 0 | 0 |
+| peak (1.79 GB) | 421 MB | 3.9 MB | 698 ms | 0 | 0 |
+| **released** | 421 MB | 3.9 MB | **653 ms** | 0 | 0 |
+
+A second run pushed to 3 GB: at 2.5 GB of pressure the translation reached **1048 ms (+67%)** — still
+with **zero major faults and zero swap-ins**, but **2.4× the minor faults** (3,658 → 9,202) — and the
+process was then **killed by the LMK** before 3 GB.
+
+**The mechanism, which is the thing that was actually unknown:**
+
+1. **Nothing is re-read, because nothing was resident to drop.** The model mapping holds 3.9 MB
+   resident at every pressure level, flat. There is no file-backed working set to reclaim, so there is
+   no re-read cost — the shipping config cannot exhibit §3.28's penalty.
+2. **The anonymous weights are not reclaimed either.** `RssAnon` moves 442 → 421 MB (−5%) across
+   1.79 GB of pressure and the process's own `VmSwap` stays flat while system-wide swap grows by
+   190 MB — the kernel swaps *other* processes and leaves this one alone, then kills it outright.
+   On this device the choice is never "swap the app"; it is "keep it or kill it".
+3. **The degradation that does appear is not paging at all.** +67% at 2.5 GB arrives with 2.4× minor
+   faults and no major faults: page-table work and CPU contention with the kernel's own reclaim, not
+   I/O. And it is **fully reversible** — 653 ms after release against 633 ms before.
+4. **§3.28's re-read penalty was therefore specific to the arm that really was file-backed.** There,
+   451 MB *was* resident clean file pages, the kernel dropped 319 MB of them for free, and the next
+   translation had to fetch them back from flash. That configuration bought droppable pages and paid
+   for them on the next touch. The current one never offers the kernel that trade.
+
+**Evidence grade:** MEASURED, one device. The LMK kill threshold is a property of this device's
+`lowmemorykiller` tuning and should not be quoted as a general number.
+
+**Decision.** **Nothing shipped — this is a characterisation, as asked.** It closes Q15: file-backed
+weights are not available in the current design to be evaluated, and the anonymous layout the app does
+ship degrades gracefully (+10% at 1.79 GB, fully recovered) and is killed rather than thrashed.
+
+**Next.** If clean, droppable weights are ever wanted again, the route is not a runtime flag — it is
+`session.use_device_allocator_for_initializers` or an ORT build that can map external data read-only in
+place. Both are speculative, neither is worth doing while the app is not under memory pressure in
+practice. The corrected memory picture also makes §3.24b's two-engine worry smaller than it looked.
 
 ---
 
@@ -2620,7 +2693,7 @@ Three consequences worth stating once:
 | ~~Q11~~ | ~~Why does `release()` not return memory?~~ | — | **CLOSED 2026-08-06** — it does: alloc 557.8 → 13.2 MB instantly, PSS 666 → 372 MB within ~10 s as the allocator releases lazily. §3.24b's conclusion was wrong and is corrected in §3.25 | done |
 | ~~Q13~~ | ~~Is prepacking what unmaps the model?~~ | — | **CLOSED 2026-08-06** — refuted. 451 MB *is* mapped during load and unmapped after, with or without prepacking. Disabling prepacking is 4.6× slower and uses 2× the heap: a REVERT (§3.26) | done |
 | ~~Q14~~ | ~~Can the weights stay file-backed?~~ | — | **CLOSED 2026-08-06** — yes: 451 MB stays mapped, anonymous heap −151 MB, native PSS −230–300 MB, output identical. Total PSS rises 30–86 MB; the load and latency claims died to a page-cache confound (§3.27). Kept OFF by default — **until §3.44 rotated the arms and priced the load claim it could not make: it now ships ON** | done |
-| ~~Q15~~ | ~~Is file-backed actually a better OOM victim?~~ | — | **CLOSED 2026-08-06** — reclaim proven (319 MB dropped under pressure, app keeps working, ~2× latency spike); survival **not** proven (kills 1/6 mapped vs 2/6 path, both arms killed). Default stays OFF (§3.28). **Re-opened in effect by §3.44**: mapped initializers now ship, so this A/B should be re-run with the arms the other way round — the question is no longer whether to enable it but whether the shipping config survives pressure | done, re-run queued |
+| ~~Q15~~ | ~~Is file-backed actually a better OOM victim?~~ | — | **CLOSED 2026-08-12 — characterised (§3.50).** The question dissolved: after §3.47 the weights are **anonymous**, not file-backed — `weights.bin` holds 138.7 MB of address space at **RSS 0**, because ORT copies the initializers out and never touches the mapping. Under 1.79 GB of pressure: zero major faults, zero swap-ins, RssAnon −5%, latency +10% and fully recovered. §3.28's re-read penalty was specific to the arm that really was file-backed | done |
 | ~~Q18~~ | ~~Break down the 2.15 s of session load~~ | — | **CLOSED 2026-08-12 — KEEP (§3.44).** Not I/O (473 MB reads in 335 ms): ~790 ms prepacking, ~730 ms initializer copying, ~690 ms residual, per-decoder. Q14's `mappedInitializers` removes the copy — **`sessions:parallel` 2183 → 1633 ms, cold start 6190 → 5589 ms**, real app, interleaved arms, parity exact. `use_device_allocator_for_initializers`, `intra_op.allow_spinning=0` and serial loading all measured no better or worse | done |**Rule for this table:** an item leaves it only by becoming a §3 entry — including as a REVERT or a
 NO EFFECT. Deleting a row because it turned out not to work is how a ledger starts lying.
 
