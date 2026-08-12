@@ -243,12 +243,27 @@ class OnnxModels(
 
     /** One graph: resolve or build its session. Runs entirely on one worker thread. */
     private fun loadSession(context: Context, name: String, label: String): SessionLoad {
+        // Benchmark-only (Q20): load a pre-built graph of the same name from an arbitrary directory,
+        // so a probe can drive raw / optimized-inline / optimized-external artifacts through the real
+        // engine instead of through hand-built sessions. Nothing in production sets it.
+        tune.graphDir?.let { dir -> return loadFrom(File(dir, name), label) }
         // The tuning sweep (MtTuningSweepTest) varies optLevel per config and must run graph
         // optimization on every load to measure it, so only the production policy uses the ORT-format
         // cache. Everyone else keeps the pre-Phase-2A behaviour verbatim: extract the source .onnx to
         // filesDir on demand, then a path-based createSession with this config's options.
         if (!tune.optCache) return loadSourceUncached(context, name, label)
         return loadOrt(context, name, label)
+    }
+
+    /**
+     * Benchmark-only (Q20): a plain path load of [file] with this config's options and no cache, no
+     * extraction and no bake. The caller owns the file's format and its optimization level — an
+     * already-optimized graph wants `NO_OPT`, a raw one does not.
+     */
+    private fun loadFrom(file: File, label: String): SessionLoad {
+        val start = System.nanoTime()
+        val session = env.createSession(file.absolutePath, tune.toOptions().maybeProfile(label))
+        return SessionLoad(label, session, 0L, 0L, System.nanoTime() - start, false, file.length())
     }
 
     /** Non-production path: source `.onnx` extracted to filesDir if absent, then loaded from its path. */
@@ -652,6 +667,18 @@ data class OrtTuning(
      * it. Analyse the output with model_pipeline/ort_profile_report.py.
      */
     val profileDir: String? = null,
+    /**
+     * **Benchmark-only** (Q20, §3.46). Load each graph from `<graphDir>/<asset name>` instead of from
+     * the asset pipeline: no extraction, no `.ort` cache, no bake — just a path load with these
+     * options. It exists so the graph-format matrix (raw ONNX / optimized ONNX / optimized ONNX with
+     * external initializers / prepacked) can be measured through the **real engine**, with real
+     * translations, rather than through hand-built sessions that cannot decode.
+     *
+     * The caller owns the pairing of format and [optLevel]: an already-optimized graph must be loaded
+     * `NO_OPT` or ORT will optimize it a second time. `null` (default) leaves the production routing
+     * untouched, which is why this is a field and not a branch in [ExecutionPolicy].
+     */
+    val graphDir: String? = null,
 ) {
     /** Build a fresh SessionOptions with only the non-null knobs applied. */
     fun toOptions(): OrtSession.SessionOptions {

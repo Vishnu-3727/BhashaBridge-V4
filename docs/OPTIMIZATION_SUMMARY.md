@@ -2177,6 +2177,79 @@ else, and Q17 must re-derive its number before anyone spends a re-export on it.
 **~2.9–3.2 s serial tokenizer parse** (Q4), which is now larger than everything the session loads
 still cost put together.
 
+> **Corrected by §3.46.** The Q17 remark above is half wrong. Q17's saving *does* reproduce — but only
+> for the layout this entry never baked: optimized ONNX that keeps pointing at the **one shared blob**.
+> `session.optimized_model_external_initializers_file_name` makes each graph write its **own** external
+> file, which is what destroyed the sharing and produced the 471 MB here. See §3.46.
+
+---
+
+### 3.46 The artifact itself: raw vs optimized ONNX vs ORT format (Q20) — OPEN, with a real candidate
+
+**Problem.** §3.44 and §3.45 both measured *load paths over one artifact*. Nobody had measured the
+artifacts. And the interesting question is not which file is smallest — it is whether a format that
+loads fast then decodes slowly, or a format that saves disk then pays for it on first inference.
+
+**Implementation.** `GraphFormatMatrixTest` drives seven artifacts through the **real engine** —
+`MtEngine`, real tokenizer, real translations — via one new benchmark-only routing flag,
+`OrtTuning.graphDir` (nothing in production sets it; `OnnxModels.loadFrom` is a bare path load). Four
+numbers per arm: engine construction, memory after load, **first** inference, and steady-state
+inference (n=12 after warm-up). Arms rotated per round.
+
+**Benchmark (SM-M315F, 2 rotated rounds, battery temp 32.9 °C for the whole run, both rounds shown).**
+
+| arm | load ms | first ms | steady median ms | native heap | total PSS | mapped after load | on disk |
+|---|---|---|---|---|---|---|---|
+| `raw_allopt` — source ONNX, ORT optimizes every launch | 5771 / 4748 | 745 / 670 | 637 / 614 | 422 MB | 476 MB | 142 MB, 735 maps | 281 MB |
+| `raw_noopt` — the same bytes, optimizers off | 4494 / 5041 | 829 / 812 | **773 / 755** | 434 MB | 472 MB | 142 MB | 281 MB |
+| **`opt_inline`** — optimized ONNX, shared blob | **2796 / 2834** | 683 / 734 | 641 / 610 | 413 MB | **449 / 446 MB** | 142 MB, 735 maps | **280 MB** |
+| `opt_ext` — optimized ONNX, per-graph external files | 3595 / 3702 | 676 / 778 | 622 / 633 | 411 MB | 446 / 458 MB | 144 MB | 471 MB |
+| `opt_ext_pp` — the same, prepacked (§3.45) | 3687 / 3083 | **1517 / 1000** | 629 / 607 | **38 MB** | 457 / 447 MB | 463 MB, 1172 maps | 797 MB |
+| `ort_path` — `.ort`, path load | 4577 / 3887 | 620 / 663 | 618 / 614 | 560 MB | 631 / 627 MB | **0** | 473 MB |
+| `ort_mapped` — `.ort`, mapped initializers (**ships**) | **2712 / 2760** | 643 / 666 | 619 / 608 | 408 MB | 785 / 779 MB | 462 MB, 3 maps | 473 MB |
+
+Load includes the tokenizer parse, which is identical across arms. Every arm produced the same
+translation.
+
+**What the matrix says, in order of how much it matters:**
+
+1. **Graph optimization is worth ~20% of steady-state inference, and nothing else is.** `raw_noopt`
+   decodes at 755–773 ms where every optimized artifact sits at 607–641 ms. All six optimized arms are
+   **tied on steady latency** — their within-arm spread (e.g. `opt_inline` 610–641) is wider than the
+   gaps between them. So the format is a startup, memory and storage decision, **not** a latency one, and
+   the 2.6× file-size range across arms changes decode speed by nothing.
+2. **The smallest file is not the fastest, and the biggest is worst where it counts.** `opt_ext_pp` is
+   797 MB and pays **1000–1517 ms on first inference** — 50–130% over every other arm — because its
+   prepacked buffers are faulted in from the file on first use. It is the only arm whose native heap
+   is trivial (38 MB): the weights live in the mapping. Storage and first-run latency traded, badly.
+3. **`opt_inline` matches the shipping artifact on load and beats it on both footprints.** 2796/2834 ms
+   against 2712/2760 (tied), steady tied, **−193 MB on disk** (280 vs 473 MB) and **−333 MB of total
+   PSS** (446 vs 779). It wins because the optimized graphs are 3.4 MB of structure that all three
+   **share one 276 MB weight blob** — §3.30's dedup, surviving into the baked artifact, which the
+   `.ort` bake re-inlines per graph and §3.45's `ext` arm re-inlined per graph a different way.
+4. **`ort_path` is dominated by everything.** 560 MB of anonymous heap and 627–631 MB PSS for no
+   compensating win. §3.44's flip was right and this is the wider evidence for it.
+
+**Evidence grade:** MEASURED, in-process, warm page cache, one device, n=2 per arm — enough to rank
+arms that differ by hundreds of MB, **not** enough to rank `opt_inline` against `ort_mapped` on load
+time, where they are 2% apart.
+
+**Decision.** **OPEN — nothing shipped from this entry.** `opt_inline` is a genuine candidate and the
+change is not a one-liner: the bake would write ONNX instead of ORT format, the cache stamp and the
+`purgeLegacy`/`purgeSharedWeights` logic would have to keep the shared blob resident **permanently**
+instead of deleting it after the bake, and the storage pre-check in `extractAsset` assumes the `.ort`
+output size. That is Phase-scale work and it deserves a decision, not a drive-by.
+
+**What would close it.** Wire `opt_inline` as the production bake behind the existing cache, then the
+§3.44 measurement exactly: real app, **cold**, arms interleaved, `sessions:parallel` and `engine_init`.
+Cold is the case this entry cannot speak for — `opt_inline` reads 280 MB off storage where
+`ort_mapped` reads 473 MB, so the cold gap should favour it by more than the warm numbers show, and
+that is a prediction, not a result.
+
+**Next.** This also answers **Q17** — the 204.3 MB it recorded was real and is now reproduced as
+280 MB against 473 MB on the M31, with parity and inference measured, which Q17 never had. The
+portability worry it raised does not apply to a device-side bake.
+
 ---
 
 ## 4. Optimization Decision Matrix
@@ -2347,7 +2420,9 @@ Three consequences worth stating once:
 | **Q0** | **Length-cap expansion factor** | `targetCap = max(14, sourceLen)` still truncates: targets expand past their source. `1.6× + 8` fixes it | 200-sentence corpus per direction, count no-EOS stops before/after; latency p95 must stay bounded by `maxSteps` | Correctness, not speed |
 | ~~Q1~~ | ~~Slice the last position inside `decoder_init`~~ | — | **CLOSED — NO GAIN (§3.31).** Done, gate 7/7, and worth nothing: greedy seeds a one-token prefix, so `decoder_init` only ever runs at `dec_len = 1` and `decoder_init` measured 49.6 ms against a 49.0 ms control. The "largest remaining inference lever" was true of the graph and never exercised by the workload. Held for Q6 | done |
 | **Q16** | Collapse the tied embedding, stored twice inside every decoder | `decoder.embed_tokens.weight_quantized` (V, 512) UINT8 and `onnx::MatMul_*_quantized` (512, V) INT8 are the same matrix under two quantization schemes — 62.8 MB each in EN→HI, so four copies across the decoder pair. Content-addressing cannot catch it (§3.30); it needs an export-side change so one copy serves both the gather and the projection | Re-export → `verify_cache.py` 7/7 → APK size → `MtBenchmarkTest` on the M31, since a runtime transpose would trade size for latency | Up to ~125 MB EN→HI, ~33 MB HI→EN |
-| **Q17** | Carry the §3.30 saving onto the device — **premise now in doubt** | The `.ort` bake re-inlines the shared blob, so device storage is unchanged. Baking ALL_OPT to optimized **ONNX** with external initializers instead measured 204.3 MB against the 397.9 MB baked pair, NO_OPT load times overlapping and output identical — but the bake would move to the host, and ORT does not promise its optimized output is portable across platforms. **§3.45 baked exactly that arm on the M31 and got 471 MB against the `.ort` trio's 473 MB**: each graph writes its own external initializer file, so the shared blob is re-inlined per graph either way | **Re-derive the 204.3 MB first** — it is the whole reason this item exists, and one on-device bake now contradicts it. Only if it survives: host-bake on x86, load on the M31, parity first, then `BenchmarkSuiteTest` | ~190 MB of device storage per direction, **if the premise holds** |
+| **Q21** | **Ship the optimized-ONNX + shared-blob artifact** | §3.46 measured it against the shipping `.ort`: load tied (2796/2834 vs 2712/2760 ms), steady inference tied, parity exact, **−193 MB on disk and −333 MB of total PSS**. It wins because 3.4 MB of optimized graphs all point at one 276 MB blob, where the `.ort` bake re-inlines the weights per graph | Wire it as the production bake (ONNX save format, stamp update, keep the blob resident instead of purging it, fix `extractAsset`'s size pre-check), then §3.44's measurement: real app, **cold**, arms interleaved. Cold is what §3.46 cannot speak for | −193 MB storage and −333 MB PSS per direction; startup neutral-to-better |
+| ~~Q20~~ | ~~Raw vs optimized ONNX vs ORT format~~ | — | **CLOSED 2026-08-12 — OPEN candidate (§3.46).** Graph optimization is worth ~20% of steady inference (773 vs 618 ms) and **the format is worth none of it** — all six optimized arms tie. Biggest file (`opt_ext_pp`, 797 MB) has the worst first inference (1000–1517 ms). `ort_path` is dominated on every axis. Winner on footprint is `opt_inline` → Q21 | done |
+| **Q17** | ~~Carry the §3.30 saving onto the device~~ — **superseded by Q21** | The `.ort` bake re-inlines the shared blob, so device storage is unchanged. Baking ALL_OPT to optimized **ONNX** with external initializers instead measured 204.3 MB against the 397.9 MB baked pair, NO_OPT load times overlapping and output identical — but the bake would move to the host, and ORT does not promise its optimized output is portable across platforms. **§3.45 baked exactly that arm on the M31 and got 471 MB against the `.ort` trio's 473 MB**: each graph writes its own external initializer file, so the shared blob is re-inlined per graph either way | **Re-derive the 204.3 MB first** — it is the whole reason this item exists, and one on-device bake now contradicts it. Only if it survives: host-bake on x86, load on the M31, parity first, then `BenchmarkSuiteTest` | ~190 MB of device storage per direction, **if the premise holds** |
 | ~~Q2a~~ | ~~Price the logits copy~~ | — | **CLOSED 2026-08-06** — `LogitsReadBenchmarkTest` on the M31: 545.8 µs/token saved at 122k vocab, 6.55 ms per 12-token translation, ~1.0% end-to-end (§3.22) | done |
 | ~~Q2b~~ | ~~Does 4 intra-op threads ever win?~~ | — | **CLOSED 2026-08-12 — KEEP (§3.37).** No: on the SM-M315F production path, `intra4` pinned is +8.2% long / +26.9% short with 2.8× the stdev, and `intra4` unpinned carries the worst jitter in the sweep (p95 896 ms vs 677 ms). The shipping `intra2`+affinity arm is the fastest on both sentences. `intra3` and inter-op were measured for the first time and both lose. **The clamp's *bound* stays INFERRED** — the M31 derives 2 and cannot reach it | done |
 | ~~Q3~~ | ~~Overlap the tokenizer parse with session load~~ | — | **CLOSED 2026-08-06 — REVERTED.** Cold start got 341 ms *worse* (5,134 → 5,475 ms): the big cores are already saturated by the three session loads, so the parse slowed 2.9 → 5.5 s. The benchmark showing a win had warmed the parser first (§3.29) | done |
