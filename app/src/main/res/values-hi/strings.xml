@@ -17,6 +17,7 @@
     <string name="output_placeholder">अनुवाद यहाँ दिखेगा…</string>
     <string name="output_translating">अनुवाद हो रहा है…</string>
     <string name="output_failed">अनुवाद विफल</string>
+    <string name="translation_stats">%1$d टोकन · %2$d मि.से. · %3$s टोकन/से.</string>
 
     <string name="loading_initialising">मॉडल लोड हो रहे हैं…</string>
     <string name="loading_translation_model">अनुवाद मॉडल लोड हो रहा है…</string>

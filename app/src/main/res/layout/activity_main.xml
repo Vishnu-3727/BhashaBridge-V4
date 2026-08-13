@@ -213,6 +213,23 @@
                 android:textSize="18sp" />
         </androidx.cardview.widget.CardView>
 
+        <!-- What the translation cost: generated tokens and engine time. Visible only on a
+             committed result, so it cannot flicker during live speech translation. -->
+        <TextView
+            android:id="@+id/translationStats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="6dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.04"
+            android:paddingHorizontal="20dp"
+            android:textColor="@color/accent"
+            android:textSize="15sp"
+            android:visibility="gone"
+            tools:text="12 tokens · 86 ms"
+            tools:visibility="visible" />
+
         <!-- Shown only when the device has no Hindi voice data; tapping opens the installer. -->
         <TextView
             android:id="@+id/ttsBanner"

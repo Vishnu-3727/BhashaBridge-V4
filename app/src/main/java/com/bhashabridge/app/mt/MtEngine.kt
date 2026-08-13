@@ -54,7 +54,23 @@ class MtEngine(
     }
 
     /** Translates [text]. Returns the target-language string. */
-    fun translate(text: String): String {
+    fun translate(text: String): String = translateWithStats(text).text
+
+    /**
+     * Translates [text] and reports what it cost, for the UI's per-translation readout.
+     *
+     * The counts already existed as `Metrics.counter("tokens", …)` and the `translate` stage, but
+     * `Metrics` is gated on `BuildConfig.DEBUG` and compiles out of release — so a user-visible
+     * readout cannot read them. These two fields are measured unconditionally and are the only
+     * instrumentation on this path that survives a release build.
+     *
+     * [Translation.elapsedMs] is engine time: tokenize → encode → decode → detokenize, measured
+     * around the work and nothing else. It excludes the dispatch onto the engine thread and the
+     * render, so it is smaller than the latency a stopwatch on the screen would show, and it is the
+     * number the benchmarks in `bench/` report.
+     */
+    fun translateWithStats(text: String): Translation {
+        val startNanos = System.nanoTime()
         Metrics.begin("translate")
 
         val srcIds = tokenizer.encode(text)
@@ -85,7 +101,12 @@ class MtEngine(
             Metrics.counter("init_us", source.initNanos / 1000)
             Metrics.counter("step_us", source.stepNanos / 1000)
             Metrics.counter("steps", source.steps.toLong())
-            return tokenizer.decode(generated.copyOfRange(1, generated.size))
+            return Translation(
+                text = tokenizer.decode(generated.copyOfRange(1, generated.size)),
+                // generated[0] is the start token, which the model was given rather than produced.
+                tokens = generated.size - 1,
+                elapsedMs = (System.nanoTime() - startNanos) / 1_000_000,
+            )
         } finally {
             source.close()     // releases the final present-cache tensors
             encoderOut.close() // closes encoderHidden
@@ -105,6 +126,12 @@ class MtEngine(
         models.release()
     }
 }
+
+/**
+ * One translation and what it cost. [tokens] is the number of tokens the model *generated*, not the
+ * source length; [elapsedMs] is engine time, measured inside [MtEngine.translateWithStats].
+ */
+data class Translation(val text: String, val tokens: Int, val elapsedMs: Long)
 
 /**
  * The KV-cache runtime, hidden behind [LogitsSource]. One instance per translation; it owns the cache

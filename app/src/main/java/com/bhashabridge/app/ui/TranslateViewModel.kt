@@ -123,7 +123,7 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
                 try {
                     // Inside withResources for the whole call: the engine's native sessions must not
                     // be released by a trim while ONNX Runtime is running in them.
-                    app.withResources { app.translator(direction).translate(input) }
+                    app.withResources { app.translator(direction).translateWithStats(input) }
                 } catch (e: Throwable) {
                     logError(LogTag.UI, "Translate failed: $direction", e)
                     null
@@ -134,11 +134,16 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
                     it.copy(output = Output.Failed(R.string.output_failed), micStatus = R.string.mic_tap_to_speak)
                 }
                 final -> {
-                    remember(input, result)
-                    _state.update { it.copy(output = Output.Final(result), micStatus = R.string.mic_ready) }
-                    tts.speak(result, direction)
+                    remember(input, result.text)
+                    _state.update {
+                        it.copy(
+                            output = Output.Final(result.text, result.tokens, result.elapsedMs),
+                            micStatus = R.string.mic_ready,
+                        )
+                    }
+                    tts.speak(result.text, direction)
                 }
-                else -> _state.update { it.copy(output = Output.Streaming(result)) }
+                else -> _state.update { it.copy(output = Output.Streaming(result.text)) }
             }
         }
     }
@@ -421,7 +426,23 @@ sealed interface Output {
     data object InProgress : Output
     /** Live translation of speech still in progress — shown dimmed, never spoken or committed. */
     data class Streaming(val text: String) : Output
-    data class Final(val text: String) : Output
+
+    /**
+     * A committed translation. [tokens] and [elapsedMs] come straight from
+     * [com.bhashabridge.app.mt.Translation] and are rendered under the output card.
+     *
+     * **Null when no model ran** — a recalled history entry and an emergency phrase are both shown
+     * as `Final` and neither has a cost to report. Reporting zeros there would read as a
+     * suspiciously fast translation rather than as the absence of one.
+     *
+     * A [Streaming] partial has no stats either, but for the opposite reason: it is re-translated
+     * from scratch on every interim result, so the numbers would flicker with each word spoken.
+     */
+    data class Final(
+        val text: String,
+        val tokens: Int? = null,
+        val elapsedMs: Long? = null,
+    ) : Output
     data class Failed(@StringRes val message: Int) : Output
 }
 

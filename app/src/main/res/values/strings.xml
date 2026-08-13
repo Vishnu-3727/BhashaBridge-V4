@@ -30,6 +30,9 @@
     <string name="output_placeholder">Translation appears here…</string>
     <string name="output_translating">Translating…</string>
     <string name="output_failed">Translation failed</string>
+    <!-- Under the output card: tokens generated, engine time, and the rate. %3$s is preformatted
+         because the rate is undefined when the engine reports 0 ms, and shows an em dash instead. -->
+    <string name="translation_stats">%1$d tokens · %2$d ms · %3$s tok/s</string>
 
     <!-- Loading overlay -->
     <string name="loading_initialising">Initialising models…</string>

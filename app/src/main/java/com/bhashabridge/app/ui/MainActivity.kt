@@ -40,6 +40,7 @@ import com.bhashabridge.app.BuildConfig
 import com.bhashabridge.app.Direction
 import com.bhashabridge.app.R
 import com.bhashabridge.app.mt.ExecutionPolicy
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /**
@@ -59,6 +60,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var inputText: EditText
     private lateinit var outputText: TextView
+    private lateinit var translationStats: TextView
     private lateinit var langSrc: TextView
     private lateinit var langTgt: TextView
     private lateinit var labelInput: TextView
@@ -141,6 +143,7 @@ class MainActivity : AppCompatActivity() {
     private fun bindViews() {
         inputText = findViewById(R.id.inputText)
         outputText = findViewById(R.id.outputText)
+        translationStats = findViewById(R.id.translationStats)
         langSrc = findViewById(R.id.langSrc)
         langTgt = findViewById(R.id.langTgt)
         labelInput = findViewById(R.id.labelInput)
@@ -311,12 +314,28 @@ class MainActivity : AppCompatActivity() {
             if (direction == Direction.EN_TO_HI) InputType.TYPE_TEXT_FLAG_CAP_SENTENCES else 0
     }
 
-    private fun renderOutput(output: Output) = when (output) {
-        Output.Empty -> setOutput(getString(R.string.output_placeholder), R.color.output_idle)
-        Output.InProgress -> setOutput(getString(R.string.output_translating), R.color.output_streaming)
-        is Output.Streaming -> setOutput(output.text, R.color.output_streaming)
-        is Output.Final -> setOutput(output.text, R.color.output_result)
-        is Output.Failed -> setOutput(getString(output.message), R.color.output_idle)
+    private fun renderOutput(output: Output) {
+        when (output) {
+            Output.Empty -> setOutput(getString(R.string.output_placeholder), R.color.output_idle)
+            Output.InProgress -> setOutput(getString(R.string.output_translating), R.color.output_streaming)
+            is Output.Streaming -> setOutput(output.text, R.color.output_streaming)
+            is Output.Final -> setOutput(output.text, R.color.output_result)
+            is Output.Failed -> setOutput(getString(output.message), R.color.output_idle)
+        }
+        // Shown only when a model actually ran: a streaming partial would flicker, and a recalled
+        // history entry or an emergency phrase never went through the engine at all.
+        val stats = (output as? Output.Final)?.takeIf { it.tokens != null && it.elapsedMs != null }
+        translationStats.isVisible = stats != null
+        if (stats != null) {
+            val tokens = stats.tokens!!
+            val elapsedMs = stats.elapsedMs!!
+            // Rounded to whole tokens/sec — the engine time behind it is whole milliseconds, so a
+            // decimal would imply precision the input does not have. Undefined at 0 ms, which no
+            // real translation has produced (21 ms is the fastest measured), but the guard is
+            // cheaper than the crash.
+            val rate = if (elapsedMs > 0) (tokens * 1000.0 / elapsedMs).roundToInt().toString() else "—"
+            translationStats.text = getString(R.string.translation_stats, tokens, elapsedMs, rate)
+        }
     }
 
     private fun setOutput(text: String, @ColorRes colorRes: Int) {
