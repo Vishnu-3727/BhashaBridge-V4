@@ -146,27 +146,40 @@ class ProductionThreadSweepTest {
      *
      * Pointless on a part with no dotprod/i8mm/SME (the SM-M315F): there is nothing to dispatch to
      * and the A/B measures noise at the cost of a thermally loaded run. Skip it there.
+     *
+     * **Both sides of every pair set `disableKleidiAi` explicitly.** Taking the "on" side from
+     * [ExecutionPolicy.current] stopped working the moment §3.40 shipped the flag: the baseline was
+     * then already *off*, so `SHIPPING` vs `SHIPPING_noKleidiAI` compared a configuration against
+     * itself and the suite reported its own repeatability floor as a KleidiAI delta (§3.57).
      */
     @Test
     fun sweepKleidiAi() {
         val caps = CpuCapabilities.detect()
         val base = ExecutionPolicy.current
         val shippingThreads = base.intraThreads ?: 1
+        // Named for what the arm *is*, not for what shipped — the shipping default is a moving target
+        // and a label that tracks it stops describing the configuration it names.
+        fun shipThreads(label: String, noKleidiAi: Boolean) =
+            label to base.copy(name = label, disableKleidiAi = noKleidiAi)
         sweep(
             "KLEIDI",
             listOf(
-                "SHIPPING" to base,
-                "SHIPPING_noKleidiAI" to base.copy(name = "SHIPPING_noKleidiAI", disableKleidiAi = true),
-                arm(caps, base, "intra4", threads = 4, affinity = false),
-                arm(caps, base, "intra4_noKleidiAI", threads = 4, affinity = false, noKleidiAi = true),
+                shipThreads("shipThreads_kleidiON", noKleidiAi = false),
+                shipThreads("shipThreads_kleidiOFF", noKleidiAi = true),
+                arm(caps, base, "intra4_kleidiON", threads = 4, affinity = false, noKleidiAi = false),
+                arm(caps, base, "intra4_kleidiOFF", threads = 4, affinity = false, noKleidiAi = true),
                 // Counterbalance pair at the shipping thread count, where the effect is largest.
                 // Byte-identical to the first two arms, so their disagreement IS this run's
                 // repeatability floor — read it before reading the KleidiAI delta.
-                "SHIPPING_recheck" to base.copy(name = "SHIPPING_recheck"),
-                "SHIPPING_noKleidiAI_recheck" to base.copy(name = "SHIPPING_noKleidiAI_recheck", disableKleidiAi = true),
+                shipThreads("shipThreads_kleidiON_recheck", noKleidiAi = false),
+                shipThreads("shipThreads_kleidiOFF_recheck", noKleidiAi = true),
             ),
         )
-        Log.i(TAG, "KLEIDI_CONTEXT shippingThreads=$shippingThreads i8mm=${caps.i8mm} sme=${caps.sme} sme2=${caps.sme2} dotprod=${caps.dotProduct}")
+        Log.i(
+            TAG,
+            "KLEIDI_CONTEXT shippingThreads=$shippingThreads shippingKleidiAiDisabled=${base.disableKleidiAi} " +
+                "i8mm=${caps.i8mm} sme=${caps.sme} sme2=${caps.sme2} dotprod=${caps.dotProduct}",
+        )
     }
 
     /**
@@ -231,6 +244,15 @@ class ProductionThreadSweepTest {
      *
      * A device with no distinct big/LITTLE split cannot pin anything; rather than silently producing
      * a second copy of the unpinned arm, the label says so.
+     *
+     * **[noKleidiAi] defaults to `base`'s setting, not to `false`.** An arm must differ from the
+     * baseline in exactly what its label claims. When §3.40 shipped `disableKleidiAi = caps.sme` into
+     * [ExecutionPolicy.current], a hard-coded `false` here silently turned every thread arm into a
+     * *thread + KleidiAI* arm on SME silicon, against a `"SHIPPING" to base` baseline that still had
+     * it off — so `intra2_noAff` differed from `SHIPPING` by the flag, not by affinity, and the two
+     * were read as a repeatability control (§3.57, corrected). Inheriting means a future shipping
+     * default cannot re-introduce that skew; the KleidiAI suites pass the flag explicitly on both
+     * sides instead.
      */
     private fun arm(
         caps: CpuCapabilities,
@@ -239,7 +261,7 @@ class ProductionThreadSweepTest {
         threads: Int,
         affinity: Boolean,
         inter: Int? = null,
-        noKleidiAi: Boolean = false,
+        noKleidiAi: Boolean = base.disableKleidiAi,
     ): Pair<String, OrtTuning> {
         val aff = if (affinity) ExecutionPolicy.affinityString(caps, threads) else null
         val name = if (affinity && aff == null) "${label}_noPinAvailable" else label
@@ -363,8 +385,12 @@ class ProductionThreadSweepTest {
             Log.i(TAG, "RESULT $suite SHORT $label ${shortStats.toJson()} tokens=$refTokShort tokPerSec=${f(rate(refTokShort, shortStats.median))}")
             Log.i(
                 TAG,
+                // kleidiAI is printed for every arm, not just the KleidiAI suites: it is a shipping
+                // default that moved once already, and an arm's real configuration must be readable
+                // off its own line rather than inferred from the suite's name (§3.57).
                 "SYS $suite $label intra=${tune.intraThreads} inter=${tune.interThreads} " +
                     "parallel=${tune.parallel} affinity=${tune.intraOpAffinities ?: "OFF"} " +
+                    "kleidiAI=${if (tune.disableKleidiAi) "OFF" else "on"} " +
                     "coresBusy=${f(coresBusy)} cpuMsPerTx=${f(cpuMsPerTx)} migrations=${a.migrations} " +
                     "nonvolCtxt=${a.nonvolCtxt} perfFreqMHz=${a.perfFreqMhz} " +
                     "tempC=${a.tempFirst}->${a.tempLast} pssKb=${a.pssFirst}->${a.pssLast} " +
