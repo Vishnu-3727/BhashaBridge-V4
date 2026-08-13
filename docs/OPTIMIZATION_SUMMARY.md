@@ -2938,6 +2938,73 @@ the submission deadline.
 
 ---
 
+### 3.57 Re-validating the SM-S948B decisions against the artifact that replaced theirs — KEEP, nothing changed
+
+**No code changed in this entry.** It re-prices defaults that already shipped, because the evidence
+under them was measured on an artifact that no longer exists.
+
+**Problem.** §3.47 replaced the shipping artifact (`.ort` flatbuffer → optimized ONNX over a shared
+blob) and §3.54 compressed the APK weight blobs. Entry #9 and §3.38–§3.42 — including the run that
+justified `ExecutionPolicy.select`'s `disableKleidiAi = caps.sme` — were **all** measured on the
+`.ort` format. The S26 Ultra is the only device in the fleet where that flag does anything, so the
+decision had no evidence on the shipping path. §3.42 exonerated the load path and the shared blob for
+§3.20's contradiction, which pointed at the kernels rather than the format, but that was an inference.
+
+**Investigation.** The full `S26U_SESSION_PLAN.md` run order on the SM-S948B, 2026-08-13, build
+`029a88c`, 32.3–36.7 °C, on USB throughout. Detected `ARMv9 cores=8(perf=8,eff=0) i8mm sve2 sme`,
+`sme2=false`; policy `arm-adaptive(threads=2,noKleidiAI) intra=2 arena=false affinity=OFF`. Full
+report and raw evidence: `bench/results/cross-device/s26ultra_revalidation_2026-08-13.md`,
+`s26ultra_suite_2026-08-13.json`, `s26ultra_lifecycle_pressure_2026-08-13.log`.
+
+**Verification.** `MtEngineInstrumentedTest` 3, `HiEnEngineTest` 3, `OptCacheTest` 1,
+`VocabCacheTest` 1, `BenchmarkSuiteTest` 1, `ExecutionProviderProbeTest` 2, `SharedWeightRuntimeTest`
+1, `ExternalInitializerProbeTest` 1, `DirectionSwitchStressTest` 1 (100 switches, `FAILURES 0`),
+`PressureReclaimTest` 1, four `ProductionThreadSweepTest` suites — **all pass**, output `पानी ।` and
+the 12-token sentence unchanged, parity checked per arm inside every sweep.
+
+**Benchmark.** SM-S948B, n as stated, against the numbers each item is re-testing:
+
+| question | result | against |
+|---|---|---|
+| KleidiAI off, shipping thread count, **production path** | **−8.9%** (86.0 vs 95.5 ms), controls 1.0% / 2.3% | §3.39's −10.1 / −13.0 / −12.7% on `.ort` |
+| the same on raw ALL\_OPT graphs | **−9.5%** (86.0 vs 95.0 ms) | — |
+| KleidiAI at `intra4` | **0%** (98 vs 98) | §3.39's −3.1 to −5.5% |
+| thread ladder | 91 · 95 · 97 · 100 · 102 · 104 ms for shipping · 1 · 2 · 3 · 4aff · 4 | §3.38's clamp bound |
+| oversubscription | `intra6` 114 ms, `intra8` 153 ms at 577 CPU-ms/tx | §3.37 KEEP |
+| `intra1` counterbalanced, n=40 | **−2.1% at 42% of the CPU**, both duplicate pairs identical | §3.39's −4.6% at 41% |
+| headline latency / throughput | 86.0 ms, 535.1 tok/s, `Water.` 22.0 ms | entry #9's 99 ms / 412.8 |
+| cold `engine_init`, 4 launches | 389 · 386 · 352 · 354 ms | M31's 2304 ms |
+| tokenizer, cold | 72 ms | M31's 474 ms (§3.56) |
+| model cache on disk | 279.8 MB | 473 MB on `.ort` (§3.47) |
+| decoder weight sharing (Q24) | 1,178 KB of 351,202 KB | M31's 884 KB of 323,756 (§3.55) |
+| `addExternalInitializers` (Q24B) | **costs +58.8 MB** | M31's +64.7 MB (§3.55) |
+| XNNPACK node placement | **0 nodes**, byte-identical to the CPU arm (17,616) | §3.52, M31 only |
+| NNAPI | 2.3× slower; claims 1,308 nodes, partitions the rest | §3.52's +125% |
+| 100 direction switches (Q22) | PSS drift −1 MB, native heap 0 MB, 0 failures | §3.51's −8 MB |
+| pressure to 3072 MB (Q15) | 0 swap-ins at every stage, latency flat 82–91 ms | §3.50 |
+
+**Evidence grade:** MEASURED.
+
+**Decision.** **KEEP — every re-tested default stands.** `disableKleidiAi = caps.sme` (§3.40) and the
+`[1,2]` intra-op clamp (§3.37/§3.38) both survive the artifact change on the only device that can
+test either. Two findings that were single-device are now **cross-device**: ORT deduplicates nothing
+across sessions and `addExternalInitializers` costs memory (§3.55), and XNNPACK's zero-node placement
+is a property of the export rather than of the Exynos (§3.52).
+
+**Two degenerate arm pairs are recorded as controls, not results.** `sweepKleidiAi`'s `SHIPPING` vs
+`SHIPPING_noKleidiAI` became byte-identical the moment §3.40 shipped the flag into
+`ExecutionPolicy.current`, and on a uniform-IP part `affinity=true` arms duplicate their no-pin
+partners. Read as repeatability floors they give 2.2% / 0% and 6.6% — the last of which is why the
+`intra1` question was re-run counterbalanced rather than read off the ladder.
+
+**Next.** Two things this leaves open, neither blocking submission. `sweepKleidiAi`'s first pair is
+now uninformative by construction and should take its baseline from an explicitly KleidiAI-on config
+rather than from `ExecutionPolicy.current`. And §4b of `S26U_EXPERIMENTS.md` — the HI→EN latency and
+the 174-vs-528 MB mmap asymmetry — was **not** re-run; both are artifact-dependent and are currently
+unverified on the shipping format.
+
+---
+
 ## 4. Optimization Decision Matrix
 
 | Optimization | Goal | Evidence | Decision | Impact |
@@ -3134,9 +3201,12 @@ NO EFFECT. Deleting a row because it turned out not to work is how a ledger star
 
 ## Report metadata
 
-- **Status:** living document. Last extended 2026-08-12 (§3.37 the production-path thread and
+- **Status:** living document. Last extended 2026-08-13 (§3.57, the SM-S948B re-validation against
+  the artifact §3.47 shipped: every re-tested default held, and §3.52's and §3.55's single-device
+  findings became cross-device). Before that, 2026-08-12 (§3.37 the production-path thread and
   execution-mode sweep on the M31, Q2b closed as KEEP; §3.38 the same on a recovered SM-S948B, which
-  closes §3.21's bound and **contests §3.20's KleidiAI direction**).
+  closes §3.21's bound and **contests §3.20's KleidiAI direction** — a contest §3.39/§3.40 settled
+  and §3.57 re-confirmed on the new artifact).
 - **Optimization sections (§3):** §3.1–§3.37 (38 headings). §3.1–§3.9 are the original phase-gated
   reconstruction; §3.10–§3.23 backfill everything landed since (startup, caches, affinity, baseline
   profile, bench framework, ORT upgrade, HI→EN, the nine-device campaign); §3.24–§3.29 are the
