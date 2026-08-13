@@ -390,3 +390,25 @@ Four of the six items this session opened were closed by it, three of them negat
 | `simpleperf` symbol capture for SME/i8mm | **Closed (§2c).** SME confirmed executing (`smopa` int8, hottest loop in the app) and isolated by A/B at **~4–9%, not 2×** |
 | Cap `threads` at 2 for 8-perf-core parts | **Closed — APPLIED 2026-08-03.** See the note below |
 | Startup profile rules | **Open** — `BaselineProfileGenerator` does not set `includeInStartupProfile = true`, so there is no startup profile |
+
+---
+
+## 7. Superseded in part by the 2026-08-13 re-validation
+
+Nothing above is edited — per §0 it stands as the audit trail. But every latency and storage number
+in this file was measured on the **`.ort` flatbuffer artifact**, which §3.47 replaced on 2026-08-12
+with optimized ONNX over a shared blob. `s26ultra_revalidation_2026-08-13.md` re-ran those questions
+on the artifact that now ships.
+
+| claim in this file | status after 2026-08-13 |
+|---|---|
+| latency and storage figures (99 ms / 412.8 tok/s, 473 MB cache) | **Superseded** — 86 ms / 535.1 tok/s, 279.8 MB, on a different artifact |
+| KleidiAI off wins at the shipping thread count | **Re-confirmed** — −8.9% on optimized ONNX, −9.5% on raw graphs, controls at 1.0% / 2.3% |
+| the `intra` clamp at 2, and degradation above it | **Re-confirmed** — monotonic to `intra8` (153 ms) |
+| `intra1` is real but sub-threshold | **Replicated** at −2.1% / 42% CPU (was −4.6% / 41%); disposition unchanged |
+| §4b's HI→EN and PSS figures | **Not re-run.** Both bake behaviour and the mmap asymmetry are artifact-dependent and are now unverified |
+| §1's profiler blindness, §2c's `simpleperf` result | Unchanged — format-independent, not re-run |
+
+The `AffinityBenchmarkTest` topology trap §3 documents is still live and was respected: on this
+uniform-IP part every `affinity=true` arm is a byte-identical duplicate of its no-pin partner, and
+the 2026-08-13 report reads those pairs only as repeatability controls.
