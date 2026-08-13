@@ -1,0 +1,148 @@
+﻿--------- beginning of main
+07-22 08:39:25.780  7491  7509 I BB_BENCH: CPU ARMv8.0 cores=8(perf=4,eff=4) neon=true fp16=false dotprod=false i8mm=false sve=false sve2=false sme=false sme2=false
+07-22 08:39:25.793  7491  7509 I BB_BENCH: POLICY arm-adaptive(threads=2) intra=2 arena=false
+07-22 08:39:27.642  7491  7509 W BB.Bench: stage('tokenizer:src_dict') with no active run on this thread
+07-22 08:39:27.824  7491  7509 W BB.Bench: stage('tokenizer:tgt_dict') with no active run on this thread
+07-22 08:39:27.975  7491  7509 W BB.Bench: stage('tokenizer:reverse_index') with no active run on this thread
+07-22 08:39:35.639  7491  7509 W BB.Bench: stage('sessions:parallel') with no active run on this thread
+07-22 08:39:35.639  7491  7509 W BB.Bench: counter('verify_us:encoder') with no active run on this thread
+07-22 08:39:35.639  7491  7509 W BB.Bench: counter('extract_us:encoder') with no active run on this thread
+07-22 08:39:35.639  7491  7509 W BB.Bench: counter('create_us:encoder') with no active run on this thread
+07-22 08:39:35.639  7491  7509 W BB.Bench: counter('bytes:encoder') with no active run on this thread
+07-22 08:39:35.639  7491  7509 W BB.Bench: counter('verify_us:decoder_init') with no active run on this thread
+07-22 08:39:35.639  7491  7509 W BB.Bench: counter('extract_us:decoder_init') with no active run on this thread
+07-22 08:39:35.640  7491  7509 W BB.Bench: counter('create_us:decoder_init') with no active run on this thread
+07-22 08:39:35.640  7491  7509 W BB.Bench: counter('bytes:decoder_init') with no active run on this thread
+07-22 08:39:35.640  7491  7509 W BB.Bench: counter('verify_us:decoder_step') with no active run on this thread
+07-22 08:39:35.640  7491  7509 W BB.Bench: counter('extract_us:decoder_step') with no active run on this thread
+07-22 08:39:35.640  7491  7509 W BB.Bench: counter('create_us:decoder_step') with no active run on this thread
+07-22 08:39:35.640  7491  7509 W BB.Bench: counter('bytes:decoder_step') with no active run on this thread
+07-22 08:39:35.653  7491  7509 W BB.Bench: stage('cache_contract') with no active run on this thread
+07-22 08:39:35.949  7491  7509 D BB.Bench: {"run":"translate","total_ms":293.287,"stages":{"tokenize":0.677,"encoder":94.155,"decode":177.852},"counters":{"tokens":2,"init_us":50678,"step_us":76910,"steps":2}}
+07-22 08:39:36.286  7491  7509 D BB.Bench: {"run":"translate","total_ms":335.915,"stages":{"tokenize":0.537,"encoder":68.838,"decode":265.084},"counters":{"tokens":6,"init_us":46130,"step_us":208707,"steps":6}}
+07-22 08:39:36.871  7491  7509 D BB.Bench: {"run":"translate","total_ms":584.142,"stages":{"tokenize":0.654,"encoder":87.963,"decode":493.848},"counters":{"tokens":12,"init_us":47564,"step_us":426025,"steps":12}}
+07-22 08:39:37.022  7491  7509 D BB.Bench: {"run":"translate","total_ms":149.983,"stages":{"tokenize":0.292,"encoder":37.229,"decode":111.458},"counters":{"tokens":2,"init_us":39220,"step_us":68047,"steps":2}}
+07-22 08:39:37.348  7491  7509 D BB.Bench: {"run":"translate","total_ms":325.715,"stages":{"tokenize":0.464,"encoder":60.366,"decode":263.653},"counters":{"tokens":6,"init_us":43020,"step_us":210179,"steps":6}}
+07-22 08:39:37.932  7491  7509 D BB.Bench: {"run":"translate","total_ms":583.186,"stages":{"tokenize":0.599,"encoder":88.122,"decode":492.849},"counters":{"tokens":12,"init_us":46838,"step_us":425136,"steps":12}}
+07-22 08:39:38.084  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.178,"stages":{"tokenize":0.333,"encoder":38.018,"decode":111.824},"counters":{"tokens":2,"init_us":39343,"step_us":68498,"steps":2}}
+07-22 08:39:38.407  7491  7509 D BB.Bench: {"run":"translate","total_ms":322.402,"stages":{"tokenize":0.441,"encoder":60.121,"decode":259.480},"counters":{"tokens":6,"init_us":43436,"step_us":205389,"steps":6}}
+07-22 08:39:39.008  7491  7509 D BB.Bench: {"run":"translate","total_ms":600.213,"stages":{"tokenize":0.750,"encoder":92.594,"decode":505.285},"counters":{"tokens":12,"init_us":64955,"step_us":419929,"steps":12}}
+07-22 08:39:39.008  7491  7509 I BB_BENCH: WARMUP_DONE
+07-22 08:39:39.009  7491  7509 I BB_BENCH: BENCH_SENTENCE i=0 n=30 text="पानी।"
+07-22 08:39:39.162  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.437,"stages":{"tokenize":0.268,"encoder":39.432,"decode":111.712},"counters":{"tokens":2,"init_us":39401,"step_us":68263,"steps":2}}
+07-22 08:39:39.320  7491  7509 D BB.Bench: {"run":"translate","total_ms":157.460,"stages":{"tokenize":0.263,"encoder":43.625,"decode":112.638},"counters":{"tokens":2,"init_us":39526,"step_us":69075,"steps":2}}
+07-22 08:39:39.473  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.424,"stages":{"tokenize":0.276,"encoder":37.580,"decode":113.657},"counters":{"tokens":2,"init_us":40657,"step_us":68923,"steps":2}}
+07-22 08:39:39.625  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.637,"stages":{"tokenize":0.294,"encoder":37.904,"decode":112.476},"counters":{"tokens":2,"init_us":40806,"step_us":67694,"steps":2}}
+07-22 08:39:39.777  7491  7509 D BB.Bench: {"run":"translate","total_ms":150.601,"stages":{"tokenize":0.312,"encoder":37.813,"decode":111.516},"counters":{"tokens":2,"init_us":39934,"step_us":67798,"steps":2}}
+07-22 08:39:39.930  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.179,"stages":{"tokenize":0.339,"encoder":38.450,"decode":112.343},"counters":{"tokens":2,"init_us":40506,"step_us":67867,"steps":2}}
+07-22 08:39:40.081  7491  7509 D BB.Bench: {"run":"translate","total_ms":150.298,"stages":{"tokenize":0.306,"encoder":38.717,"decode":110.296},"counters":{"tokens":2,"init_us":38825,"step_us":67418,"steps":2}}
+07-22 08:39:40.233  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.783,"stages":{"tokenize":0.290,"encoder":38.320,"decode":112.282},"counters":{"tokens":2,"init_us":40926,"step_us":67293,"steps":2}}
+07-22 08:39:40.385  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.145,"stages":{"tokenize":0.222,"encoder":38.304,"decode":111.720},"counters":{"tokens":2,"init_us":40238,"step_us":67595,"steps":2}}
+07-22 08:39:40.538  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.969,"stages":{"tokenize":0.316,"encoder":38.277,"decode":112.440},"counters":{"tokens":2,"init_us":38904,"step_us":69669,"steps":2}}
+07-22 08:39:40.690  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.100,"stages":{"tokenize":0.313,"encoder":38.466,"decode":112.272},"counters":{"tokens":2,"init_us":40177,"step_us":68013,"steps":2}}
+07-22 08:39:40.843  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.464,"stages":{"tokenize":0.294,"encoder":39.261,"decode":110.875},"counters":{"tokens":2,"init_us":39387,"step_us":67572,"steps":2}}
+07-22 08:39:40.995  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.573,"stages":{"tokenize":0.364,"encoder":38.151,"decode":111.936},"counters":{"tokens":2,"init_us":39888,"step_us":68164,"steps":2}}
+07-22 08:39:41.157  7491  7509 D BB.Bench: {"run":"translate","total_ms":161.358,"stages":{"tokenize":0.317,"encoder":38.130,"decode":121.691},"counters":{"tokens":2,"init_us":43829,"step_us":72449,"steps":2}}
+07-22 08:39:41.335  7491  7509 D BB.Bench: {"run":"translate","total_ms":177.159,"stages":{"tokenize":0.390,"encoder":42.409,"decode":133.400},"counters":{"tokens":2,"init_us":45916,"step_us":83059,"steps":2}}
+07-22 08:39:41.488  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.337,"stages":{"tokenize":0.311,"encoder":40.041,"decode":111.000},"counters":{"tokens":2,"init_us":39520,"step_us":67682,"steps":2}}
+07-22 08:39:41.641  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.408,"stages":{"tokenize":0.297,"encoder":38.479,"decode":112.622},"counters":{"tokens":2,"init_us":41304,"step_us":67307,"steps":2}}
+07-22 08:39:41.792  7491  7509 D BB.Bench: {"run":"translate","total_ms":150.037,"stages":{"tokenize":0.352,"encoder":38.088,"decode":110.611},"counters":{"tokens":2,"init_us":39334,"step_us":67352,"steps":2}}
+07-22 08:39:41.945  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.727,"stages":{"tokenize":0.301,"encoder":38.020,"decode":113.464},"counters":{"tokens":2,"init_us":39743,"step_us":69887,"steps":2}}
+07-22 08:39:42.097  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.125,"stages":{"tokenize":0.380,"encoder":38.864,"decode":110.912},"counters":{"tokens":2,"init_us":39615,"step_us":67311,"steps":2}}
+07-22 08:39:42.250  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.727,"stages":{"tokenize":0.374,"encoder":38.766,"decode":111.565},"counters":{"tokens":2,"init_us":39885,"step_us":67590,"steps":2}}
+07-22 08:39:42.401  7491  7509 D BB.Bench: {"run":"translate","total_ms":150.186,"stages":{"tokenize":0.338,"encoder":37.794,"decode":111.106},"counters":{"tokens":2,"init_us":39665,"step_us":67602,"steps":2}}
+07-22 08:39:42.556  7491  7509 D BB.Bench: {"run":"translate","total_ms":154.736,"stages":{"tokenize":0.370,"encoder":39.268,"decode":114.214},"counters":{"tokens":2,"init_us":42306,"step_us":67944,"steps":2}}
+07-22 08:39:42.708  7491  7509 D BB.Bench: {"run":"translate","total_ms":151.591,"stages":{"tokenize":0.282,"encoder":38.423,"decode":111.934},"counters":{"tokens":2,"init_us":39747,"step_us":68201,"steps":2}}
+07-22 08:39:42.860  7491  7509 D BB.Bench: {"run":"translate","total_ms":150.711,"stages":{"tokenize":0.263,"encoder":38.016,"decode":111.478},"counters":{"tokens":2,"init_us":39343,"step_us":68157,"steps":2}}
+07-22 08:39:43.013  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.789,"stages":{"tokenize":0.275,"encoder":40.725,"decode":110.863},"counters":{"tokens":2,"init_us":39630,"step_us":67256,"steps":2}}
+07-22 08:39:43.164  7491  7509 D BB.Bench: {"run":"translate","total_ms":150.109,"stages":{"tokenize":0.387,"encoder":37.777,"decode":110.913},"counters":{"tokens":2,"init_us":39972,"step_us":66886,"steps":2}}
+07-22 08:39:43.317  7491  7509 D BB.Bench: {"run":"translate","total_ms":152.299,"stages":{"tokenize":0.331,"encoder":39.239,"decode":111.738},"counters":{"tokens":2,"init_us":40020,"step_us":67935,"steps":2}}
+07-22 08:39:43.474  7491  7509 D BB.Bench: {"run":"translate","total_ms":156.714,"stages":{"tokenize":0.294,"encoder":39.130,"decode":116.212},"counters":{"tokens":2,"init_us":41065,"step_us":71174,"steps":2}}
+07-22 08:39:43.645  7491  7509 D BB.Bench: {"run":"translate","total_ms":170.020,"stages":{"tokenize":0.420,"encoder":43.779,"decode":124.778},"counters":{"tokens":2,"init_us":44540,"step_us":76096,"steps":2}}
+07-22 08:39:43.645  7491  7509 I BB_BENCH: BENCH_OUTPUT i=0 out="Water ."
+07-22 08:39:43.645  7491  7509 I BB_BENCH: BENCH_SENTENCE i=1 n=30 text="नमस्ते, आप कैसे हैं?"
+07-22 08:39:43.999  7491  7509 D BB.Bench: {"run":"translate","total_ms":353.137,"stages":{"tokenize":0.464,"encoder":70.015,"decode":280.419},"counters":{"tokens":6,"init_us":51990,"step_us":217597,"steps":6}}
+07-22 08:39:44.355  7491  7509 D BB.Bench: {"run":"translate","total_ms":354.879,"stages":{"tokenize":0.610,"encoder":64.283,"decode":288.578},"counters":{"tokens":6,"init_us":54931,"step_us":221781,"steps":6}}
+07-22 08:39:44.680  7491  7509 D BB.Bench: {"run":"translate","total_ms":324.377,"stages":{"tokenize":0.529,"encoder":62.110,"decode":260.481},"counters":{"tokens":6,"init_us":44825,"step_us":205321,"steps":6}}
+07-22 08:39:45.001  7491  7509 D BB.Bench: {"run":"translate","total_ms":319.795,"stages":{"tokenize":0.467,"encoder":58.965,"decode":259.202},"counters":{"tokens":6,"init_us":44729,"step_us":204436,"steps":6}}
+07-22 08:39:45.318  7491  7509 D BB.Bench: {"run":"translate","total_ms":316.706,"stages":{"tokenize":0.450,"encoder":59.300,"decode":255.669},"counters":{"tokens":6,"init_us":41990,"step_us":203511,"steps":6}}
+07-22 08:39:45.639  7491  7509 D BB.Bench: {"run":"translate","total_ms":319.962,"stages":{"tokenize":0.420,"encoder":59.533,"decode":258.626},"counters":{"tokens":6,"init_us":42037,"step_us":206150,"steps":6}}
+07-22 08:39:45.957  7491  7509 D BB.Bench: {"run":"translate","total_ms":317.757,"stages":{"tokenize":0.439,"encoder":60.653,"decode":255.393},"counters":{"tokens":6,"init_us":39916,"step_us":205643,"steps":6}}
+07-22 08:39:46.282  7491  7509 D BB.Bench: {"run":"translate","total_ms":323.956,"stages":{"tokenize":0.498,"encoder":64.051,"decode":258.178},"counters":{"tokens":6,"init_us":41606,"step_us":206271,"steps":6}}
+07-22 08:39:46.603  7491  7509 D BB.Bench: {"run":"translate","total_ms":319.502,"stages":{"tokenize":0.486,"encoder":59.935,"decode":257.701},"counters":{"tokens":6,"init_us":41374,"step_us":205671,"steps":6}}
+07-22 08:39:46.953  7491  7509 D BB.Bench: {"run":"translate","total_ms":349.345,"stages":{"tokenize":0.611,"encoder":61.287,"decode":286.292},"counters":{"tokens":6,"init_us":47517,"step_us":227263,"steps":6}}
+07-22 08:39:47.273  7491  7509 D BB.Bench: {"run":"translate","total_ms":318.900,"stages":{"tokenize":0.429,"encoder":60.336,"decode":256.844},"counters":{"tokens":6,"init_us":41212,"step_us":205439,"steps":6}}
+07-22 08:39:47.594  7491  7509 D BB.Bench: {"run":"translate","total_ms":320.947,"stages":{"tokenize":0.467,"encoder":59.965,"decode":259.145},"counters":{"tokens":6,"init_us":43165,"step_us":205666,"steps":6}}
+07-22 08:39:47.922  7491  7509 D BB.Bench: {"run":"translate","total_ms":326.381,"stages":{"tokenize":0.504,"encoder":61.263,"decode":263.243},"counters":{"tokens":6,"init_us":43605,"step_us":209225,"steps":6}}
+07-22 08:39:48.250  7491  7509 D BB.Bench: {"run":"translate","total_ms":328.121,"stages":{"tokenize":0.520,"encoder":61.866,"decode":264.374},"counters":{"tokens":6,"init_us":44896,"step_us":209637,"steps":6}}
+07-22 08:39:48.570  7491  7509 D BB.Bench: {"run":"translate","total_ms":318.903,"stages":{"tokenize":0.403,"encoder":61.848,"decode":255.386},"counters":{"tokens":6,"init_us":41884,"step_us":203776,"steps":6}}
+07-22 08:39:48.892  7491  7509 D BB.Bench: {"run":"translate","total_ms":321.160,"stages":{"tokenize":0.523,"encoder":59.446,"decode":259.945},"counters":{"tokens":6,"init_us":42269,"step_us":207777,"steps":6}}
+07-22 08:39:49.230  7491  7509 D BB.Bench: {"run":"translate","total_ms":337.262,"stages":{"tokenize":0.423,"encoder":61.962,"decode":273.363},"counters":{"tokens":6,"init_us":44799,"step_us":216544,"steps":6}}
+07-22 08:39:49.589  7491  7509 D BB.Bench: {"run":"translate","total_ms":358.126,"stages":{"tokenize":0.617,"encoder":65.955,"decode":290.365},"counters":{"tokens":6,"init_us":65876,"step_us":214542,"steps":6}}
+07-22 08:39:49.913  7491  7509 D BB.Bench: {"run":"translate","total_ms":323.255,"stages":{"tokenize":0.435,"encoder":60.977,"decode":260.625},"counters":{"tokens":6,"init_us":42368,"step_us":208385,"steps":6}}
+07-22 08:39:50.239  7491  7509 D BB.Bench: {"run":"translate","total_ms":325.807,"stages":{"tokenize":0.509,"encoder":60.839,"decode":263.160},"counters":{"tokens":6,"init_us":43018,"step_us":210172,"steps":6}}
+07-22 08:39:50.565  7491  7509 D BB.Bench: {"run":"translate","total_ms":324.501,"stages":{"tokenize":0.399,"encoder":61.515,"decode":261.353},"counters":{"tokens":6,"init_us":43766,"step_us":207434,"steps":6}}
+07-22 08:39:50.892  7491  7509 D BB.Bench: {"run":"translate","total_ms":326.119,"stages":{"tokenize":0.449,"encoder":60.716,"decode":263.674},"counters":{"tokens":6,"init_us":42971,"step_us":210964,"steps":6}}
+07-22 08:39:51.214  7491  7509 D BB.Bench: {"run":"translate","total_ms":321.386,"stages":{"tokenize":0.557,"encoder":60.864,"decode":258.708},"counters":{"tokens":6,"init_us":41878,"step_us":207384,"steps":6}}
+07-22 08:39:51.536  7491  7509 D BB.Bench: {"run":"translate","total_ms":321.754,"stages":{"tokenize":0.464,"encoder":59.993,"decode":259.977},"counters":{"tokens":6,"init_us":42390,"step_us":207595,"steps":6}}
+07-22 08:39:51.867  7491  7509 D BB.Bench: {"run":"translate","total_ms":330.319,"stages":{"tokenize":0.486,"encoder":60.925,"decode":267.455},"counters":{"tokens":6,"init_us":44032,"step_us":212362,"steps":6}}
+07-22 08:39:52.217  7491  7509 D BB.Bench: {"run":"translate","total_ms":348.759,"stages":{"tokenize":0.488,"encoder":61.995,"decode":284.815},"counters":{"tokens":6,"init_us":48751,"step_us":224587,"steps":6}}
+07-22 08:39:52.544  7491  7509 D BB.Bench: {"run":"translate","total_ms":326.818,"stages":{"tokenize":0.555,"encoder":64.362,"decode":260.763},"counters":{"tokens":6,"init_us":45544,"step_us":205430,"steps":6}}
+07-22 08:39:52.866  7491  7509 D BB.Bench: {"run":"translate","total_ms":321.248,"stages":{"tokenize":0.372,"encoder":59.733,"decode":259.794},"counters":{"tokens":6,"init_us":42120,"step_us":207693,"steps":6}}
+07-22 08:39:53.186  7491  7509 D BB.Bench: {"run":"translate","total_ms":318.939,"stages":{"tokenize":0.419,"encoder":60.930,"decode":256.381},"counters":{"tokens":6,"init_us":42620,"step_us":204092,"steps":6}}
+07-22 08:39:53.515  7491  7509 D BB.Bench: {"run":"translate","total_ms":328.073,"stages":{"tokenize":0.418,"encoder":60.791,"decode":265.669},"counters":{"tokens":6,"init_us":41274,"step_us":214296,"steps":6}}
+07-22 08:39:53.515  7491  7509 I BB_BENCH: BENCH_OUTPUT i=1 out="Hi , how are you ?"
+07-22 08:39:53.515  7491  7509 I BB_BENCH: BENCH_SENTENCE i=2 n=30 text="आज मौसम बहुत अच्छा है और मैं बाहर जाना चाहता हूँ।"
+07-22 08:39:54.121  7491  7509 D BB.Bench: {"run":"translate","total_ms":605.161,"stages":{"tokenize":0.634,"encoder":98.486,"decode":504.460},"counters":{"tokens":12,"init_us":49752,"step_us":434635,"steps":12}}
+07-22 08:39:54.723  7491  7509 D BB.Bench: {"run":"translate","total_ms":601.005,"stages":{"tokenize":0.704,"encoder":92.352,"decode":506.326},"counters":{"tokens":12,"init_us":48381,"step_us":436282,"steps":12}}
+07-22 08:39:55.307  7491  7509 D BB.Bench: {"run":"translate","total_ms":584.006,"stages":{"tokenize":0.599,"encoder":95.531,"decode":486.271},"counters":{"tokens":12,"init_us":47390,"step_us":420000,"steps":12}}
+07-22 08:39:55.886  7491  7509 D BB.Bench: {"run":"translate","total_ms":577.766,"stages":{"tokenize":0.632,"encoder":88.951,"decode":486.678},"counters":{"tokens":12,"init_us":46560,"step_us":420813,"steps":12}}
+07-22 08:39:56.479  7491  7509 D BB.Bench: {"run":"translate","total_ms":592.974,"stages":{"tokenize":0.574,"encoder":89.890,"decode":500.896},"counters":{"tokens":12,"init_us":51406,"step_us":429640,"steps":12}}
+07-22 08:39:57.099  7491  7509 D BB.Bench: {"run":"translate","total_ms":618.579,"stages":{"tokenize":0.654,"encoder":98.154,"decode":518.050},"counters":{"tokens":12,"init_us":50194,"step_us":448076,"steps":12}}
+07-22 08:39:57.755  7491  7509 D BB.Bench: {"run":"translate","total_ms":655.797,"stages":{"tokenize":0.656,"encoder":91.739,"decode":561.783},"counters":{"tokens":12,"init_us":65784,"step_us":471589,"steps":12}}
+07-22 08:39:58.338  7491  7509 D BB.Bench: {"run":"translate","total_ms":582.233,"stages":{"tokenize":0.625,"encoder":94.715,"decode":485.295},"counters":{"tokens":12,"init_us":49412,"step_us":417492,"steps":12}}
+07-22 08:39:58.912  7491  7509 D BB.Bench: {"run":"translate","total_ms":572.650,"stages":{"tokenize":0.608,"encoder":88.451,"decode":481.962},"counters":{"tokens":12,"init_us":47890,"step_us":416037,"steps":12}}
+07-22 08:39:59.498  7491  7509 D BB.Bench: {"run":"translate","total_ms":585.586,"stages":{"tokenize":0.656,"encoder":90.674,"decode":492.739},"counters":{"tokens":12,"init_us":50972,"step_us":423710,"steps":12}}
+07-22 08:40:00.100  7491  7509 D BB.Bench: {"run":"translate","total_ms":601.687,"stages":{"tokenize":0.537,"encoder":91.138,"decode":508.519},"counters":{"tokens":12,"init_us":49331,"step_us":438905,"steps":12}}
+07-22 08:40:00.675  7491  7509 D BB.Bench: {"run":"translate","total_ms":574.224,"stages":{"tokenize":0.606,"encoder":90.970,"decode":481.041},"counters":{"tokens":12,"init_us":47363,"step_us":415354,"steps":12}}
+07-22 08:40:01.245  7491  7509 D BB.Bench: {"run":"translate","total_ms":568.608,"stages":{"tokenize":0.606,"encoder":88.344,"decode":478.142},"counters":{"tokens":12,"init_us":46263,"step_us":413547,"steps":12}}
+07-22 08:40:01.810  7491  7509 D BB.Bench: {"run":"translate","total_ms":565.008,"stages":{"tokenize":0.571,"encoder":88.439,"decode":474.301},"counters":{"tokens":12,"init_us":46282,"step_us":410335,"steps":12}}
+07-22 08:40:02.386  7491  7509 D BB.Bench: {"run":"translate","total_ms":574.187,"stages":{"tokenize":0.608,"encoder":89.668,"decode":482.348},"counters":{"tokens":12,"init_us":46251,"step_us":417084,"steps":12}}
+07-22 08:40:03.077  7491  7509 D BB.Bench: {"run":"translate","total_ms":690.994,"stages":{"tokenize":0.760,"encoder":91.886,"decode":596.694},"counters":{"tokens":12,"init_us":61580,"step_us":514008,"steps":12}}
+07-22 08:40:03.748  7491  7509 D BB.Bench: {"run":"translate","total_ms":669.434,"stages":{"tokenize":0.521,"encoder":97.756,"decode":569.246},"counters":{"tokens":12,"init_us":60741,"step_us":487661,"steps":12}}
+07-22 08:40:04.426  7491  7509 D BB.Bench: {"run":"translate","total_ms":676.896,"stages":{"tokenize":0.565,"encoder":102.313,"decode":572.130},"counters":{"tokens":12,"init_us":59947,"step_us":490800,"steps":12}}
+07-22 08:40:05.103  7491  7509 D BB.Bench: {"run":"translate","total_ms":676.368,"stages":{"tokenize":0.552,"encoder":114.991,"decode":559.086},"counters":{"tokens":12,"init_us":61723,"step_us":476479,"steps":12}}
+07-22 08:40:05.763  7491  7509 D BB.Bench: {"run":"translate","total_ms":659.297,"stages":{"tokenize":0.483,"encoder":97.422,"decode":559.654},"counters":{"tokens":12,"init_us":50301,"step_us":487951,"steps":12}}
+07-22 08:40:06.443  7491  7509 D BB.Bench: {"run":"translate","total_ms":679.652,"stages":{"tokenize":0.498,"encoder":102.209,"decode":575.230},"counters":{"tokens":12,"init_us":50008,"step_us":504274,"steps":12}}
+07-22 08:40:07.121  7491  7509 D BB.Bench: {"run":"translate","total_ms":677.536,"stages":{"tokenize":0.546,"encoder":97.702,"decode":577.893},"counters":{"tokens":12,"init_us":50466,"step_us":507142,"steps":12}}
+07-22 08:40:07.786  7491  7509 D BB.Bench: {"run":"translate","total_ms":664.102,"stages":{"tokenize":0.478,"encoder":96.644,"decode":565.463},"counters":{"tokens":12,"init_us":50982,"step_us":495152,"steps":12}}
+07-22 08:40:08.511  7491  7509 D BB.Bench: {"run":"translate","total_ms":723.973,"stages":{"tokenize":0.483,"encoder":110.224,"decode":611.551},"counters":{"tokens":12,"init_us":69767,"step_us":519876,"steps":12}}
+07-22 08:40:09.247  7491  7509 D BB.Bench: {"run":"translate","total_ms":735.716,"stages":{"tokenize":0.427,"encoder":113.250,"decode":620.558},"counters":{"tokens":12,"init_us":66522,"step_us":534695,"steps":12}}
+07-22 08:40:09.934  7491  7509 D BB.Bench: {"run":"translate","total_ms":685.909,"stages":{"tokenize":0.479,"encoder":95.999,"decode":587.995},"counters":{"tokens":12,"init_us":59658,"step_us":509420,"steps":12}}
+07-22 08:40:10.671  7491  7509 D BB.Bench: {"run":"translate","total_ms":736.058,"stages":{"tokenize":0.429,"encoder":95.235,"decode":638.579},"counters":{"tokens":12,"init_us":54743,"step_us":562749,"steps":12}}
+07-22 08:40:11.445  7491  7509 D BB.Bench: {"run":"translate","total_ms":773.103,"stages":{"tokenize":0.586,"encoder":121.274,"decode":649.314},"counters":{"tokens":12,"init_us":64148,"step_us":563074,"steps":12}}
+07-22 08:40:12.175  7491  7509 D BB.Bench: {"run":"translate","total_ms":728.824,"stages":{"tokenize":0.844,"encoder":125.483,"decode":600.602},"counters":{"tokens":12,"init_us":67055,"step_us":513329,"steps":12}}
+07-22 08:40:12.901  7491  7509 D BB.Bench: {"run":"translate","total_ms":725.524,"stages":{"tokenize":0.594,"encoder":116.948,"decode":606.489},"counters":{"tokens":12,"init_us":62823,"step_us":523979,"steps":12}}
+07-22 08:40:12.901  7491  7509 I BB_BENCH: BENCH_OUTPUT i=2 out="The weather is great today and I want to go out ."
+07-22 08:40:12.998  7491  7509 I BB_BENCH: BENCH_MEM state=hi_en_only totalPss=492616 nativePss=414342 dalvikPss=20372
+07-22 08:40:12.999  7491  7509 I BB_BENCH: BENCH_SENTENCE i=3 n=2 text="memory probe (not a benchmark)"
+07-22 08:40:13.269  7491  7509 W BB.Bench: stage('tokenizer:src_dict') with no active run on this thread
+07-22 08:40:14.438  7491  7509 W BB.Bench: stage('tokenizer:tgt_dict') with no active run on this thread
+07-22 08:40:15.023  7491  7509 W BB.Bench: stage('tokenizer:reverse_index') with no active run on this thread
+07-22 08:40:26.524  7491  7509 W BB.Bench: stage('sessions:parallel') with no active run on this thread
+07-22 08:40:26.525  7491  7509 W BB.Bench: counter('verify_us:encoder') with no active run on this thread
+07-22 08:40:26.525  7491  7509 W BB.Bench: counter('extract_us:encoder') with no active run on this thread
+07-22 08:40:26.525  7491  7509 W BB.Bench: counter('create_us:encoder') with no active run on this thread
+07-22 08:40:26.526  7491  7509 W BB.Bench: counter('bytes:encoder') with no active run on this thread
+07-22 08:40:26.526  7491  7509 W BB.Bench: counter('verify_us:decoder_init') with no active run on this thread
+07-22 08:40:26.526  7491  7509 W BB.Bench: counter('extract_us:decoder_init') with no active run on this thread
+07-22 08:40:26.526  7491  7509 W BB.Bench: counter('create_us:decoder_init') with no active run on this thread
+07-22 08:40:26.527  7491  7509 W BB.Bench: counter('bytes:decoder_init') with no active run on this thread
+07-22 08:40:26.527  7491  7509 W BB.Bench: counter('verify_us:decoder_step') with no active run on this thread
+07-22 08:40:26.527  7491  7509 W BB.Bench: counter('extract_us:decoder_step') with no active run on this thread
+07-22 08:40:26.527  7491  7509 W BB.Bench: counter('create_us:decoder_step') with no active run on this thread
+07-22 08:40:26.527  7491  7509 W BB.Bench: counter('bytes:decoder_step') with no active run on this thread
+07-22 08:40:26.537  7491  7509 W BB.Bench: stage('cache_contract') with no active run on this thread
+07-22 08:40:26.784  7491  7509 D BB.Bench: {"run":"translate","total_ms":246.831,"stages":{"tokenize":0.895,"encoder":65.091,"decode":179.598},"counters":{"tokens":2,"init_us":61443,"step_us":109091,"steps":2}}
+07-22 08:40:26.975  7491  7509 D BB.Bench: {"run":"translate","total_ms":189.853,"stages":{"tokenize":0.430,"encoder":55.395,"decode":133.116},"counters":{"tokens":2,"init_us":53714,"step_us":75436,"steps":2}}
+07-22 08:40:27.094  7491  7509 I BB_BENCH: BENCH_MEM state=both_directions totalPss=1113692 nativePss=1009442 dalvikPss=46580

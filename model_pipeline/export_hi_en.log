@@ -1,0 +1,67 @@
+﻿python : C:\Users\vishn\.pyenv\pyenv-win\versions\3.12.9\Lib\site-packages\huggingface_hub\file_download.py:949: FutureWarning: 
+`resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force 
+a new download, use `force_download=True`.
+At line:1 char:373
++ ... l_pipeline; python cached_export.py --direction hi_en --out onnx_cach ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\vishn\...download=True`.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warnings.warn(
+C:\Users\vishn\.pyenv\pyenv-win\versions\3.12.9\Lib\site-packages\huggingface_hub\file_download.py:143: UserWarning: 
+`huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support 
+them in C:\Users\vishn\.cache\huggingface\hub\models--ai4bharat--indictrans2-indic-en-dist-200M. Caching files will still work 
+but in a degraded version that might require more space on your disk. This warning can be disabled by setting the 
+`HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see 
+https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to 
+activate developer mode, see this article: 
+https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+A new version of the following files was downloaded from https://huggingface.co/ai4bharat/indictrans2-indic-en-dist-200M:
+- configuration_indictrans.py
+. Make sure to double-check they do not contain any added malicious code. To avoid downloading new versions of the code file, you 
+can pin a revision.
+A new version of the following files was downloaded from https://huggingface.co/ai4bharat/indictrans2-indic-en-dist-200M:
+- modeling_indictrans.py
+. Make sure to double-check they do not contain any added malicious code. To avoid downloading new versions of the code file, you 
+can pin a revision.
+C:\Users\vishn\.pyenv\pyenv-win\versions\3.12.9\Lib\site-packages\huggingface_hub\file_download.py:949: FutureWarning: 
+`resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force 
+a new download, use `force_download=True`.
+  warnings.warn(
+C:\Users\vishn\.cache\huggingface\modules\transformers_modules\ai4bharat\indictrans2-indic-en-dist-200M\eb9e49d81077cfc5311e82ff36
+d8c1fc11557b5d\modeling_indictrans.py:185: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be 
+incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means 
+that the trace might not generalize to other inputs!
+  if max_pos > self.weights.size(0):
+C:\Users\vishn\.cache\huggingface\modules\transformers_modules\ai4bharat\indictrans2-indic-en-dist-200M\eb9e49d81077cfc5311e82ff36
+d8c1fc11557b5d\modeling_indictrans.py:328: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be 
+incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means 
+that the trace might not generalize to other inputs!
+  if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
+C:\Users\vishn\.cache\huggingface\modules\transformers_modules\ai4bharat\indictrans2-indic-en-dist-200M\eb9e49d81077cfc5311e82ff36
+d8c1fc11557b5d\modeling_indictrans.py:335: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be 
+incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means 
+that the trace might not generalize to other inputs!
+  if attention_mask.size() != (bsz, 1, tgt_len, src_len):
+C:\Users\vishn\.cache\huggingface\modules\transformers_modules\ai4bharat\indictrans2-indic-en-dist-200M\eb9e49d81077cfc5311e82ff36
+d8c1fc11557b5d\modeling_indictrans.py:376: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be 
+incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means 
+that the trace might not generalize to other inputs!
+  if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
+C:\Users\vishn\.pyenv\pyenv-win\versions\3.12.9\Lib\site-packages\transformers\modeling_attn_mask_utils.py:86: TracerWarning: 
+Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so 
+this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if input_shape[-1] > 1 or self.sliding_window is not None:
+C:\Users\vishn\.cache\huggingface\modules\transformers_modules\ai4bharat\indictrans2-indic-en-dist-200M\eb9e49d81077cfc5311e82ff36
+d8c1fc11557b5d\modeling_indictrans.py:290: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be 
+incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means 
+that the trace might not generalize to other inputs!
+  and past_key_value[0].shape[2] == key_value_states.shape[1]
+Loading ai4bharat/indictrans2-indic-en-dist-200M ...
+layers=18 heads=8 head_dim=64 hidden=512
+Exporting encoder.onnx ...
+Exporting decoder_init.onnx ...
+Exporting decoder_step.onnx ...
+Done. Wrote encoder.onnx, decoder_init.onnx, decoder_step.onnx to onnx_cached_hi_en
