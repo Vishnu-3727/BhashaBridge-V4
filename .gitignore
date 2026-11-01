@@ -53,3 +53,5 @@ __pycache__/
 # The parsed evidence lives in model_pipeline/*.jsonl and docs/.
 /.idea/
 /model_pipeline/*.log
+
+local.properties
